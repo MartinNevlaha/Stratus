@@ -77,8 +77,12 @@ def _merge_hooks(
         s_matchers = dict(stratus_idx.get(event_type, {}))
         merged: list[dict[str, object]] = []
         for group in ex_groups:
+            if "matcher" not in group:
+                # Matcher-less group (Claude Code allows this): preserve as-is.
+                merged.append(group)
+                continue
             matcher = group["matcher"]
-            user = [h for h in group["hooks"] if not _is_stratus_hook(h)]
+            user = [h for h in group.get("hooks", []) if not _is_stratus_hook(h)]
             combined = user + s_matchers.pop(matcher, [])
             if combined:
                 merged.append({"matcher": matcher, "hooks": combined})

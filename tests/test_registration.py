@@ -241,6 +241,65 @@ class TestMergeHooks:
         result = _merge_hooks({}, {})
         assert result == {}
 
+    def test_group_without_matcher_preserved(self) -> None:
+        """Existing hook groups that lack a 'matcher' key must be preserved as-is."""
+        no_matcher_group = {"hooks": [{"type": "command", "command": "some-user-tool"}]}
+        existing = {"PreToolUse": [no_matcher_group]}
+        result = _merge_hooks(existing, {})
+        assert no_matcher_group in result["PreToolUse"]
+
+    def test_group_without_matcher_alongside_stratus(self) -> None:
+        """Matcher-less groups survive merge even when stratus adds its own groups."""
+        no_matcher_group = {"hooks": [{"type": "command", "command": "some-user-tool"}]}
+        stratus = build_hooks_config()["hooks"]
+        assert isinstance(stratus, dict)
+        existing = {"PreToolUse": [no_matcher_group]}
+        result = _merge_hooks(existing, stratus)
+        pre = result.get("PreToolUse", [])
+        assert no_matcher_group in pre
+
+    def test_group_without_hooks_key_skipped_gracefully(self) -> None:
+        """Hook groups with no 'hooks' key (malformed) do not raise KeyError."""
+        malformed = {"matcher": ".*"}
+        existing = {"PostToolUse": [malformed]}
+        result = _merge_hooks(existing, {})
+        # Empty after stripping; group is dropped
+        assert result.get("PostToolUse", []) == []
+
+    def test_real_world_settings_with_matcherless_and_empty_event_arrays(self) -> None:
+        """Regression: settings.json with matcher-less SessionStart + empty event arrays."""
+        # Mirrors a real project settings.json where SessionStart has no matcher
+        # and PreToolUse/PostToolUse/Stop are empty arrays.
+        existing_hooks = {
+            "SessionStart": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": '"$CLAUDE_PROJECT_DIR"/schemas/scripts/sync-schemas.sh',
+                        }
+                    ]
+                }
+            ],
+            "PreToolUse": [],
+            "PostToolUse": [],
+            "Stop": [],
+        }
+        stratus = build_hooks_config()["hooks"]
+        assert isinstance(stratus, dict)
+
+        result = _merge_hooks(existing_hooks, stratus)
+
+        # Matcher-less SessionStart hook preserved
+        session_start = result.get("SessionStart", [])
+        user_group = {"hooks": [{"type": "command", "command": '"$CLAUDE_PROJECT_DIR"/schemas/scripts/sync-schemas.sh'}]}
+        assert user_group in session_start
+
+        # Stratus hooks present in previously-empty event types
+        assert "PreToolUse" in result
+        assert "PostToolUse" in result
+        assert "Stop" in result
+
 
 class TestRegisterHooks:
     def test_creates_settings_json_in_dot_claude(self, tmp_path: Path) -> None:
