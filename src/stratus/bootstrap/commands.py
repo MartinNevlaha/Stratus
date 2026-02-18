@@ -169,6 +169,8 @@ def cmd_init(args: argparse.Namespace) -> None:
             except EOFError:
                 api_key = ""
             if api_key:
+                if not api_key.startswith("sk-"):
+                    print("Warning: key does not look like an OpenAI key (expected sk-...).")
                 from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
 
                 if configure_vexor_api_key(api_key):
