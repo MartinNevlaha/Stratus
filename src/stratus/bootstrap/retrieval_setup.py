@@ -156,19 +156,31 @@ def detect_cuda() -> bool:
         return False
 
 
-def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) -> bool:
-    """Run `vexor local --setup` with GPU if available, else CPU. Returns True on success."""
+def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) -> tuple[bool, bool]:
+    """Run `vexor local --setup` with GPU if available, else CPU.
+
+    Returns (success, used_cuda). If --cuda fails, retries with --cpu automatically.
+    """
     if cuda is None:
         cuda = detect_cuda()
-    device_flag = "--cuda" if cuda else "--cpu"
-    try:
-        result = subprocess.run(
-            [vexor_binary, "local", "--setup", device_flag],
-            timeout=180,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+
+    def _run(flag: str) -> bool:
+        try:
+            result = subprocess.run(
+                [vexor_binary, "local", "--setup", flag],
+                timeout=180,
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+
+    if cuda:
+        if _run("--cuda"):
+            return True, True
+        # CUDA runtime not available (e.g. onnxruntime-gpu not installed) — fall back to CPU
+        cuda = False
+
+    return _run("--cpu"), False
 
 
 def run_initial_index_background(

@@ -385,23 +385,41 @@ class TestSetupVexorLocal:
         result_mock = MagicMock(returncode=0)
         with patch(self.MOCK_TARGET, return_value=result_mock):
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
-            assert setup_vexor_local() is True
+            ok, _ = setup_vexor_local()
+            assert ok is True
 
     def test_failure_returns_false(self) -> None:
         result_mock = MagicMock(returncode=1)
         with patch(self.MOCK_TARGET, return_value=result_mock):
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
-            assert setup_vexor_local() is False
+            ok, _ = setup_vexor_local()
+            assert ok is False
 
     def test_binary_not_found_returns_false(self) -> None:
         with patch(self.MOCK_TARGET, side_effect=FileNotFoundError):
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
-            assert setup_vexor_local() is False
+            ok, _ = setup_vexor_local()
+            assert ok is False
 
     def test_timeout_returns_false(self) -> None:
         with patch(self.MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["vexor"], 120)):
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
-            assert setup_vexor_local() is False
+            ok, _ = setup_vexor_local()
+            assert ok is False
+
+    def test_cuda_fallback_to_cpu(self) -> None:
+        """When --cuda fails, setup retries with --cpu and returns (True, False)."""
+        fail_mock = MagicMock(returncode=1)
+        ok_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, side_effect=[fail_mock, ok_mock]) as mock_run:
+            with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
+                from stratus.bootstrap.retrieval_setup import setup_vexor_local
+                ok, used_cuda = setup_vexor_local()
+        assert ok is True
+        assert used_cuda is False
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        assert any("--cuda" in c for c in calls)
+        assert any("--cpu" in c for c in calls)
 
     def test_passes_correct_command(self) -> None:
         result_mock = MagicMock(returncode=0)

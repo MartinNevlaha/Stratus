@@ -167,7 +167,13 @@ def cmd_init(args: argparse.Namespace) -> None:
         cuda = detect_cuda()
         device = "GPU (CUDA)" if cuda else "CPU"
         print(f"Downloading local embedding model on {device}...")
-        if setup_vexor_local(cuda=cuda):
+        ok, used_cuda = setup_vexor_local(cuda=cuda)
+        if ok:
+            if cuda and not used_cuda:
+                print(
+                    "Note: CUDA runtime not available — running on CPU. "
+                    "To enable GPU: uv pip install onnxruntime-gpu"
+                )
             print("Starting indexing in background...")
             if run_initial_index_background(str(git_root)):
                 print("Indexing: running in background (run `vexor status` to check progress)")

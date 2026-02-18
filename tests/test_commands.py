@@ -607,7 +607,7 @@ class TestCmdInitRetrieval:
         status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
         ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
         mock_index = MagicMock(return_value=True)
-        mock_setup = MagicMock(return_value=True)
+        mock_setup = MagicMock(return_value=(True, False))
         with (
             patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
             patch(
