@@ -200,6 +200,12 @@ def main() -> None:
         help="Skip MCP server registration in .mcp.json",
     )
     _ = init_p.add_argument(
+        "--skip-retrieval",
+        action="store_true",
+        dest="skip_retrieval",
+        help="Skip retrieval backend detection and setup",
+    )
+    _ = init_p.add_argument(
         "--enable-delivery",
         action="store_true",
         dest="enable_delivery",

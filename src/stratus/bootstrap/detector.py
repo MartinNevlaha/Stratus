@@ -152,8 +152,33 @@ def _classify_dir(d: Path, repo_root: Path) -> ServiceInfo | SharedComponent | N
                     dependencies=list(pkg_data.get("dependencies", {}).keys()),
                 )
 
-    # Python: pyproject.toml + main.py or app.py
+    # Django: manage.py
+    manage_py = d / "manage.py"
+    if manage_py.exists():
+        return ServiceInfo(
+            name=name,
+            type=ServiceType.DJANGO,
+            path=rel_path,
+            language="python",
+            entry_point="manage.py",
+            package_manager="uv" if (d / "pyproject.toml").exists() else "pip",
+        )
+
+    # FastAPI: pyproject.toml or requirements.txt with fastapi
     pyproject = d / "pyproject.toml"
+    requirements_txt = d / "requirements.txt"
+    if _has_python_dep(pyproject, requirements_txt, "fastapi"):
+        entry = "main.py" if (d / "main.py").exists() else "app.py"
+        return ServiceInfo(
+            name=name,
+            type=ServiceType.FASTAPI,
+            path=rel_path,
+            language="python",
+            entry_point=entry,
+            package_manager="uv" if pyproject.exists() else "pip",
+        )
+
+    # Python: pyproject.toml + main.py or app.py
     if pyproject.exists() and ((d / "main.py").exists() or (d / "app.py").exists()):
         entry = "main.py" if (d / "main.py").exists() else "app.py"
         return ServiceInfo(
@@ -164,6 +189,21 @@ def _classify_dir(d: Path, repo_root: Path) -> ServiceInfo | SharedComponent | N
             entry_point=entry,
             package_manager="uv",
         )
+
+    # Kotlin: build.gradle.kts or build.gradle with .kt files
+    gradle_kts = d / "build.gradle.kts"
+    gradle_groovy = d / "build.gradle"
+    if gradle_kts.exists() or gradle_groovy.exists():
+        kt_files = list(d.rglob("*.kt"))
+        if kt_files:
+            return ServiceInfo(
+                name=name,
+                type=ServiceType.KOTLIN,
+                path=rel_path,
+                language="kotlin",
+                entry_point="src/main/kotlin",
+                package_manager="gradle",
+            )
 
     # Go: go.mod
     go_mod = d / "go.mod"
@@ -190,6 +230,19 @@ def _classify_dir(d: Path, repo_root: Path) -> ServiceInfo | SharedComponent | N
         )
 
     return None
+
+
+def _has_python_dep(pyproject: Path, requirements: Path, dep: str) -> bool:
+    """Check if a Python dependency exists in pyproject.toml or requirements.txt."""
+    if pyproject.exists():
+        content = pyproject.read_text()
+        if dep in content:
+            return True
+    if requirements.exists():
+        for line in requirements.read_text().splitlines():
+            if line.strip().lower().startswith(dep):
+                return True
+    return False
 
 
 def _read_json(path: Path) -> dict | None:  # type: ignore[type-arg]

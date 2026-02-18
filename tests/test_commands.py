@@ -103,7 +103,8 @@ class TestCmdInit:
         data = cast(dict[str, object], json.loads((tmp_path / ".ai-framework.json").read_text()))
         assert data.get("old") is True
         captured = capsys.readouterr()
-        assert "already exists" in captured.out
+        # With retrieval auto-detection, existing configs get merged (not "already exists")
+        assert "updated retrieval" in captured.out or "already exists" in captured.out
 
     def test_init_not_in_repo_exits(
         self,
@@ -377,6 +378,8 @@ class TestCmdInit:
     ) -> None:
         """When scope=None, interactive prompts run and set scope."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
         ns = argparse.Namespace(
             dry_run=False,
             force=False,
@@ -390,6 +393,10 @@ class TestCmdInit:
                 "stratus.bootstrap.commands._interactive_init",
                 return_value=("local", False),
             ) as mock_interactive,
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_backends",
+                return_value=BackendStatus(),
+            ),
         ):
             cmd_init(ns)
         mock_interactive.assert_called_once()
@@ -441,6 +448,147 @@ class TestCmdInit:
         ):
             cmd_init(ns)
         mock_interactive.assert_not_called()
+
+
+class TestCmdInitRetrieval:
+    """Tests for retrieval backend detection in cmd_init."""
+
+    def test_init_detects_vexor_and_enables(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When vexor is detected, it's enabled in .ai-framework.json."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
+        ns = argparse.Namespace(dry_run=False, force=False, scope="local", skip_retrieval=False)
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_backends",
+                return_value=status,
+            ),
+        ):
+            cmd_init(ns)
+        ai = tmp_path / ".ai-framework.json"
+        assert ai.exists()
+        data = json.loads(ai.read_text())
+        assert data["retrieval"]["vexor"]["enabled"] is True
+
+    def test_init_vexor_unavailable_disables(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When vexor not detected, it's disabled in .ai-framework.json."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        status = BackendStatus(vexor_available=False)
+        ns = argparse.Namespace(dry_run=False, force=False, scope="local", skip_retrieval=False)
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_backends",
+                return_value=status,
+            ),
+        ):
+            cmd_init(ns)
+        ai = tmp_path / ".ai-framework.json"
+        data = json.loads(ai.read_text())
+        assert data["retrieval"]["vexor"]["enabled"] is False
+
+    def test_init_existing_project_merges_retrieval(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When .ai-framework.json exists, retrieval config is merged (not overwritten)."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        # Pre-existing config with learning settings
+        existing = {
+            "version": 1,
+            "learning": {"global_enabled": True},
+            "retrieval": {"vexor": {"enabled": False}},
+        }
+        (tmp_path / ".ai-framework.json").write_text(json.dumps(existing))
+
+        status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
+        ns = argparse.Namespace(dry_run=False, force=False, scope="local", skip_retrieval=False)
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_backends",
+                return_value=status,
+            ),
+        ):
+            cmd_init(ns)
+        data = json.loads((tmp_path / ".ai-framework.json").read_text())
+        # Retrieval upgraded
+        assert data["retrieval"]["vexor"]["enabled"] is True
+        # Other config preserved
+        assert data["learning"]["global_enabled"] is True
+
+    def test_init_skip_retrieval_flag(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """With --skip-retrieval, detect_backends is not called."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        ns = argparse.Namespace(dry_run=False, force=False, scope="local", skip_retrieval=True)
+        mock_detect = MagicMock()
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_backends",
+                mock_detect,
+            ),
+        ):
+            cmd_init(ns)
+        mock_detect.assert_not_called()
+
+    def test_init_runs_indexing_when_approved(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When interactive mode approves indexing, run_initial_index is called."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
+        ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
+        mock_index = MagicMock(return_value={"status": "ok", "output": "Indexed 10 files"})
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_backends",
+                return_value=status,
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
+                return_value=(True, False, True),
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_initial_index",
+                mock_index,
+            ),
+            patch(
+                "stratus.bootstrap.commands._interactive_init",
+                return_value=("local", False),
+            ),
+        ):
+            cmd_init(ns)
+        mock_index.assert_called_once()
+        captured = capsys.readouterr()
+        assert "index" in captured.out.lower()
 
 
 class TestInteractiveInit:

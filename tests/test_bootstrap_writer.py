@@ -8,6 +8,7 @@ from pathlib import Path
 from stratus.bootstrap.models import ProjectGraph, ServiceInfo, ServiceType
 from stratus.bootstrap.writer import (
     _build_default_config,
+    update_ai_framework_config,
     write_ai_framework_config,
     write_project_graph,
 )
@@ -92,3 +93,48 @@ class TestBuildDefaultConfig:
         config = _build_default_config(tmp_path, graph)
         # Should have at least some configuration sections
         assert len(config) > 0
+
+    def test_retrieval_override_used(self, tmp_path):
+        """When retrieval_config provided, it overrides default retrieval section."""
+        graph = _make_graph(tmp_path)
+        custom_retrieval = {
+            "vexor": {"enabled": False, "project_root": str(tmp_path)},
+            "devrag": {"enabled": True},
+        }
+        config = _build_default_config(tmp_path, graph, retrieval_config=custom_retrieval)
+        assert config["retrieval"]["vexor"]["enabled"] is False
+        assert config["retrieval"]["devrag"]["enabled"] is True
+
+    def test_retrieval_override_none_uses_default(self, tmp_path):
+        """When retrieval_config is None, hardcoded defaults are used."""
+        graph = _make_graph(tmp_path)
+        config = _build_default_config(tmp_path, graph, retrieval_config=None)
+        assert config["retrieval"]["vexor"]["enabled"] is True
+        assert config["retrieval"]["devrag"]["enabled"] is False
+
+
+class TestUpdateAiFrameworkConfig:
+    def test_merges_into_existing(self, tmp_path):
+        """Updates are merged into existing config."""
+        path = tmp_path / ".ai-framework.json"
+        path.write_text(json.dumps({"version": 1, "learning": {"global_enabled": False}}))
+        updates = {"retrieval": {"vexor": {"enabled": True}}}
+        result = update_ai_framework_config(tmp_path, updates)
+        assert result == path
+        data = json.loads(path.read_text())
+        assert data["retrieval"]["vexor"]["enabled"] is True
+        assert data["learning"]["global_enabled"] is False
+
+    def test_returns_none_when_no_file(self, tmp_path):
+        """Returns None when .ai-framework.json doesn't exist."""
+        result = update_ai_framework_config(tmp_path, {"retrieval": {}})
+        assert result is None
+
+    def test_preserves_existing_keys(self, tmp_path):
+        """Non-updated keys are preserved."""
+        path = tmp_path / ".ai-framework.json"
+        path.write_text(json.dumps({"version": 1, "project": {"name": "test"}}))
+        update_ai_framework_config(tmp_path, {"retrieval": {"vexor": {"enabled": True}}})
+        data = json.loads(path.read_text())
+        assert data["project"]["name"] == "test"
+        assert data["version"] == 1

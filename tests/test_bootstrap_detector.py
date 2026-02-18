@@ -136,6 +136,58 @@ class TestDetectServices:
         graph = detect_services(tmp_path)
         assert graph.detected_at != ""
 
+    def test_detects_kotlin_gradle_kts(self, tmp_path):
+        svc_dir = tmp_path / "services" / "payment"
+        _write(svc_dir / "build.gradle.kts", 'plugins { kotlin("jvm") }')
+        _write(svc_dir / "src" / "main" / "kotlin" / "App.kt", "fun main() {}")
+        graph = detect_services(tmp_path)
+        kotlin_svcs = [s for s in graph.services if s.type == ServiceType.KOTLIN]
+        assert len(kotlin_svcs) == 1
+        assert kotlin_svcs[0].language == "kotlin"
+        assert kotlin_svcs[0].package_manager == "gradle"
+
+    def test_detects_kotlin_gradle_groovy(self, tmp_path):
+        svc_dir = tmp_path / "services" / "auth"
+        _write(svc_dir / "build.gradle", "apply plugin: 'kotlin'")
+        _write(svc_dir / "src" / "main" / "kotlin" / "Main.kt", "fun main() {}")
+        graph = detect_services(tmp_path)
+        kotlin_svcs = [s for s in graph.services if s.type == ServiceType.KOTLIN]
+        assert len(kotlin_svcs) == 1
+
+    def test_detects_fastapi(self, tmp_path):
+        svc_dir = tmp_path / "services" / "api"
+        _write(svc_dir / "pyproject.toml", "[project]\nname = 'api'\ndependencies = ['fastapi']")
+        _write(svc_dir / "main.py", "from fastapi import FastAPI")
+        graph = detect_services(tmp_path)
+        fastapi_svcs = [s for s in graph.services if s.type == ServiceType.FASTAPI]
+        assert len(fastapi_svcs) == 1
+        assert fastapi_svcs[0].language == "python"
+
+    def test_detects_fastapi_from_requirements(self, tmp_path):
+        svc_dir = tmp_path / "services" / "api"
+        _write(svc_dir / "requirements.txt", "fastapi>=0.100\nuvicorn")
+        _write(svc_dir / "main.py", "from fastapi import FastAPI")
+        graph = detect_services(tmp_path)
+        fastapi_svcs = [s for s in graph.services if s.type == ServiceType.FASTAPI]
+        assert len(fastapi_svcs) == 1
+
+    def test_detects_django(self, tmp_path):
+        svc_dir = tmp_path / "services" / "web"
+        _write(svc_dir / "manage.py", "#!/usr/bin/env python")
+        _write(svc_dir / "requirements.txt", "django>=4.2")
+        graph = detect_services(tmp_path)
+        django_svcs = [s for s in graph.services if s.type == ServiceType.DJANGO]
+        assert len(django_svcs) == 1
+        assert django_svcs[0].language == "python"
+        assert django_svcs[0].entry_point == "manage.py"
+
+    def test_detects_django_without_requirements(self, tmp_path):
+        svc_dir = tmp_path / "services" / "cms"
+        _write(svc_dir / "manage.py", "#!/usr/bin/env python")
+        graph = detect_services(tmp_path)
+        django_svcs = [s for s in graph.services if s.type == ServiceType.DJANGO]
+        assert len(django_svcs) == 1
+
     def test_relative_paths(self, tmp_path):
         svc_dir = tmp_path / "apps" / "api"
         _write(

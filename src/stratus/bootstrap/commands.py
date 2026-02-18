@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,18 @@ import httpx
 def cmd_init(args: argparse.Namespace) -> None:
     """Enhanced init: detect services and write configs."""
     from stratus.bootstrap.detector import detect_services
-    from stratus.bootstrap.writer import write_ai_framework_config, write_project_graph
+    from stratus.bootstrap.retrieval_setup import (
+        build_retrieval_config,
+        detect_backends,
+        merge_retrieval_into_existing,
+        prompt_retrieval_setup,
+        run_initial_index,
+    )
+    from stratus.bootstrap.writer import (
+        update_ai_framework_config,
+        write_ai_framework_config,
+        write_project_graph,
+    )
     from stratus.hooks._common import get_git_root
     from stratus.memory.database import Database
     from stratus.session.config import Config, get_data_dir
@@ -23,8 +35,10 @@ def cmd_init(args: argparse.Namespace) -> None:
     skip_hooks: bool = getattr(args, "skip_hooks", False)
     skip_mcp: bool = getattr(args, "skip_mcp", False)
     skip_agents: bool = getattr(args, "skip_agents", False)
+    skip_retrieval: bool = getattr(args, "skip_retrieval", False)
     enable_delivery: bool = getattr(args, "enable_delivery", False)
     scope: str | None = getattr(args, "scope", None)
+    scope_explicit = scope is not None
 
     # Interactive mode: no --scope flag given and not dry-run
     if scope is None and not dry_run:
@@ -78,19 +92,69 @@ def cmd_init(args: argparse.Namespace) -> None:
         pg_path = write_project_graph(graph, git_root)
         print(f"Project graph: {pg_path}")
 
-    # Step 5: Write .ai-framework.json
-    if dry_run:
+    # Step 5: Detect retrieval backends
+    retrieval_config = None
+    interactive = not scope_explicit and not dry_run
+    run_indexing = False
+
+    if not skip_retrieval:
+        backend_status = detect_backends()
+        if backend_status.vexor_available or backend_status.devrag_container_running:
+            print("\nRetrieval backends detected:")
+            if backend_status.vexor_available:
+                print(f"  Vexor: available ({backend_status.vexor_version})")
+            if backend_status.devrag_container_running:
+                print("  DevRag: running")
+
         ai_path = git_root / ".ai-framework.json"
         if ai_path.exists() and not force:
-            print("[dry-run] .ai-framework.json exists (use --force to overwrite)")
+            # Existing project: merge retrieval config
+            merged = merge_retrieval_into_existing(
+                _load_json(ai_path), backend_status, str(git_root),
+            )
+            if not dry_run:
+                update_ai_framework_config(git_root, merged)
+                print(f"Config: updated retrieval in {ai_path}")
+            else:
+                print("[dry-run] Would update retrieval in .ai-framework.json")
         else:
-            print(f"[dry-run] Would write .ai-framework.json to {git_root}")
-    else:
-        result = write_ai_framework_config(git_root, graph, force=force)
-        if result is None:
-            print(".ai-framework.json already exists (use --force to overwrite)")
+            # New project or --force: build retrieval config
+            if interactive and not dry_run:
+                enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(
+                    backend_status,
+                )
+                retrieval_config = {
+                    "vexor": {"enabled": enable_vexor, "project_root": str(git_root)},
+                    "devrag": {"enabled": enable_devrag},
+                }
+            else:
+                retrieval_config = build_retrieval_config(backend_status, str(git_root))
+
+    # Step 6: Write .ai-framework.json
+    ai_path = git_root / ".ai-framework.json"
+    if not (ai_path.exists() and not force and not skip_retrieval):
+        if dry_run:
+            if ai_path.exists() and not force:
+                print("[dry-run] .ai-framework.json exists (use --force to overwrite)")
+            else:
+                print(f"[dry-run] Would write .ai-framework.json to {git_root}")
         else:
-            print(f"Config: {result}")
+            result = write_ai_framework_config(
+                git_root, graph, force=force, retrieval_config=retrieval_config,
+            )
+            if result is None:
+                print(".ai-framework.json already exists (use --force to overwrite)")
+            else:
+                print(f"Config: {result}")
+
+    # Step 6b: Run initial indexing if approved
+    if run_indexing and not dry_run:
+        print("Running initial indexing...")
+        idx_result = run_initial_index(str(git_root))
+        if idx_result["status"] == "ok":
+            print(f"Indexing complete: {idx_result.get('output', '')}")
+        else:
+            print(f"Indexing failed: {idx_result.get('message', '')}")
 
     # Step 6: Print summary
     print(f"\nDetected {len(graph.services)} service(s):")
@@ -200,21 +264,23 @@ def cmd_doctor(_args: argparse.Namespace) -> None:
     devrag_ok = _check_cmd(["docker", "ps", "--filter", "name=devrag", "--format", "{{.Names}}"])
     _print_check(devrag_ok, "DevRag (Docker)")
 
-    # Check 6: .ai-framework.json
     cwd = Path.cwd()
-    ai_config = cwd / ".ai-framework.json"
-    _print_check(ai_config.exists(), f".ai-framework.json in {cwd}")
-    if not ai_config.exists():
-        all_ok = False
-
-    # Check 7: project-graph.json
-    pg = cwd / "project-graph.json"
-    _print_check(pg.exists(), f"project-graph.json in {cwd}")
-    if not pg.exists():
-        all_ok = False
+    for name in (".ai-framework.json", "project-graph.json"):
+        exists = (cwd / name).exists()
+        _print_check(exists, f"{name} in {cwd}")
+        if not exists:
+            all_ok = False
 
     if not all_ok:
         sys.exit(1)
+
+
+def _load_json(path: Path) -> dict:
+    """Load JSON file, return empty dict on error."""
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
 
 
 def _print_check(ok: bool, label: str) -> None:

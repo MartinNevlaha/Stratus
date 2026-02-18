@@ -16,18 +16,35 @@ def write_project_graph(graph: ProjectGraph, root: Path) -> Path:
 
 
 def write_ai_framework_config(
-    root: Path, graph: ProjectGraph, *, force: bool = False
+    root: Path,
+    graph: ProjectGraph,
+    *,
+    force: bool = False,
+    retrieval_config: dict | None = None,
 ) -> Path | None:
     """Write .ai-framework.json if not exists (or force=True). Returns None if skipped."""
     path = root / ".ai-framework.json"
     if path.exists() and not force:
         return None
-    config = _build_default_config(root, graph)
+    config = _build_default_config(root, graph, retrieval_config=retrieval_config)
     path.write_text(json.dumps(config, indent=2))
     return path
 
 
-def _build_default_config(root: Path, graph: ProjectGraph) -> dict[str, object]:
+def update_ai_framework_config(root: Path, updates: dict) -> Path | None:
+    """Merge updates into existing .ai-framework.json. Returns None if file doesn't exist."""
+    path = root / ".ai-framework.json"
+    if not path.exists():
+        return None
+    existing = json.loads(path.read_text())
+    existing.update(updates)
+    path.write_text(json.dumps(existing, indent=2))
+    return path
+
+
+def _build_default_config(
+    root: Path, graph: ProjectGraph, *, retrieval_config: dict | None = None,
+) -> dict[str, object]:
     """Build full .ai-framework.json with detected values."""
     lang_counts: dict[str, int] = {}
     for svc in graph.services:
@@ -44,7 +61,7 @@ def _build_default_config(root: Path, graph: ProjectGraph) -> dict[str, object]:
             "primary_language": primary_lang,
             "package_managers": sorted(pms),
         },
-        "retrieval": {
+        "retrieval": retrieval_config if retrieval_config is not None else {
             "vexor": {
                 "enabled": True,
                 "project_root": str(root),
