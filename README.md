@@ -84,6 +84,63 @@ stratus doctor
 | `--skip-retrieval` | Skip retrieval backend detection and setup |
 | `--skip-agents` | Skip agent/skill installation |
 
+## Claude Code Plugin
+
+Stratus is also available as a Claude Code plugin, which bundles commands, hooks, agents,
+skills, and the MCP server into a self-contained directory. This eliminates the need to run
+`stratus init` — Claude Code discovers everything from the plugin manifest.
+
+**Prerequisite:** `stratus` must be installed via `pipx install stratus` (or from source).
+
+### Installation
+
+Development (local directory):
+
+```bash
+claude --plugin-dir ./plugin
+```
+
+### Plugin Commands
+
+All commands are namespaced under `/stratus:`:
+
+| Command | Description |
+|---|---|
+| `/stratus:init` | Initialize project (detect services, register hooks, configure MCP) |
+| `/stratus:doctor` | Run health checks on all components |
+| `/stratus:status` | Show retrieval and learning engine status |
+| `/stratus:analyze` | Analyze a JSONL transcript |
+| `/stratus:reindex` | Trigger code reindexing |
+| `/stratus:proposals` | List pending learning proposals |
+| `/stratus:decide` | Accept/reject a learning proposal |
+| `/stratus:worktree` | Manage git worktrees for spec-driven development |
+
+### Plugin Hooks
+
+Hooks run automatically on Claude Code events:
+
+| Event | Hook | Behavior | Blocking? |
+|---|---|---|---|
+| PreToolUse (WebSearch/WebFetch) | tool_redirect | Suggests `retrieve` MCP tool for codebase queries | No |
+| PostToolUse (*) | context_monitor | Monitors transcript size, warns on threshold | No |
+| PostToolUse (Write/Edit) | file_checker | Runs language-specific linter (ruff, eslint, gofmt) | No |
+| PostToolUse (Write/Edit) | tdd_enforcer | Warns when editing code without tests | No |
+| PostToolUse (Bash) | learning_trigger | Detects git commit/merge, triggers learning analysis | No |
+| PreCompact (*) | pre_compact | Captures session state before compaction | No |
+| SessionStart (compact) | post_compact_restore | Restores state after compaction | No |
+| SessionEnd (*) | session_end | Persists session state, performs cleanup | No |
+| Stop (*) | spec_stop_guard | Blocks exit during active spec verify phase | Yes (conditional) |
+| TeammateIdle (*) | teammate_idle | Validates reviewer verdict format in Agent Teams | Yes (exit 2) |
+| TaskCompleted (*) | task_completed | Validates task output completeness in Agent Teams | Yes (exit 2) |
+
+### Plugin Architecture
+
+- **Commands** — user-triggered via `/stratus:<name>`, delegate to the `stratus` CLI
+- **Hooks** — autonomous, fire on Claude Code events via `stratus hook <module>`
+- **MCP** — agent-facing tools via `stratus mcp-serve` (stdio transport)
+- **Agents** — 7 core + 19 delivery agent definitions for spec-driven workflows
+- **Skills** — 3 core + 7 delivery skills for common operations
+
 ## Quick Start
 
 **Initialize in your project (registers hooks and MCP server):**
@@ -134,6 +191,26 @@ Claude Code will connect to the MCP server automatically once `init` has registe
 | `stratus learning config` | Show current learning configuration |
 
 Worktree commands accept `--plan-path <path>` and `--base-branch <branch>` options.
+
+## Web UI
+
+Start the server and open the dashboard in a browser:
+
+```bash
+stratus serve
+# Open http://localhost:41777/dashboard
+```
+
+The dashboard provides a read-only swarm monitor with:
+
+- **Canvas visualization** — orbital animation of active agents, colored by category
+- **Phase progress** — current spec/delivery phase, task completion, review iteration
+- **Agent list** — active agents with role indicators (lead/worker)
+- **Learning stats** — proposal counts, sensitivity, candidate pipeline
+- **Memory stats** — event and session totals
+
+Data refreshes every 3 seconds via a single aggregated endpoint (`/api/dashboard/state`).
+No build step or external dependencies — vanilla HTML/CSS/JS served by the existing Starlette app.
 
 ## Architecture
 

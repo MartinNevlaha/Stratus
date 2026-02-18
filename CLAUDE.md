@@ -7,7 +7,7 @@ Open-source framework for Claude Code sessions. Python 3.12+.
 ```
 src/stratus/
   transcript.py       # JSONL transcript parser (TokenUsage, CompactionEvent, TranscriptStats)
-  cli.py              # CLI entry point (subcommands: analyze, init, doctor, serve, mcp-serve, reindex, retrieval-status, worktree, learning)
+  cli.py              # CLI entry point (subcommands: analyze, init, doctor, serve, mcp-serve, reindex, retrieval-status, worktree, hook, learning)
   __main__.py         # Module runner: python -m stratus
 
   bootstrap/
@@ -43,7 +43,9 @@ src/stratus/
     routes_learning.py  # /api/learning/analyze, /proposals, /decide, /config, /stats
     routes_analytics.py # /api/learning/analytics/* — failure recording, summary, trends, effectiveness
     routes_orchestration.py # /api/orchestration/state, /start, /approve-plan, /verdicts, /team
+    routes_dashboard.py # /api/dashboard/state, /dashboard — aggregated monitor + HTML page
     runner.py           # Uvicorn launcher, port.lock management
+    static/             # Web UI assets (index.html, dashboard.css, dashboard.js)
 
   mcp_server/
     server.py         # MCP stdio server with 6 tool handlers
@@ -147,6 +149,7 @@ tests/
   test_teammate_idle.py    # TeammateIdle hook tests
   test_task_completed.py   # TaskCompleted hook tests
   test_orchestration_routes.py # Orchestration HTTP route tests
+  test_dashboard_routes.py # Dashboard aggregated endpoint + static serving tests
 
 .claude/
   agents/
@@ -161,6 +164,16 @@ tests/
     run-tests/               # Delegates to qa-engineer
     explain-architecture/    # Delegates to architecture-guide
     implement-mcp/           # Delegates to framework-expert
+
+plugin/
+  .claude-plugin/
+    plugin.json             # Plugin manifest (name, version, description)
+  .mcp.json                 # MCP server config (stratus mcp-serve, stdio)
+  commands/                 # 8 command files (init, doctor, status, analyze, reindex, proposals, decide, worktree)
+  agents/                   # 26 agent definitions (7 core + 19 delivery)
+  skills/                   # 10 skill definitions (3 core + 7 delivery)
+  hooks/
+    hooks.json              # Hook configuration (11 hooks using `stratus hook <module>`)
 
 scripts/
   install.sh          # POSIX installer (pipx or venv fallback, no sudo)
@@ -202,6 +215,8 @@ uv run stratus learning analyze [--since COMMIT]  # Run learning analysis
 uv run stratus learning proposals        # List pending proposals
 uv run stratus learning decide ID accept # Decide on a proposal
 uv run stratus learning config           # Show learning config
+
+uv run stratus hook <module>             # Run a hook module (plugin entry point)
 
 # Backward compat
 uv run stratus <file.jsonl>             # Auto-dispatches to analyze
@@ -309,6 +324,18 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - AnalyticsDB shares sqlite3.Connection with LearningDatabase via `db.analytics` lazy property
 - Hook failure recording is best-effort (try/except: pass) — never blocks hooks
 - No new runtime dependencies — uses stdlib + existing pydantic/httpx
+
+### Plugin
+
+- `plugin/` directory is the Claude Code plugin (separate from `.claude/` which is for framework development)
+- `stratus hook <module>` CLI subcommand is the single entry point for all plugin hooks
+- Plugin hooks use `stratus hook <module>` instead of `uv run python -m stratus.hooks.<module>`
+- Plugin manifest at `plugin/.claude-plugin/plugin.json`
+- Plugin MCP config at `plugin/.mcp.json` (uses `stratus mcp-serve` directly, no `uv run`)
+- Core agents generalized: `framework-expert` → `implementation-expert`, stratus-specific refs removed
+- Delivery agents copied verbatim from `src/stratus/runtime_agents/agents/`
+- Core skills generalized: detect project type dynamically instead of hardcoding `uv run pytest`
+- Delivery skills copied verbatim from `src/stratus/runtime_agents/skills/`
 
 ### Release & Distribution
 

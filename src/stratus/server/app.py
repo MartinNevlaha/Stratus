@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
 from stratus.memory.database import Database
 from stratus.orchestration.coordinator import SpecCoordinator
@@ -107,11 +110,13 @@ def create_app(
         app.state.db.close()
 
     from stratus.server.routes_analytics import routes as analytics_routes
+    from stratus.server.routes_dashboard import routes as dashboard_routes
     from stratus.server.routes_delivery import routes as delivery_routes
     from stratus.server.routes_learning import routes as learning_routes
     from stratus.server.routes_orchestration import routes as orchestration_routes
     from stratus.server.routes_skills import routes as skills_routes
 
+    static_dir = Path(__file__).parent / "static"
     app = Starlette(
         routes=(
             system_routes
@@ -123,6 +128,8 @@ def create_app(
             + orchestration_routes
             + delivery_routes
             + skills_routes
+            + dashboard_routes
+            + [Mount("/dashboard/static", StaticFiles(directory=str(static_dir)))]
         ),
         lifespan=lifespan,
     )

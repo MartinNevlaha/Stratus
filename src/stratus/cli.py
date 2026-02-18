@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
 from pathlib import Path
 from typing import cast
@@ -144,6 +145,11 @@ def _cmd_worktree(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_hook(args: argparse.Namespace) -> None:
+    mod = importlib.import_module(f"stratus.hooks.{args.module}")
+    mod.main()
+
+
 def _cmd_learning(args: argparse.Namespace) -> None:
     from stratus.learning.commands import cmd_learning
 
@@ -253,6 +259,10 @@ def main() -> None:
         "--base-branch", default="main", dest="base_branch", help="Base branch (default: main)"
     )
 
+    # hook subcommand
+    hook_parser = subparsers.add_parser("hook", help="Run a hook module")
+    _ = hook_parser.add_argument("module", help="Hook module name (e.g. context_monitor)")
+
     # learning subcommand
     learn_p = subparsers.add_parser("learning", help="Learning engine operations")
     learn_sub = learn_p.add_subparsers(dest="learning_action")
@@ -283,6 +293,7 @@ def main() -> None:
         "reindex": _cmd_reindex,
         "retrieval-status": _cmd_retrieval_status,
         "worktree": _cmd_worktree,
+        "hook": _cmd_hook,
         "learning": _cmd_learning,
     }
     command = cast(str | None, args.command)

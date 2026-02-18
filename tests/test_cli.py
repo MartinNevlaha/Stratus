@@ -381,6 +381,54 @@ class TestVersionImport:
         assert VERSION == __version__
 
 
+class TestHookSubcommand:
+    def test_hook_imports_and_calls_main(self):
+        """stratus hook <module> should import stratus.hooks.<module> and call main()."""
+        mock_main = MagicMock()
+        mock_module = MagicMock()
+        mock_module.main = mock_main
+
+        with (
+            patch("sys.argv", ["stratus", "hook", "context_monitor"]),
+            patch("importlib.import_module", return_value=mock_module) as mock_import,
+        ):
+            main()
+
+        mock_import.assert_called_once_with("stratus.hooks.context_monitor")
+        mock_main.assert_called_once()
+
+    def test_hook_with_different_module(self):
+        """stratus hook <module> works for any hook module name."""
+        mock_main = MagicMock()
+        mock_module = MagicMock()
+        mock_module.main = mock_main
+
+        with (
+            patch("sys.argv", ["stratus", "hook", "file_checker"]),
+            patch("importlib.import_module", return_value=mock_module) as mock_import,
+        ):
+            main()
+
+        mock_import.assert_called_once_with("stratus.hooks.file_checker")
+        mock_main.assert_called_once()
+
+    def test_hook_missing_module_arg_exits(self):
+        """stratus hook without a module name should exit with error."""
+        with patch("sys.argv", ["stratus", "hook"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 2  # argparse error
+
+    def test_hook_import_error_propagates(self):
+        """If the hook module doesn't exist, ImportError should propagate."""
+        with (
+            patch("sys.argv", ["stratus", "hook", "nonexistent_hook"]),
+            patch("importlib.import_module", side_effect=ImportError("No module")),
+        ):
+            with pytest.raises(ImportError):
+                main()
+
+
 class TestInitDeliveryFlags:
     def test_init_enable_delivery_flag(
         self,

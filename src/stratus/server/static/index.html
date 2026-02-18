@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stratus — Swarm Monitor</title>
+  <link rel="stylesheet" href="/dashboard/static/dashboard.css">
+</head>
+<body>
+  <header>
+    <h1>Stratus Swarm Monitor</h1>
+    <span id="version" class="badge">v0.0.0</span>
+    <span id="status-indicator" class="badge inactive">inactive</span>
+  </header>
+
+  <main>
+    <div class="canvas-container">
+      <canvas id="swarm" width="600" height="600"></canvas>
+    </div>
+
+    <aside class="panels">
+      <section class="panel" id="panel-phase">
+        <h2>Phase Progress</h2>
+        <div id="phase-content">
+          <span class="muted">No active workflow</span>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-agents">
+        <h2>Active Agents</h2>
+        <ul id="agent-list"></ul>
+      </section>
+
+      <section class="panel" id="panel-learning">
+        <h2>Learning</h2>
+        <div id="learning-content">
+          <span class="muted">Disabled</span>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-memory">
+        <h2>Memory</h2>
+        <div id="memory-content">
+          <span class="muted">—</span>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="/dashboard/static/dashboard.js"></script>
+</body>
+</html>

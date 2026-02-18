@@ -1,0 +1,63 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebSearch|WebFetch",
+        "hooks": [{ "type": "command", "command": "stratus hook tool_redirect" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "stratus hook context_monitor" }]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "stratus hook file_checker" },
+          { "type": "command", "command": "stratus hook tdd_enforcer" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "stratus hook learning_trigger" }]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "stratus hook pre_compact" }]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [{ "type": "command", "command": "stratus hook post_compact_restore" }]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "stratus hook session_end" }]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "stratus hook spec_stop_guard" }]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "stratus hook teammate_idle" }]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "stratus hook task_completed" }]
+      }
+    ]
+  }
+}
