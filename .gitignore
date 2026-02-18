@@ -31,6 +31,7 @@ Thumbs.db
 .env.local
 
 .claude
+.mcp.json
 .ruff_cache
 .venv
 docs

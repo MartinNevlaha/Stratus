@@ -1,12 +1,13 @@
 #!/bin/sh
 # stratus installer
-# Installs stratus from PyPI. No sudo, no git clone, no binary downloads.
+# Installs stratus from GitHub. No sudo, no binary downloads.
 # Re-running upgrades an existing installation.
 set -e
 
 MIN_MAJOR=3
 MIN_MINOR=12
-PACKAGE="stratus"
+REPO="MartinNevlaha/Stratus"
+PACKAGE="stratus @ git+https://github.com/${REPO}.git"
 VENV_DIR="${HOME}/.local/share/stratus/venv"
 BIN_DIR="${HOME}/.local/bin"
 
@@ -35,13 +36,13 @@ log "Found Python: $PYTHON ($($PYTHON --version 2>&1))"
 # --- Try pipx first (preferred) ---
 if command -v pipx >/dev/null 2>&1; then
     log "Using pipx..."
-    if pipx list 2>/dev/null | grep -q "$PACKAGE"; then
-        pipx upgrade "$PACKAGE" --python "$PYTHON"
+    if pipx list 2>/dev/null | grep -q "stratus"; then
+        pipx upgrade stratus --python "$PYTHON"
     else
-        pipx install "$PACKAGE" --python "$PYTHON"
+        pipx install "git+https://github.com/${REPO}.git" --python "$PYTHON"
     fi
     log ""
-    log "Installed via pipx. Run 'pipx upgrade $PACKAGE' to update later."
+    log "Installed via pipx. Run 'pipx upgrade stratus' to update later."
     stratus --version
 else
     # --- Fallback: venv + pip ---
