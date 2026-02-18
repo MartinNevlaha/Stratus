@@ -47,9 +47,9 @@ def cmd_init(args: argparse.Namespace) -> None:
     elif scope is None:
         scope = "local"
 
-    # Global scope: only install hooks + MCP, skip git-dependent steps
+    # Global scope: only install hooks + MCP + statusline, skip git-dependent steps
     if scope == "global":
-        from stratus.bootstrap.registration import register_hooks, register_mcp
+        from stratus.bootstrap.registration import register_hooks, register_mcp, register_statusline
 
         if not skip_hooks:
             hooks_path = register_hooks(None, dry_run=dry_run, scope="global")
@@ -63,6 +63,9 @@ def cmd_init(args: argparse.Namespace) -> None:
                 print(f"[dry-run] Would register MCP at {mcp_path}")
             else:
                 print(f"MCP: {mcp_path}")
+        sl_path = register_statusline(None, dry_run=dry_run, scope="global")
+        if sl_path and not dry_run:
+            print(f"Statusline: {sl_path}")
         if not dry_run:
             _ensure_server()
         print("\nGlobal installation complete (hooks and MCP registered in ~/.claude/)")
@@ -192,6 +195,16 @@ def cmd_init(args: argparse.Namespace) -> None:
             print(f"[dry-run] Would register MCP at {mcp_path}")
         else:
             print(f"MCP: {mcp_path}")
+
+    # Step 9b: Register statusline
+    from stratus.bootstrap.registration import register_statusline
+
+    sl_path = register_statusline(git_root, dry_run=dry_run)
+    if sl_path:
+        if dry_run:
+            print(f"[dry-run] Would register statusline at {sl_path}")
+        else:
+            print(f"Statusline: {sl_path}")
 
     # Step 10: Register delivery agents (gated)
     if not skip_agents:

@@ -163,7 +163,11 @@ class TestCmdInit:
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
-        assert not (tmp_path / ".claude" / "settings.json").exists()
+        settings = tmp_path / ".claude" / "settings.json"
+        if settings.exists():
+            data = json.loads(settings.read_text())
+            assert "hooks" not in data
+        # settings.json may exist (statusline writes it) but must not have hooks
 
     def test_init_skip_mcp(
         self,
@@ -369,6 +373,39 @@ class TestCmdInit:
         mcp_data = cast(dict[str, object], json.loads(mcp.read_text()))
         servers = cast(dict[str, object], mcp_data["mcpServers"])
         assert "stratus-memory" in servers
+
+    def test_init_registers_statusline(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """cmd_init registers statusLine in settings.json."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        ns = argparse.Namespace(
+            dry_run=False, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+        )
+        with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
+            cmd_init(ns)
+        settings = tmp_path / ".claude" / "settings.json"
+        assert settings.exists()
+        data = json.loads(settings.read_text())
+        assert "statusLine" in data
+        assert data["statusLine"]["command"] == "stratus statusline"
+
+    def test_init_dry_run_skips_statusline(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Dry-run does not write statusLine."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        ns = argparse.Namespace(
+            dry_run=True, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+        )
+        with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
+            cmd_init(ns)
+        settings = tmp_path / ".claude" / "settings.json"
+        assert not settings.exists()
 
 
     def test_cmd_init_interactive_when_no_scope(

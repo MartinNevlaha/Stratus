@@ -90,6 +90,43 @@ def register_hooks(git_root: Path | None, *, dry_run: bool = False, scope: str =
     return settings_path
 
 
+def build_statusline_config() -> dict[str, object]:
+    """Return the statusLine config block for Claude Code settings."""
+    return {"statusLine": {"type": "command", "command": "stratus statusline"}}
+
+
+def register_statusline(
+    git_root: Path | None, *, dry_run: bool = False, scope: str = "local"
+) -> Path | None:
+    """Merge statusLine config into .claude/settings.json.
+
+    Non-destructive: skips if ``statusLine`` key already exists (respects
+    user customization). Returns the path to settings.json, or None if
+    skipped. If dry_run is True, no files are written.
+    """
+    if scope == "global":
+        dot_claude = Path.home() / ".claude"
+    else:
+        assert git_root is not None
+        dot_claude = git_root / ".claude"
+    settings_path = dot_claude / "settings.json"
+
+    existing: dict[str, object] = {}
+    if settings_path.exists():
+        existing = cast(dict[str, object], json.loads(settings_path.read_text()))
+
+    if "statusLine" in existing:
+        return None
+
+    merged = {**existing, **build_statusline_config()}
+
+    if not dry_run:
+        dot_claude.mkdir(parents=True, exist_ok=True)
+        _ = settings_path.write_text(json.dumps(merged, indent=2))
+
+    return settings_path
+
+
 def build_mcp_config(*, scope: str = "local") -> dict[str, object]:
     """Return the MCP server config block for stratus-memory."""
     entry: dict[str, object] = {

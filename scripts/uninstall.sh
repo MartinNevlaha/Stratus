@@ -206,7 +206,34 @@ print('Cleaned project MCP config')
             removed=1
         fi
 
-        # 5c. Config files
+        # 5c. Clear Vexor index for this project (if binary available)
+        if command -v vexor >/dev/null 2>&1; then
+            log "  Clearing Vexor index for $git_root..."
+            vexor index --clear --path "$git_root" 2>/dev/null && log "  Vexor index cleared" \
+                || warn "Could not clear Vexor index"
+        fi
+
+        # 5d. Remove worktrees (.worktrees/spec-*)
+        worktrees_dir="$git_root/.worktrees"
+        if [ -d "$worktrees_dir" ]; then
+            log "  Removing worktrees at $worktrees_dir..."
+            for wt in "$worktrees_dir"/spec-*; do
+                [ -d "$wt" ] || continue
+                git -C "$git_root" worktree remove --force "$wt" 2>/dev/null \
+                    || rm -rf "$wt"
+                removed=1
+            done
+            # Remove empty .worktrees dir
+            rmdir "$worktrees_dir" 2>/dev/null || true
+            # Clean up spec/* branches
+            for branch in $(git -C "$git_root" branch --list 'spec/*' 2>/dev/null); do
+                log "  Deleting branch $branch"
+                git -C "$git_root" branch -D "$branch" 2>/dev/null || true
+                removed=1
+            done
+        fi
+
+        # 5e. Config files
         for f in ".ai-framework.json" "project-graph.json"; do
             target="$git_root/$f"
             if [ -f "$target" ]; then
@@ -216,7 +243,7 @@ print('Cleaned project MCP config')
             fi
         done
 
-        # 5d. Managed agent files (.claude/agents/delivery-*.md)
+        # 5f. Managed agent files (.claude/agents/delivery-*.md)
         agents_dir="$git_root/.claude/agents"
         if [ -d "$agents_dir" ]; then
             for f in "$agents_dir"/delivery-*.md; do
@@ -229,7 +256,7 @@ print('Cleaned project MCP config')
             done
         fi
 
-        # 5e. Managed skill files (.claude/skills/*/SKILL.md)
+        # 5g. Managed skill files (.claude/skills/*/SKILL.md)
         skills_dir="$git_root/.claude/skills"
         if [ -d "$skills_dir" ]; then
             for f in "$skills_dir"/*/SKILL.md; do

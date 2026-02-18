@@ -7,7 +7,8 @@ Open-source framework for Claude Code sessions. Python 3.12+.
 ```
 src/stratus/
   transcript.py       # JSONL transcript parser (TokenUsage, CompactionEvent, TranscriptStats)
-  cli.py              # CLI entry point (subcommands: analyze, init, doctor, serve, mcp-serve, reindex, retrieval-status, worktree, hook, learning)
+  cli.py              # CLI entry point (subcommands: analyze, init, doctor, serve, mcp-serve, reindex, retrieval-status, worktree, hook, learning, statusline)
+  statusline.py       # Statusline output for Claude Code (format_statusline, fetch_stratus_state, run)
   __main__.py         # Module runner: python -m stratus
 
   bootstrap/
@@ -16,7 +17,7 @@ src/stratus/
     detector.py       # Service detection heuristics (NestJS, Next.js, Python, Go, Rust, shared, proto)
     writer.py         # Config file generators: project-graph.json, .ai-framework.json
     commands.py       # CLI command handlers: cmd_init (enhanced), cmd_doctor (health checks)
-    registration.py   # Hook + MCP server registration (local or global scope)
+    registration.py   # Hook + MCP server + statusline registration (local or global scope)
 
   memory/
     models.py         # Pydantic models: MemoryEvent, Session, enums
@@ -150,6 +151,7 @@ tests/
   test_task_completed.py   # TaskCompleted hook tests
   test_orchestration_routes.py # Orchestration HTTP route tests
   test_dashboard_routes.py # Dashboard aggregated endpoint + static serving tests
+  test_statusline.py       # Statusline output format tests
 
 .claude/
   agents/
@@ -217,6 +219,7 @@ uv run stratus learning decide ID accept # Decide on a proposal
 uv run stratus learning config           # Show learning config
 
 uv run stratus hook <module>             # Run a hook module (plugin entry point)
+uv run stratus statusline               # Output status line for Claude Code (reads JSON from stdin)
 
 # Backward compat
 uv run stratus <file.jsonl>             # Auto-dispatches to analyze
@@ -347,3 +350,12 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - Release workflow triggers on `v*` tag push, verifies tag matches pyproject.toml version
 - PyPI publish uses OIDC trusted publisher via `pypa/gh-action-pypi-publish` (no API tokens)
 - GitHub Release created automatically with dist artifacts and auto-generated notes
+
+### Statusline
+
+- `stratus statusline` CLI subcommand — reads JSON from stdin, outputs single formatted line
+- Auto-registered in `settings.json` during `stratus init` (both local and global scope)
+- Non-destructive: skips if user already has a `statusLine` configured
+- Calls `GET /api/dashboard/state` with 500ms timeout for stratus state
+- Graceful degradation: server offline → shows "offline" segment, rest of line still works
+- No new dependencies — uses httpx (already a dep) and json stdlib

@@ -133,7 +133,19 @@ Hooks run automatically on Claude Code events:
 | TeammateIdle (*) | teammate_idle | Validates reviewer verdict format in Agent Teams | Yes (exit 2) |
 | TaskCompleted (*) | task_completed | Validates task output completeness in Agent Teams | Yes (exit 2) |
 
-### Plugin Architecture
+### Plugin Structure
+
+```
+plugin/
+  .claude-plugin/
+    plugin.json           # Manifest (name, version, description, license)
+  .mcp.json               # MCP server config (stratus mcp-serve, stdio transport)
+  commands/               # 8 slash commands (/stratus:init, /stratus:doctor, etc.)
+  agents/                 # 7 core + 19 delivery agent definitions
+  skills/                 # 3 core + 7 delivery skill definitions
+  hooks/
+    hooks.json            # 11 hook registrations using `stratus hook <module>`
+```
 
 - **Commands** — user-triggered via `/stratus:<name>`, delegate to the `stratus` CLI
 - **Hooks** — autonomous, fire on Claude Code events via `stratus hook <module>`

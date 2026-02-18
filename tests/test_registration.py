@@ -414,3 +414,107 @@ class TestRegisterAgents:
 
         # force=True should have overwritten even the user-owned file
         assert user_file.read_text() != user_content
+
+
+# ---------------------------------------------------------------------------
+# Statusline registration tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildStatuslineConfig:
+    def test_returns_dict_with_statusline_key(self) -> None:
+        from stratus.bootstrap.registration import build_statusline_config
+
+        result = build_statusline_config()
+        assert isinstance(result, dict)
+        assert "statusLine" in result
+
+    def test_statusline_type_is_command(self) -> None:
+        from stratus.bootstrap.registration import build_statusline_config
+
+        result = build_statusline_config()
+        sl = result["statusLine"]
+        assert isinstance(sl, dict)
+        assert sl["type"] == "command"
+
+    def test_statusline_command_is_stratus(self) -> None:
+        from stratus.bootstrap.registration import build_statusline_config
+
+        result = build_statusline_config()
+        sl = result["statusLine"]
+        assert isinstance(sl, dict)
+        assert sl["command"] == "stratus statusline"
+
+
+class TestRegisterStatusline:
+    def test_creates_settings_json_with_statusline(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        path = register_statusline(tmp_path)
+        assert path == tmp_path / ".claude" / "settings.json"
+        assert path.exists()
+        data = json.loads(path.read_text())
+        assert "statusLine" in data
+
+    def test_idempotent_run_twice_same_result(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        register_statusline(tmp_path)
+        first = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+        register_statusline(tmp_path)
+        second = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+        assert first == second
+
+    def test_preserves_other_settings_keys(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        existing = {"theme": "dark", "fontSize": 14}
+        (dot_claude / "settings.json").write_text(json.dumps(existing))
+        register_statusline(tmp_path)
+        data = json.loads((dot_claude / "settings.json").read_text())
+        assert data["theme"] == "dark"
+        assert data["fontSize"] == 14
+        assert "statusLine" in data
+
+    def test_dry_run_writes_nothing(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        register_statusline(tmp_path, dry_run=True)
+        assert not (tmp_path / ".claude" / "settings.json").exists()
+
+    def test_global_scope_writes_to_home_dir(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        fake_home = tmp_path / "fakehome"
+        fake_home.mkdir()
+        with patch("stratus.bootstrap.registration.Path.home", return_value=fake_home):
+            path = register_statusline(git_root=None, scope="global")
+        expected = fake_home / ".claude" / "settings.json"
+        assert path == expected
+        assert expected.exists()
+        data = json.loads(expected.read_text())
+        assert "statusLine" in data
+
+    def test_does_not_overwrite_existing_statusline(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        custom = {"statusLine": {"type": "command", "command": "my-custom-statusline"}}
+        (dot_claude / "settings.json").write_text(json.dumps(custom))
+        result = register_statusline(tmp_path)
+        assert result is None
+        data = json.loads((dot_claude / "settings.json").read_text())
+        assert data["statusLine"]["command"] == "my-custom-statusline"
+
+    def test_returns_none_when_statusline_exists(self, tmp_path: Path) -> None:
+        from stratus.bootstrap.registration import register_statusline
+
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        existing = {"statusLine": {"type": "command", "command": "other"}}
+        (dot_claude / "settings.json").write_text(json.dumps(existing))
+        result = register_statusline(tmp_path)
+        assert result is None

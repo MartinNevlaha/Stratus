@@ -150,6 +150,12 @@ def _cmd_hook(args: argparse.Namespace) -> None:
     mod.main()
 
 
+def _cmd_statusline(_args: argparse.Namespace) -> None:
+    from stratus.statusline import run
+
+    run()
+
+
 def _cmd_learning(args: argparse.Namespace) -> None:
     from stratus.learning.commands import cmd_learning
 
@@ -259,6 +265,9 @@ def main() -> None:
         "--base-branch", default="main", dest="base_branch", help="Base branch (default: main)"
     )
 
+    # statusline subcommand
+    _ = subparsers.add_parser("statusline", help="Output status line for Claude Code")
+
     # hook subcommand
     hook_parser = subparsers.add_parser("hook", help="Run a hook module")
     _ = hook_parser.add_argument("module", help="Hook module name (e.g. context_monitor)")
@@ -293,6 +302,7 @@ def main() -> None:
         "reindex": _cmd_reindex,
         "retrieval-status": _cmd_retrieval_status,
         "worktree": _cmd_worktree,
+        "statusline": _cmd_statusline,
         "hook": _cmd_hook,
         "learning": _cmd_learning,
     }
