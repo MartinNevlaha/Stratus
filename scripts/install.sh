@@ -92,28 +92,48 @@ if ! command -v "$STRATUS_BIN" >/dev/null 2>&1; then
     fi
 fi
 
-# --- Init: detect scope, register hooks + MCP, start HTTP server ---
+# --- Init: register hooks, MCP server, start HTTP server ---
+# When piped (curl | sh), stdin is the pipe — reconnect to /dev/tty
+# so stratus init interactive prompts work. If /dev/tty is unavailable
+# (e.g. CI), fall back to non-interactive auto-detect.
 log ""
-if git rev-parse --show-toplevel >/dev/null 2>&1; then
-    log "Git repository detected — running project-local init..."
-    if "$STRATUS_BIN" init --scope local; then
+if [ -t 0 ]; then
+    # Already interactive (script run directly)
+    log "Running stratus init..."
+    if "$STRATUS_BIN" init; then
         log ""
-        log "Installation complete. Hooks, MCP, and HTTP server configured for this project."
-        log "Dashboard: http://localhost:41777/dashboard"
-    else
-        log ""
-        log "Installation complete. Run 'stratus init' in your project to finish setup."
-    fi
-else
-    log "No git repository — running global init..."
-    if "$STRATUS_BIN" init --scope global; then
-        log ""
-        log "Installation complete. Hooks, MCP, and HTTP server are ready globally."
+        log "Installation complete. Hooks, MCP, and HTTP server are ready."
         log "Dashboard: http://localhost:41777/dashboard"
     else
         log ""
         log "Installation complete. Run 'stratus init' to finish setup."
     fi
-    log ""
-    log "To configure for a specific project, cd into it and run: stratus init"
+elif [ -e /dev/tty ]; then
+    # Piped (curl | sh) but terminal available — reconnect stdin
+    log "Running stratus init..."
+    if "$STRATUS_BIN" init </dev/tty; then
+        log ""
+        log "Installation complete. Hooks, MCP, and HTTP server are ready."
+        log "Dashboard: http://localhost:41777/dashboard"
+    else
+        log ""
+        log "Installation complete. Run 'stratus init' to finish setup."
+    fi
+else
+    # No terminal (CI/Docker) — auto-detect scope
+    if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        log "Git repository detected — running project-local init..."
+        INIT_SCOPE="local"
+    else
+        log "No git repository — running global init..."
+        INIT_SCOPE="global"
+    fi
+    if "$STRATUS_BIN" init --scope "$INIT_SCOPE"; then
+        log ""
+        log "Installation complete. Hooks, MCP, and HTTP server are ready."
+        log "Dashboard: http://localhost:41777/dashboard"
+    else
+        log ""
+        log "Installation complete. Run 'stratus init' to finish setup."
+    fi
 fi
