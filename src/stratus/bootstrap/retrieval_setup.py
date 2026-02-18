@@ -117,6 +117,7 @@ def prompt_retrieval_setup(
     status: BackendStatus,
     *,
     dry_run: bool = False,
+    project_root: str | None = None,
 ) -> tuple[bool, bool, bool]:
     """Interactive prompts for retrieval setup.
 
@@ -143,7 +144,9 @@ def prompt_retrieval_setup(
         if status.devrag_container_exists:
             answer = input("Start stopped DevRag container? [Y/n] ").strip().lower()
             if answer != "n":
-                result = setup_devrag(container_exists=True)
+                result = setup_devrag(
+                    container_exists=True, project_root=project_root,
+                )
                 enable_devrag = result["status"] == "ok"
                 if enable_devrag:
                     print("  DevRag: started")
@@ -152,7 +155,7 @@ def prompt_retrieval_setup(
         else:
             answer = input("Set up DevRag governance search? [Y/n] ").strip().lower()
             if answer != "n":
-                result = setup_devrag()
+                result = setup_devrag(project_root=project_root)
                 enable_devrag = result["status"] == "ok"
                 if enable_devrag:
                     print("  DevRag: container created and running")
@@ -164,6 +167,7 @@ def prompt_retrieval_setup(
 
 def setup_devrag(
     *,
+    project_root: str | None = None,
     container_exists: bool = False,
     container_name: str = "devrag",
     image_name: str = "stratus-devrag",
@@ -195,15 +199,18 @@ def setup_devrag(
         if result.returncode != 0:
             return {"status": "error", "message": f"build failed: {result.stderr.strip()}"}
 
-        # Run container
+        # Run container with project volume mounted
+        run_cmd = [
+            "docker", "run", "-d",
+            "--name", container_name,
+            "--restart", "unless-stopped",
+            "--memory", "512m",
+        ]
+        if project_root:
+            run_cmd.extend(["-v", f"{project_root}:/app"])
+        run_cmd.append(image_name)
         result = subprocess.run(
-            [
-                "docker", "run", "-d",
-                "--name", container_name,
-                "--restart", "unless-stopped",
-                "--memory", "512m",
-                image_name,
-            ],
+            run_cmd,
             capture_output=True,
             text=True,
             timeout=30,

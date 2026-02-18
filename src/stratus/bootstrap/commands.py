@@ -130,7 +130,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             # New project or --force: build retrieval config
             if interactive and not dry_run:
                 enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(
-                    backend_status,
+                    backend_status, project_root=str(git_root),
                 )
                 retrieval_config = {
                     "vexor": {"enabled": enable_vexor, "project_root": str(git_root)},

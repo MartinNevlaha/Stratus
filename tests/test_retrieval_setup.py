@@ -437,8 +437,23 @@ class TestSetupDevrag:
             return MagicMock(returncode=1)
 
         with patch(MOCK_TARGET, side_effect=side_effect):
-            result = setup_devrag()
+            result = setup_devrag(project_root="/my/project")
         assert result["status"] == "ok"
+
+    def test_mounts_project_root(self) -> None:
+        """Container run command includes volume mount for project root."""
+        calls = []
+
+        def side_effect(cmd, **kwargs):
+            calls.append(cmd)
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch(MOCK_TARGET, side_effect=side_effect):
+            setup_devrag(project_root="/my/project")
+        run_cmd = [c for c in calls if "run" in c]
+        assert len(run_cmd) == 1
+        assert "-v" in run_cmd[0]
+        assert "/my/project:/app" in run_cmd[0]
 
     def test_starts_existing_stopped_container(self) -> None:
         """When container exists but stopped, starts it."""
