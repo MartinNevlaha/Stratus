@@ -30,8 +30,9 @@ src/stratus/
     index_state.py      # index-state.json read/write, staleness detection via git diff
     embed_cache.py      # SQLite cache keyed by SHA256(content+model), WAL mode, migrations
     vexor.py            # VexorClient: subprocess calls to vexor binary, porcelain parsing
-    devrag.py           # DevRagClient: docker exec stdio MCP calls, JSON-RPC parsing
-    unified.py          # UnifiedRetriever: routes code→Vexor, governance→DevRag, hybrid→both
+    devrag.py           # DevRagClient: governance document search via GovernanceStore
+    governance_store.py  # GovernanceStore: SQLite+FTS5 indexer for governance docs
+    unified.py          # UnifiedRetriever: routes code→Vexor, governance→GovernanceStore, hybrid→both
 
   server/
     app.py              # Starlette app factory with lifespan (DB + retriever + embed cache + coordinator)
@@ -114,7 +115,8 @@ tests/
   test_index_state.py      # Index state + git staleness tests
   test_embed_cache.py      # Embed cache SQLite tests
   test_vexor.py            # Vexor client tests (mock subprocess)
-  test_devrag.py           # DevRag client tests (mock subprocess)
+  test_devrag.py           # DevRag client tests (GovernanceStore-backed)
+  test_governance_store.py  # GovernanceStore indexer tests
   test_unified.py          # Unified retriever tests (mock clients)
   test_retrieval_routes.py # Retrieval HTTP route tests
   test_orchestration_models.py # Orchestration Pydantic model tests
@@ -239,7 +241,9 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - TDD enforcer warns when implementation files lack corresponding test files
 - Tool redirect suggests `retrieve` MCP tool over WebSearch for codebase queries
 - Vexor client wraps CLI binary via subprocess (search, index, porcelain parsing)
-- DevRag client wraps Docker exec + JSON-RPC for governance doc search
+- GovernanceStore provides Python-native SQLite+FTS5 governance doc search (rules, ADRs, templates, skills, agents, architecture)
+- DevRagClient delegates to GovernanceStore — no Docker dependency, no subprocess calls
+- Governance docs chunked by `## ` headers, change detection via SHA256 file hashing
 - UnifiedRetriever auto-routes queries using classify_query from tool_redirect hook
 - EmbedCache follows memory/database.py pattern (SQLite WAL, migrations, :memory: for tests)
 - Retrieval graceful degradation: if one backend fails, try the other

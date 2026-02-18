@@ -9,7 +9,7 @@ HTTP API — all of which integrate with Claude Code's existing extension points
 ## Features
 
 - Persistent memory with SQLite+FTS5 full-text search, timeline, and session tracking
-- Retrieval layer: Vexor for code search, DevRag for governance docs, with unified auto-routing
+- Retrieval layer: Vexor for code search, GovernanceStore for governance docs (SQLite+FTS5), with unified auto-routing
 - Claude Code hooks: context monitoring, compaction handling, file linting, TDD enforcement,
   tool redirect, learning triggers, spec guards, quality gates
 - MCP stdio server with 6 tools proxying to the HTTP API (stateless MCP, stateful HTTP)
@@ -42,7 +42,7 @@ cd /path/to/your/project    # must be a git repository
 stratus init
 ```
 
-This detects services, probes retrieval backends (Vexor/DevRag), generates
+This detects services, probes retrieval backends (Vexor, governance index), generates
 `project-graph.json` and `.ai-framework.json`, registers hooks in `.claude/settings.json`,
 and the MCP server in `.mcp.json`. Re-running on an existing project upgrades the retrieval
 config without downgrading previously enabled backends.
@@ -143,9 +143,10 @@ The framework is organized into eight subsystems:
 observations, and a searchable timeline. The FTS5 virtual table uses the porter stemmer.
 
 **Retrieval** — Two backends behind a unified interface. Vexor (external binary) handles code
-semantic search; DevRag (Docker container, stdio JSON-RPC) handles governance documentation.
-`UnifiedRetriever` auto-routes queries: code queries go to Vexor, governance queries to DevRag,
-hybrid queries to both. The embed cache is a SQLite database keyed by SHA256(content+model).
+semantic search; GovernanceStore (Python-native SQLite+FTS5) indexes governance documentation
+(rules, ADRs, templates, skills, agents, architecture docs). `UnifiedRetriever` auto-routes
+queries: code queries go to Vexor, governance queries to GovernanceStore, hybrid queries to both.
+The embed cache is a SQLite database keyed by SHA256(content+model).
 
 **Hooks** — Python modules installed as entry points and registered as Claude Code hooks. They
 run on tool use events, session start/end, and stop signals. No hook ever raises an unhandled
@@ -205,8 +206,9 @@ uv run ruff check src/ tests/                             # Lint
 Runtime dependencies: `mcp>=1.20` (transitive: starlette, uvicorn, pydantic, httpx, anyio) and
 `httpx>=0.27`. The core framework uses only stdlib beyond these two packages.
 
-Optional external tools: Vexor binary (code search), Docker with the DevRag image (governance
-doc search). The framework degrades gracefully when either is unavailable.
+Optional external tools: Vexor binary (code search). Governance document search is built-in
+via GovernanceStore (no external dependencies). The framework degrades gracefully when Vexor is
+unavailable.
 
 ## Uninstall
 
