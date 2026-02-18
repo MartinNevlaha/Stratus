@@ -63,6 +63,26 @@ For each rule check:
 
 Note precedence: global rules → project rules → framework rules. Flag any global rule that overrides delegation.
 
+### F) CLAUDE.md at All Levels
+
+CLAUDE.md files are instruction layers that Claude Code reads at startup. Scan all levels:
+
+- `~/.claude/CLAUDE.md` — **global user level** (highest precedence, applies to all projects)
+- `<project>/CLAUDE.md` — **project level** (checked into repo, applies to all contributors)
+- Any subdirectory `CLAUDE.md` files — **scoped level** (applies only in that directory subtree)
+
+For each CLAUDE.md found:
+- Read the full content
+- Check for instructions that tell the main instance to write code directly (`Write`, `Edit`, "implement this", "fix this")
+- Check for instructions that conflict with `01-agent-workflow.md` delegation rules
+- Check for instructions that override enforcement hooks (e.g. "ignore hooks", "always write directly")
+- Note whether it imports or references any rules/skills that could bypass delegation
+- Check for stub or outdated content
+
+**Precedence risk:** A global `~/.claude/CLAUDE.md` that instructs "always fix errors immediately" or "write code as requested" overrides the project delegation rule for the coordinator. This is a CRITICAL conflict if it enables direct implementation.
+
+Add CLAUDE.md findings to the conflict report alongside rules findings.
+
 ### D) Slash-Commands
 
 Enumerate every file in `.claude/commands/` and `plugin/commands/`.

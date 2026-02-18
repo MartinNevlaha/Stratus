@@ -72,6 +72,12 @@ class TestSyncStratusSkill:
         assert "skills" in content.lower()
         assert "rules" in content.lower()
 
+    def test_references_claude_md_all_levels(self, path: Path) -> None:
+        content = path.read_text()
+        assert "CLAUDE.md" in content
+        assert "global" in content.lower()
+        assert "project" in content.lower()
+
     def test_references_delegation(self, path: Path) -> None:
         content = path.read_text()
         assert "delegation" in content.lower()
