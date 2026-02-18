@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "stratus-memory": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "stratus", "mcp-serve"],
+      "cwd": "."
+    }
+  }
+}

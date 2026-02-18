@@ -1,0 +1,296 @@
+"""Tests for HTTP API server routes."""
+
+import pytest
+from starlette.testclient import TestClient
+
+from stratus.server.app import create_app
+
+
+@pytest.fixture
+def client():
+    app = create_app(db_path=":memory:", learning_db_path=":memory:")
+    with TestClient(app) as c:
+        yield c
+
+
+class TestSystemRoutes:
+    def test_health(self, client: TestClient):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+
+    def test_version(self, client: TestClient):
+        resp = client.get("/api/version")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "version" in data
+
+    def test_stats(self, client: TestClient):
+        resp = client.get("/api/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total_events" in data
+        assert "total_sessions" in data
+
+
+class TestMemoryRoutes:
+    def test_save_memory(self, client: TestClient):
+        resp = client.post(
+            "/api/memory/save",
+            json={
+                "text": "found a bug in auth",
+                "title": "Auth bug",
+                "type": "bugfix",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert data["id"] >= 1
+
+    def test_save_memory_minimal(self, client: TestClient):
+        resp = client.post("/api/memory/save", json={"text": "minimal event"})
+        assert resp.status_code == 200
+        assert resp.json()["id"] >= 1
+
+    def test_save_memory_missing_text(self, client: TestClient):
+        resp = client.post("/api/memory/save", json={"title": "no text"})
+        assert resp.status_code == 422
+
+    def test_search(self, client: TestClient):
+        # Save something first
+        client.post("/api/memory/save", json={"text": "authentication bug in login"})
+        client.post("/api/memory/save", json={"text": "database migration"})
+
+        resp = client.get("/api/search", params={"query": "login"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "results" in data
+        assert len(data["results"]) >= 1
+        assert any("login" in r["text"] for r in data["results"])
+
+    def test_search_with_filters(self, client: TestClient):
+        client.post(
+            "/api/memory/save",
+            json={
+                "text": "bug in auth",
+                "type": "bugfix",
+                "project": "proj-a",
+            },
+        )
+        client.post(
+            "/api/memory/save",
+            json={
+                "text": "auth feature",
+                "type": "feature",
+                "project": "proj-b",
+            },
+        )
+
+        resp = client.get(
+            "/api/search",
+            params={
+                "query": "auth",
+                "type": "bugfix",
+            },
+        )
+        data = resp.json()
+        assert len(data["results"]) == 1
+        assert data["results"][0]["type"] == "bugfix"
+
+    def test_search_missing_query(self, client: TestClient):
+        resp = client.get("/api/search")
+        assert resp.status_code == 400
+
+    def test_timeline(self, client: TestClient):
+        ids = []
+        for i in range(5):
+            r = client.post(
+                "/api/memory/save",
+                json={
+                    "text": f"event {i}",
+                    "ts": f"2026-01-01T{i:02d}:00:00Z",
+                },
+            )
+            ids.append(r.json()["id"])
+
+        resp = client.get(
+            "/api/timeline",
+            params={
+                "anchor_id": ids[2],
+                "depth_before": 1,
+                "depth_after": 1,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "events" in data
+        assert len(data["events"]) == 3
+
+    def test_timeline_missing_anchor(self, client: TestClient):
+        resp = client.get("/api/timeline")
+        assert resp.status_code == 400
+
+    def test_observations_paginated(self, client: TestClient):
+        ids = []
+        for i in range(3):
+            r = client.post("/api/memory/save", json={"text": f"obs {i}"})
+            ids.append(r.json()["id"])
+
+        resp = client.get("/api/observations", params={"ids": ",".join(str(i) for i in ids)})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "events" in data
+        assert len(data["events"]) == 3
+
+    def test_observations_batch(self, client: TestClient):
+        ids = []
+        for i in range(3):
+            r = client.post("/api/memory/save", json={"text": f"batch {i}"})
+            ids.append(r.json()["id"])
+
+        resp = client.post("/api/observations/batch", json={"ids": ids})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "events" in data
+        assert len(data["events"]) == 3
+
+    def test_observations_batch_missing_ids(self, client: TestClient):
+        resp = client.post("/api/observations/batch", json={})
+        assert resp.status_code == 400
+
+
+class TestSessionRoutes:
+    def test_session_init(self, client: TestClient):
+        resp = client.post(
+            "/api/sessions/init",
+            json={
+                "content_session_id": "cs-123",
+                "project": "my-project",
+                "prompt": "fix bugs",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["content_session_id"] == "cs-123"
+        assert data["project"] == "my-project"
+
+    def test_session_init_missing_fields(self, client: TestClient):
+        resp = client.post("/api/sessions/init", json={"project": "p"})
+        assert resp.status_code == 422
+
+    def test_list_sessions(self, client: TestClient):
+        client.post(
+            "/api/sessions/init",
+            json={
+                "content_session_id": "cs-1",
+                "project": "p",
+            },
+        )
+        client.post(
+            "/api/sessions/init",
+            json={
+                "content_session_id": "cs-2",
+                "project": "p",
+            },
+        )
+
+        resp = client.get("/api/sessions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "sessions" in data
+        assert len(data["sessions"]) == 2
+
+    def test_context_inject(self, client: TestClient):
+        # Save some events and a session
+        client.post(
+            "/api/memory/save",
+            json={
+                "text": "important context",
+                "type": "discovery",
+                "project": "my-proj",
+            },
+        )
+        client.post(
+            "/api/sessions/init",
+            json={
+                "content_session_id": "cs-1",
+                "project": "my-proj",
+            },
+        )
+
+        resp = client.get("/api/context/inject", params={"project": "my-proj"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "context" in data
+
+
+class TestSaveSearchRoundtrip:
+    def test_full_roundtrip(self, client: TestClient):
+        """Integration: save → search → get observations."""
+        # Save
+        save_resp = client.post(
+            "/api/memory/save",
+            json={
+                "text": "discovered memory leak in websocket handler",
+                "title": "WebSocket memory leak",
+                "type": "bugfix",
+                "tags": ["websocket", "memory"],
+                "project": "my-app",
+            },
+        )
+        assert save_resp.status_code == 200
+        event_id = save_resp.json()["id"]
+
+        # Search
+        search_resp = client.get("/api/search", params={"query": "websocket memory"})
+        assert search_resp.status_code == 200
+        results = search_resp.json()["results"]
+        assert len(results) >= 1
+        assert any(r["id"] == event_id for r in results)
+
+        # Get observations
+        obs_resp = client.post("/api/observations/batch", json={"ids": [event_id]})
+        assert obs_resp.status_code == 200
+        events = obs_resp.json()["events"]
+        assert len(events) == 1
+        assert events[0]["text"] == "discovered memory leak in websocket handler"
+
+
+class TestLifespanInitialization:
+    def test_learning_db_uses_persistent_path(self, tmp_path, monkeypatch):
+        """LearningDatabase must use a file path, not :memory:."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+
+        app = create_app(db_path=":memory:")
+        with TestClient(app):
+            pass
+        # A persistent learning.db file should exist in the data dir
+        assert (tmp_path / "learning.db").exists()
+
+    def test_learning_config_loads_from_file(self, tmp_path, monkeypatch):
+        """LearningConfig should use load_learning_config(), not bare defaults."""
+        import json
+
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+
+        # Write a config file that enables learning with aggressive sensitivity
+        ai_config = tmp_path / ".ai-framework.json"
+        ai_config.write_text(
+            json.dumps(
+                {
+                    "learning": {
+                        "global_enabled": True,
+                        "sensitivity": "aggressive",
+                    },
+                }
+            )
+        )
+
+        app = create_app(db_path=":memory:")
+        with TestClient(app):
+            config = app.state.learning_config
+            assert config.global_enabled is True
+            assert config.sensitivity.value == "aggressive"
