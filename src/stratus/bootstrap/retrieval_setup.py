@@ -143,11 +143,27 @@ def configure_vexor_api_key(api_key: str, vexor_binary: str = "vexor") -> bool:
         return False
 
 
-def setup_vexor_local(vexor_binary: str = "vexor") -> bool:
-    """Run `vexor local --setup` to download local embedding model. Returns True on success."""
+def detect_cuda() -> bool:
+    """Return True if an NVIDIA GPU is available (nvidia-smi exits 0)."""
     try:
         result = subprocess.run(
-            [vexor_binary, "local", "--setup"],
+            ["nvidia-smi"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) -> bool:
+    """Run `vexor local --setup` with GPU if available, else CPU. Returns True on success."""
+    if cuda is None:
+        cuda = detect_cuda()
+    device_flag = "--cuda" if cuda else "--cpu"
+    try:
+        result = subprocess.run(
+            [vexor_binary, "local", "--setup", device_flag],
             timeout=180,
         )
         return result.returncode == 0

@@ -420,6 +420,48 @@ class TestSetupVexorLocal:
             cmd = mock_run.call_args[0][0]
             assert "/opt/vexor" in str(cmd)
 
+    def test_passes_cuda_flag_when_gpu_available(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
+                from stratus.bootstrap.retrieval_setup import setup_vexor_local
+                setup_vexor_local()
+            cmd = mock_run.call_args[0][0]
+            assert "--cuda" in cmd
+
+    def test_passes_cpu_flag_when_no_gpu(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=False):
+                from stratus.bootstrap.retrieval_setup import setup_vexor_local
+                setup_vexor_local()
+            cmd = mock_run.call_args[0][0]
+            assert "--cpu" in cmd
+
+
+class TestDetectCuda:
+    MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
+
+    def test_returns_true_when_nvidia_smi_succeeds(self) -> None:
+        with patch(self.MOCK_TARGET, return_value=MagicMock(returncode=0)):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is True
+
+    def test_returns_false_when_nvidia_smi_fails(self) -> None:
+        with patch(self.MOCK_TARGET, return_value=MagicMock(returncode=1)):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is False
+
+    def test_returns_false_when_command_not_found(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=FileNotFoundError):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is False
+
+    def test_returns_false_on_timeout(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["nvidia-smi"], 5)):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is False
+
 
 class TestRunInitialIndexBackground:
     MOCK_POPEN = "stratus.bootstrap.retrieval_setup.subprocess.Popen"

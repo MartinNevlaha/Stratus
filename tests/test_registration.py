@@ -681,44 +681,20 @@ class TestRegisterAgents:
         # force=True should have overwritten even the user-owned file
         assert user_file.read_text() != user_content
 
-    def test_register_agents_installs_core_skills(self, tmp_path: Path) -> None:
-        """Core coordinator skills (spec, sync-stratus) are always installed."""
+    def test_register_agents_does_not_install_core_skills(self, tmp_path: Path) -> None:
+        """Core skills are installed by register_core_skills(), not register_agents()."""
         from stratus.bootstrap.registration import register_agents
 
         config = self._make_config(enabled=True)
-        register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
+        result = register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
 
-        skills_dir = tmp_path / ".claude" / "skills"
-        assert (skills_dir / "spec" / "SKILL.md").exists(), "spec skill must be installed"
-        assert (skills_dir / "sync-stratus" / "SKILL.md").exists(), (
-            "sync-stratus skill must be installed"
+        # Core skills (spec, sync-stratus) should NOT be in register_agents output
+        assert not any("spec" in p for p in result), (
+            "spec skill should not be installed by register_agents()"
         )
-
-    def test_register_agents_core_skills_have_managed_header(self, tmp_path: Path) -> None:
-        """Core skills get the managed-by header so they can be updated on reinstall."""
-        from stratus.bootstrap.registration import _is_managed, register_agents
-
-        config = self._make_config(enabled=True)
-        register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
-
-        spec_skill = tmp_path / ".claude" / "skills" / "spec" / "SKILL.md"
-        sync_skill = tmp_path / ".claude" / "skills" / "sync-stratus" / "SKILL.md"
-        assert _is_managed(spec_skill)
-        assert _is_managed(sync_skill)
-
-    def test_register_agents_core_skills_skip_user_owned(self, tmp_path: Path) -> None:
-        """Core skills are not overwritten if user owns them (no managed header)."""
-        from stratus.bootstrap.registration import register_agents
-
-        skills_dir = tmp_path / ".claude" / "skills" / "spec"
-        skills_dir.mkdir(parents=True)
-        user_content = "# My custom spec skill"
-        (skills_dir / "SKILL.md").write_text(user_content)
-
-        config = self._make_config(enabled=True)
-        register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
-
-        assert (skills_dir / "SKILL.md").read_text() == user_content
+        assert not any("sync-stratus" in p for p in result), (
+            "sync-stratus should not be installed by register_agents()"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -823,3 +799,67 @@ class TestRegisterStatusline:
         (dot_claude / "settings.json").write_text(json.dumps(existing))
         result = register_statusline(tmp_path)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Core skills registration tests
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterCoreSkills:
+    def test_installs_all_core_skills(self, tmp_path: Path) -> None:
+        """All CORE_SKILL_DIRNAMES get installed."""
+        from stratus.bootstrap.registration import register_core_skills
+        from stratus.runtime_agents import CORE_SKILL_DIRNAMES
+
+        git_root = tmp_path / "project"
+        git_root.mkdir()
+        written = register_core_skills(git_root)
+        assert len(written) == len(CORE_SKILL_DIRNAMES)
+
+    def test_dry_run_writes_nothing(self, tmp_path: Path) -> None:
+        """dry_run=True returns what would be written but touches no files."""
+        from stratus.bootstrap.registration import register_core_skills
+
+        git_root = tmp_path / "project"
+        git_root.mkdir()
+        written = register_core_skills(git_root, dry_run=True)
+        skills_dir = git_root / ".claude" / "skills"
+        assert not skills_dir.exists()
+        assert len(written) > 0  # returns what WOULD be written
+
+    def test_idempotent_managed_files(self, tmp_path: Path) -> None:
+        """Running twice re-writes managed files (idempotent count)."""
+        from stratus.bootstrap.registration import register_core_skills
+
+        git_root = tmp_path / "project"
+        git_root.mkdir()
+        written1 = register_core_skills(git_root)
+        written2 = register_core_skills(git_root)
+        assert len(written2) == len(written1)  # re-writes managed files
+
+    def test_skips_unmanaged_files(self, tmp_path: Path) -> None:
+        """User-owned skill files (no managed header) are not overwritten."""
+        from stratus.bootstrap.registration import register_core_skills
+
+        git_root = tmp_path / "project"
+        git_root.mkdir()
+        # Create user-owned spec skill (no managed header)
+        spec_dir = git_root / ".claude" / "skills" / "spec"
+        spec_dir.mkdir(parents=True)
+        (spec_dir / "SKILL.md").write_text("# My custom spec skill")
+        written = register_core_skills(git_root)
+        # spec should be skipped since user owns it
+        assert not any("spec" in w for w in written)
+
+    def test_force_overwrites_unmanaged(self, tmp_path: Path) -> None:
+        """force=True overwrites user-owned skill files."""
+        from stratus.bootstrap.registration import register_core_skills
+
+        git_root = tmp_path / "project"
+        git_root.mkdir()
+        spec_dir = git_root / ".claude" / "skills" / "spec"
+        spec_dir.mkdir(parents=True)
+        (spec_dir / "SKILL.md").write_text("# My custom spec skill")
+        written = register_core_skills(git_root, force=True)
+        assert any("spec" in w for w in written)

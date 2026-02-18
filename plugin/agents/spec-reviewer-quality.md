@@ -49,4 +49,16 @@ Given a list of files to review:
 <brief summary of code quality>
 ```
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find project conventions:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find how similar code is structured elsewhere | `"code"` | `"error handling pattern"` |
+| Search project rules and coding standards | `"governance"` | `"naming conventions"` |
+| Auto-detect | omit | any query |
+
+Use `retrieve corpus:"governance"` as a complement to reading `.claude/rules/*.md` — governance DB includes ADRs, architecture docs, and skills too.
+
 You are a READ-ONLY reviewer. You may run diagnostic commands but do not modify code. `must_fix` items cause FAIL verdict. `should_fix` items are warnings. `suggestion` items are optional improvements.

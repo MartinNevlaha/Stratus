@@ -17,6 +17,17 @@ from stratus.runtime_agents import (
     read_skill_template,
 )
 
+__all__ = [
+    "build_hooks_config",
+    "build_mcp_config",
+    "build_statusline_config",
+    "register_hooks",
+    "register_mcp",
+    "register_statusline",
+    "register_agents",
+    "register_core_skills",
+]
+
 # (event_type, matcher, module_name)
 HOOK_SPECS: list[tuple[str, str, str]] = [
     ("PreToolUse", "WebSearch|WebFetch", "tool_redirect"),
@@ -300,7 +311,31 @@ def register_agents(
         _ = dest.write_text(final_content, encoding="utf-8")
         written.append(dest.relative_to(git_root).as_posix())
 
-    # --- core coordinator skills (spec, sync-stratus) ---
+    return written
+
+
+def register_core_skills(
+    git_root: Path,
+    *,
+    dry_run: bool = False,
+    force: bool = False,
+) -> list[str]:
+    """Install coordinator and reference skills into .claude/skills/. Always runs.
+
+    Override rules:
+    - File absent            → write it
+    - File has managed header → overwrite (update hash)
+    - File has no header     → skip (user owns it), unless force=True
+
+    Returns a list of file paths written (or that would be written in dry_run),
+    relative to git_root.
+    """
+    if _is_framework_repo(git_root):
+        return []
+
+    skills_dir = git_root / ".claude" / "skills"
+    written: list[str] = []
+
     for dirname in CORE_SKILL_DIRNAMES:
         dest = skills_dir / dirname / "SKILL.md"
         template = read_skill_template(dirname)
@@ -310,8 +345,9 @@ def register_agents(
         if dest.exists() and not _is_managed(dest) and not force:
             continue  # user-owned, skip
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        _ = dest.write_text(final_content, encoding="utf-8")
+        if not dry_run:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            _ = dest.write_text(final_content, encoding="utf-8")
         written.append(dest.relative_to(git_root).as_posix())
 
     return written

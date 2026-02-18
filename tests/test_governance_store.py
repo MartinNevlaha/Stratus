@@ -327,6 +327,87 @@ class TestListDocuments:
         assert docs == []
 
 
+class TestRecursiveIndexing:
+    def test_indexes_readme_in_subdirectory(self, tmp_path: Path) -> None:
+        """README.md in a service subdirectory is indexed."""
+        root = tmp_path / "project"
+        root.mkdir()
+        svc = root / "api"
+        svc.mkdir()
+        (svc / "README.md").write_text("## API Service\nHandles requests")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 1
+        docs = store.list_documents()
+        assert any("api/README.md" in d["file_path"] for d in docs)
+
+    def test_indexes_claude_md_in_subdirectory(self, tmp_path: Path) -> None:
+        """CLAUDE.md in a service subdirectory is indexed."""
+        root = tmp_path / "project"
+        root.mkdir()
+        svc = root / "frontend"
+        svc.mkdir()
+        (svc / "CLAUDE.md").write_text("## Frontend Rules\nUse React")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 1
+
+    def test_skips_node_modules(self, tmp_path: Path) -> None:
+        """README.md inside node_modules is not indexed."""
+        root = tmp_path / "project"
+        root.mkdir()
+        nm = root / "node_modules" / "some-pkg"
+        nm.mkdir(parents=True)
+        (nm / "README.md").write_text("## Package\nNPM package readme")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 0
+
+    def test_skips_git_directory(self, tmp_path: Path) -> None:
+        """Files inside .git are not indexed."""
+        root = tmp_path / "project"
+        root.mkdir()
+        git = root / ".git" / "info"
+        git.mkdir(parents=True)
+        (git / "README.md").write_text("## Git internals")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 0
+
+    def test_skips_build_artifacts(self, tmp_path: Path) -> None:
+        """Files inside dist/build are not indexed."""
+        root = tmp_path / "project"
+        root.mkdir()
+        for skip_dir in ("dist", "build", ".next"):
+            d = root / skip_dir
+            d.mkdir()
+            (d / "README.md").write_text(f"## {skip_dir}\nArtifact")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 0
+
+    def test_indexes_multiple_service_readmes(self, tmp_path: Path) -> None:
+        """README.md in multiple service dirs are all indexed."""
+        root = tmp_path / "project"
+        root.mkdir()
+        for svc in ("api", "frontend", "mobile"):
+            d = root / svc
+            d.mkdir()
+            (d / "README.md").write_text(f"## {svc}\nService readme")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 3
+
+    def test_root_readme_still_indexed(self, tmp_path: Path) -> None:
+        """Root README.md is still indexed (not excluded by any skip dir)."""
+        root = tmp_path / "project"
+        root.mkdir()
+        (root / "README.md").write_text("## Root\nProject readme")
+        store = GovernanceStore()
+        stats = store.index_project(str(root))
+        assert stats["files_indexed"] == 1
+
+
 class TestStats:
     def test_document_and_chunk_counts(self, tmp_path: Path) -> None:
         root = tmp_path / "project"

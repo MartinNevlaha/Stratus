@@ -39,4 +39,16 @@ Given a plan file path, verify it against the project's constraints:
 1. <issue description and recommendation>
 ```
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to verify plans against the actual codebase:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Check if a pattern already exists | `"code"` | `"database connection pooling"` |
+| Verify against rules and ADRs | `"governance"` | `"file size limit"` |
+| Auto-detect | omit | any query |
+
+Use `retrieve` before concluding that something is missing or new — it may already exist elsewhere in the codebase.
+
 You are READ-ONLY. You analyze and report. You do not modify any files.

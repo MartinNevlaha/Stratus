@@ -75,9 +75,17 @@ _DOC_PATTERNS: list[tuple[str, str]] = [
     (".claude/skills/**/*.md", "skill"),
     (".claude/agents/*.md", "agent"),
     ("docs/architecture/*.md", "architecture"),
-    ("CLAUDE.md", "project"),
-    ("README.md", "project"),
+    ("**/CLAUDE.md", "project"),
+    ("**/README.md", "project"),
 ]
+
+# Directories to skip during recursive glob (noise, build artifacts, deps)
+_SKIP_DIRS: frozenset[str] = frozenset({
+    "node_modules", ".git", ".venv", "venv", "__pycache__",
+    "dist", "build", ".next", "out", "target", ".gradle",
+    "vendor", "coverage", ".cache", ".tox", ".mypy_cache",
+    ".pytest_cache", ".ruff_cache",
+})
 
 _H2_SPLIT = re.compile(r"^## ", re.MULTILINE)
 
@@ -152,6 +160,9 @@ class GovernanceStore:
         for pattern, doc_type in _DOC_PATTERNS:
             for fp in root.glob(pattern):
                 if fp.is_file() and fp.suffix == ".md":
+                    rel_parts = fp.relative_to(root).parts
+                    if any(part in _SKIP_DIRS for part in rel_parts):
+                        continue
                     rel = str(fp.relative_to(root))
                     found_files[rel] = doc_type
 

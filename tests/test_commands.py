@@ -607,6 +607,7 @@ class TestCmdInitRetrieval:
         status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
         ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
         mock_index = MagicMock(return_value=True)
+        mock_setup = MagicMock(return_value=True)
         with (
             patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
             patch(
@@ -622,11 +623,20 @@ class TestCmdInitRetrieval:
                 mock_index,
             ),
             patch(
+                "stratus.bootstrap.retrieval_setup.setup_vexor_local",
+                mock_setup,
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.detect_cuda",
+                return_value=False,
+            ),
+            patch(
                 "stratus.bootstrap.commands._interactive_init",
                 return_value=("local", False),
             ),
         ):
             cmd_init(ns)
+        mock_setup.assert_called_once_with(cuda=False)
         mock_index.assert_called_once()
         captured = capsys.readouterr()
         assert "index" in captured.out.lower()

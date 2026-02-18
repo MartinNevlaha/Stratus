@@ -159,12 +159,22 @@ def cmd_init(args: argparse.Namespace) -> None:
 
     # Step 6b: Run initial indexing if approved
     if run_indexing and not dry_run:
-        from stratus.bootstrap.retrieval_setup import run_initial_index_background
-        print("Starting indexing in background...")
-        if run_initial_index_background(str(git_root)):
-            print("Indexing: running in background (run `vexor status` to check progress)")
+        from stratus.bootstrap.retrieval_setup import (
+            detect_cuda,
+            run_initial_index_background,
+            setup_vexor_local,
+        )
+        cuda = detect_cuda()
+        device = "GPU (CUDA)" if cuda else "CPU"
+        print(f"Downloading local embedding model on {device}...")
+        if setup_vexor_local(cuda=cuda):
+            print("Starting indexing in background...")
+            if run_initial_index_background(str(git_root)):
+                print("Indexing: running in background (run `vexor status` to check progress)")
+            else:
+                print("Warning: could not start indexing — vexor binary not found")
         else:
-            print("Warning: could not start indexing — vexor binary not found")
+            print("Warning: could not set up local embedding model")
 
     # Step 6: Print summary
     print(f"\nDetected {len(graph.services)} service(s):")
@@ -204,6 +214,16 @@ def cmd_init(args: argparse.Namespace) -> None:
             print(f"[dry-run] Would register statusline at {sl_path}")
         else:
             print(f"Statusline: {sl_path}")
+
+    # Step 9c: Install core skills (always, independent of delivery mode)
+    from stratus.bootstrap.registration import register_core_skills
+    from stratus.runtime_agents import CORE_SKILL_DIRNAMES
+
+    skills_written = register_core_skills(git_root, dry_run=dry_run, force=force)
+    if not dry_run and skills_written:
+        print(f"Skills: {len(skills_written)} skill(s) installed")
+    elif dry_run:
+        print(f"[dry-run] Would install {len(CORE_SKILL_DIRNAMES)} core skill(s)")
 
     # Step 10: Register delivery agents (gated)
     if not skip_agents:

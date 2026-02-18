@@ -19,3 +19,16 @@ When implementing:
 2.  Check existing code for patterns to follow.
 3.  Implement cleanly and concisely.
 4.  Write tests alongside implementation.
+
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find existing patterns before implementing:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar implementations to follow | `"code"` | `"SQLite migration pattern"` |
+| Find all callers before changing a function | `"code"` | `"users of get_data_dir"` |
+| Check conventions and rules | `"governance"` | `"error handling standard"` |
+| Auto-detect | omit | any query |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches. Use `Grep` for exact strings when you know the location.
