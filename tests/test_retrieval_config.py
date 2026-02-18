@@ -34,19 +34,16 @@ class TestVexorConfig:
 class TestDevRagConfig:
     def test_defaults(self):
         cfg = DevRagConfig()
-        assert cfg.enabled is True
-        assert cfg.container_name == "devrag"
-        assert cfg.fallback_to_flat_files is False
+        assert cfg.enabled is False
+        assert cfg.db_path is None
 
     def test_custom_values(self):
         cfg = DevRagConfig(
-            enabled=False,
-            container_name="my-devrag",
-            fallback_to_flat_files=True,
+            enabled=True,
+            db_path="/tmp/governance.db",
         )
-        assert cfg.enabled is False
-        assert cfg.container_name == "my-devrag"
-        assert cfg.fallback_to_flat_files is True
+        assert cfg.enabled is True
+        assert cfg.db_path == "/tmp/governance.db"
 
 
 class TestRetrievalConfig:
@@ -59,11 +56,11 @@ class TestRetrievalConfig:
     def test_nested_configs(self):
         cfg = RetrievalConfig(
             vexor=VexorConfig(enabled=False),
-            devrag=DevRagConfig(container_name="test"),
+            devrag=DevRagConfig(db_path="/tmp/gov.db"),
             project_root="/my/project",
         )
         assert cfg.vexor.enabled is False
-        assert cfg.devrag.container_name == "test"
+        assert cfg.devrag.db_path == "/tmp/gov.db"
         assert cfg.project_root == "/my/project"
 
 
@@ -71,7 +68,7 @@ class TestLoadRetrievalConfig:
     def test_load_from_nonexistent_file(self, tmp_path):
         cfg = load_retrieval_config(tmp_path / "nonexistent.json")
         assert cfg.vexor.enabled is True
-        assert cfg.devrag.enabled is True
+        assert cfg.devrag.enabled is False
 
     def test_load_from_json_file(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
@@ -80,7 +77,7 @@ class TestLoadRetrievalConfig:
                 {
                     "retrieval": {
                         "vexor": {"enabled": False, "model": "custom-model"},
-                        "devrag": {"container_name": "my-rag"},
+                        "devrag": {"enabled": True, "db_path": "/tmp/gov.db"},
                         "project_root": "/some/path",
                     }
                 }
@@ -89,7 +86,8 @@ class TestLoadRetrievalConfig:
         cfg = load_retrieval_config(config_file)
         assert cfg.vexor.enabled is False
         assert cfg.vexor.model == "custom-model"
-        assert cfg.devrag.container_name == "my-rag"
+        assert cfg.devrag.enabled is True
+        assert cfg.devrag.db_path == "/tmp/gov.db"
         assert cfg.project_root == "/some/path"
 
     def test_load_with_partial_config(self, tmp_path):
@@ -97,7 +95,7 @@ class TestLoadRetrievalConfig:
         config_file.write_text(json.dumps({"retrieval": {"vexor": {"enabled": False}}}))
         cfg = load_retrieval_config(config_file)
         assert cfg.vexor.enabled is False
-        assert cfg.devrag.enabled is True  # default preserved
+        assert cfg.devrag.enabled is False  # default preserved
 
     def test_load_with_invalid_json(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
@@ -116,10 +114,10 @@ class TestLoadRetrievalConfig:
         cfg = load_retrieval_config(tmp_path / "nonexistent.json")
         assert cfg.vexor.binary_path == "/custom/vexor"
 
-    def test_env_override_devrag_container(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_FRAMEWORK_DEVRAG_CONTAINER", "custom-container")
+    def test_env_override_devrag_db_path(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_FRAMEWORK_DEVRAG_DB_PATH", "/custom/governance.db")
         cfg = load_retrieval_config(tmp_path / "nonexistent.json")
-        assert cfg.devrag.container_name == "custom-container"
+        assert cfg.devrag.db_path == "/custom/governance.db"
 
     def test_env_overrides_file_config(self, tmp_path, monkeypatch):
         config_file = tmp_path / ".ai-framework.json"
@@ -146,10 +144,10 @@ class TestLoadRetrievalConfig:
         cfg = load_retrieval_config(config_file)
         assert cfg.vexor.exclude_patterns == ["*.pyc", "__pycache__"]
 
-    def test_load_devrag_fallback_flag(self, tmp_path):
+    def test_load_devrag_db_path_from_file(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
         config_file.write_text(
-            json.dumps({"retrieval": {"devrag": {"fallback_to_flat_files": True}}})
+            json.dumps({"retrieval": {"devrag": {"db_path": "/data/governance.db"}}})
         )
         cfg = load_retrieval_config(config_file)
-        assert cfg.devrag.fallback_to_flat_files is True
+        assert cfg.devrag.db_path == "/data/governance.db"

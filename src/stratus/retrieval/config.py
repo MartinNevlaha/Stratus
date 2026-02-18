@@ -18,9 +18,8 @@ class VexorConfig:
 
 @dataclass
 class DevRagConfig:
-    enabled: bool = True
-    container_name: str = "devrag"
-    fallback_to_flat_files: bool = False
+    enabled: bool = False
+    db_path: str | None = None
 
 
 @dataclass
@@ -52,9 +51,9 @@ def load_retrieval_config(path: Path | None = None) -> RetrievalConfig:
     if vexor_path:
         config.vexor.binary_path = vexor_path
 
-    devrag_container = os.environ.get("AI_FRAMEWORK_DEVRAG_CONTAINER")
-    if devrag_container:
-        config.devrag.container_name = devrag_container
+    devrag_db_path = os.environ.get("AI_FRAMEWORK_DEVRAG_DB_PATH")
+    if devrag_db_path:
+        config.devrag.db_path = devrag_db_path
 
     return config
 
@@ -73,7 +72,5 @@ def _apply_vexor(cfg: VexorConfig, data: dict) -> None:
 def _apply_devrag(cfg: DevRagConfig, data: dict) -> None:
     if "enabled" in data:
         cfg.enabled = data["enabled"]
-    if "container_name" in data:
-        cfg.container_name = data["container_name"]
-    if "fallback_to_flat_files" in data:
-        cfg.fallback_to_flat_files = data["fallback_to_flat_files"]
+    if "db_path" in data:
+        cfg.db_path = data["db_path"]

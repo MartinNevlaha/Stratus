@@ -33,11 +33,22 @@ def create_app(
         from stratus.learning.database import LearningDatabase
         from stratus.learning.watcher import ProjectWatcher
         from stratus.orchestration.delivery_config import load_delivery_config
+        from stratus.retrieval.config import DevRagConfig
+        from stratus.retrieval.devrag import DevRagClient
+        from stratus.retrieval.governance_store import GovernanceStore
         from stratus.session.config import get_data_dir
 
         app.state.db = Database(db_path)
-        app.state.retriever = UnifiedRetriever()
         app.state.embed_cache = EmbedCache()
+
+        # Governance store for DevRag
+        gov_db_path = str(get_data_dir() / "governance.db")
+        app.state.governance_store = GovernanceStore(gov_db_path)
+        devrag_client = DevRagClient(
+            config=DevRagConfig(enabled=True),
+            store=app.state.governance_store,
+        )
+        app.state.retriever = UnifiedRetriever(devrag=devrag_client)
 
         # Orchestration subsystem — delivery or spec based on config
         session_dir = (
@@ -90,6 +101,7 @@ def create_app(
 
         yield
 
+        app.state.governance_store.close()
         app.state.learning_db.close()
         app.state.embed_cache.close()
         app.state.db.close()

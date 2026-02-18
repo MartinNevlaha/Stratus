@@ -98,22 +98,18 @@ def cmd_init(args: argparse.Namespace) -> None:
     run_indexing = False
 
     if not skip_retrieval:
-        backend_status = detect_backends()
-        has_any = backend_status.vexor_available or backend_status.docker_available
+        backend_status = detect_backends(data_dir=str(data_dir) if not dry_run else None)
+        has_any = backend_status.vexor_available or backend_status.governance_indexed
         if has_any:
             print("\nRetrieval backends:")
             if backend_status.vexor_available:
                 print(f"  Vexor: available ({backend_status.vexor_version})")
             else:
                 print("  Vexor: not found")
-            if backend_status.devrag_container_running:
-                print("  DevRag: running")
-            elif backend_status.devrag_container_exists:
-                print("  DevRag: stopped")
-            elif backend_status.docker_available:
-                print("  DevRag: container not found")
+            if backend_status.governance_indexed:
+                print("  Governance: indexed")
             else:
-                print("  DevRag: Docker not available")
+                print("  Governance: not indexed")
 
         ai_path = git_root / ".ai-framework.json"
         if ai_path.exists() and not force:
@@ -269,9 +265,10 @@ def cmd_doctor(_args: argparse.Namespace) -> None:
     vexor_ok = _check_cmd(["vexor", "--version"])
     _print_check(vexor_ok, "Vexor binary")
 
-    # Check 5: DevRag (Docker container)
-    devrag_ok = _check_cmd(["docker", "ps", "--filter", "name=devrag", "--format", "{{.Names}}"])
-    _print_check(devrag_ok, "DevRag (Docker)")
+    # Check 5: Governance index
+    gov_db = get_data_dir() / "governance.db"
+    gov_ok = gov_db.exists() and gov_db.stat().st_size > 0
+    _print_check(gov_ok, "Governance index")
 
     cwd = Path.cwd()
     for name in (".ai-framework.json", "project-graph.json"):

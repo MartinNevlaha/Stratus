@@ -3,6 +3,7 @@
 from stratus.retrieval.config import DevRagConfig, RetrievalConfig, VexorConfig
 from stratus.retrieval.devrag import DevRagClient
 from stratus.retrieval.embed_cache import EmbedCache, compute_content_hash
+from stratus.retrieval.governance_store import GovernanceStore
 from stratus.retrieval.index_state import (
     check_staleness,
     get_changed_files,
@@ -24,6 +25,7 @@ __all__ = [
     "DevRagClient",
     "DevRagConfig",
     "EmbedCache",
+    "GovernanceStore",
     "IndexStatus",
     "RetrievalConfig",
     "RetrievalResponse",

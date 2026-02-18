@@ -11,8 +11,8 @@ from stratus.bootstrap.retrieval_setup import (
     detect_backends,
     merge_retrieval_into_existing,
     prompt_retrieval_setup,
+    run_governance_index,
     run_initial_index,
-    setup_devrag,
 )
 
 MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
@@ -22,139 +22,25 @@ class TestDetectBackends:
     def test_vexor_available(self) -> None:
         """Detect vexor when binary returns version string."""
         vexor_result = MagicMock(returncode=0, stdout="vexor 1.2.3\n")
-        docker_result = MagicMock(returncode=1)
 
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return vexor_result
-            return docker_result
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
+        with patch(MOCK_TARGET, return_value=vexor_result):
             status = detect_backends()
         assert status.vexor_available is True
         assert status.vexor_version == "vexor 1.2.3"
 
     def test_vexor_unavailable(self) -> None:
         """Vexor unavailable when binary not found."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                raise FileNotFoundError
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
+        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
             status = detect_backends()
         assert status.vexor_available is False
         assert status.vexor_version is None
 
     def test_vexor_timeout(self) -> None:
         """Vexor unavailable on timeout."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                raise subprocess.TimeoutExpired(cmd, 5)
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
+        with patch(MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["vexor"], 5)):
             status = detect_backends()
         assert status.vexor_available is False
         assert status.vexor_version is None
-
-    def test_docker_available(self) -> None:
-        """Detect docker when docker version succeeds."""
-        vexor_result = MagicMock(returncode=1)
-        docker_result = MagicMock(returncode=0)
-        inspect_result = MagicMock(returncode=1, stdout="false\n")
-
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return vexor_result
-            if cmd[:2] == ["docker", "version"]:
-                return docker_result
-            if "inspect" in cmd:
-                return inspect_result
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends()
-        assert status.docker_available is True
-
-    def test_docker_unavailable(self) -> None:
-        """Docker unavailable when binary not found."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return MagicMock(returncode=1)
-            if cmd[0] == "docker":
-                raise FileNotFoundError
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends()
-        assert status.docker_available is False
-        assert status.devrag_container_exists is False
-        assert status.devrag_container_running is False
-
-    def test_devrag_running(self) -> None:
-        """Detect devrag container running."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return MagicMock(returncode=1)
-            if cmd[:2] == ["docker", "version"]:
-                return MagicMock(returncode=0)
-            if "inspect" in cmd and "--format" in cmd:
-                return MagicMock(returncode=0, stdout="true\n")
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends()
-        assert status.docker_available is True
-        assert status.devrag_container_exists is True
-        assert status.devrag_container_running is True
-
-    def test_devrag_stopped(self) -> None:
-        """Detect devrag container exists but stopped."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return MagicMock(returncode=1)
-            if cmd[:2] == ["docker", "version"]:
-                return MagicMock(returncode=0)
-            if "inspect" in cmd and "--format" in cmd:
-                return MagicMock(returncode=0, stdout="false\n")
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends()
-        assert status.devrag_container_exists is True
-        assert status.devrag_container_running is False
-
-    def test_devrag_missing(self) -> None:
-        """DevRag container does not exist."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return MagicMock(returncode=1)
-            if cmd[:2] == ["docker", "version"]:
-                return MagicMock(returncode=0)
-            if "inspect" in cmd:
-                return MagicMock(returncode=1, stdout="")
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends()
-        assert status.devrag_container_exists is False
-        assert status.devrag_container_running is False
-
-    def test_devrag_skipped_without_docker(self) -> None:
-        """When docker unavailable, devrag checks are skipped."""
-        def side_effect(cmd, **kwargs):
-            if cmd[0] == "vexor":
-                return MagicMock(returncode=1)
-            if cmd[0] == "docker":
-                raise FileNotFoundError
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends()
-        assert status.docker_available is False
-        assert status.devrag_container_exists is False
-        assert status.devrag_container_running is False
 
     def test_custom_vexor_binary(self) -> None:
         """Custom vexor binary path is used."""
@@ -163,35 +49,40 @@ class TestDetectBackends:
 
         def side_effect(cmd, **kwargs):
             calls.append(cmd)
-            if cmd[0] == "/opt/vexor":
-                return vexor_result
-            if cmd[0] == "docker":
-                return MagicMock(returncode=1)
-            return MagicMock(returncode=1)
+            return vexor_result
 
         with patch(MOCK_TARGET, side_effect=side_effect):
             status = detect_backends(vexor_binary="/opt/vexor")
         assert status.vexor_available is True
         assert any("/opt/vexor" in str(c) for c in calls)
 
-    def test_custom_devrag_container(self) -> None:
-        """Custom devrag container name is used."""
-        calls = []
+    def test_governance_indexed_when_db_exists(self, tmp_path) -> None:
+        """Governance indexed when governance.db exists with content."""
+        (tmp_path / "governance.db").write_text("notempty")
 
-        def side_effect(cmd, **kwargs):
-            calls.append(cmd)
-            if cmd[0] == "vexor":
-                return MagicMock(returncode=1)
-            if cmd[:2] == ["docker", "version"]:
-                return MagicMock(returncode=0)
-            if "inspect" in cmd:
-                return MagicMock(returncode=0, stdout="true\n")
-            return MagicMock(returncode=1)
+        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
+            status = detect_backends(data_dir=str(tmp_path))
+        assert status.governance_indexed is True
 
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            status = detect_backends(devrag_container="my-devrag")
-        assert status.devrag_container_running is True
-        assert any("my-devrag" in str(c) for c in calls)
+    def test_governance_not_indexed_when_no_db(self, tmp_path) -> None:
+        """Governance not indexed when governance.db doesn't exist."""
+        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
+            status = detect_backends(data_dir=str(tmp_path))
+        assert status.governance_indexed is False
+
+    def test_governance_not_indexed_when_empty_db(self, tmp_path) -> None:
+        """Governance not indexed when governance.db is empty."""
+        (tmp_path / "governance.db").write_text("")
+
+        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
+            status = detect_backends(data_dir=str(tmp_path))
+        assert status.governance_indexed is False
+
+    def test_governance_not_indexed_when_no_data_dir(self) -> None:
+        """Governance not indexed when data_dir is None."""
+        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
+            status = detect_backends(data_dir=None)
+        assert status.governance_indexed is False
 
 
 class TestBuildRetrievalConfig:
@@ -205,17 +96,13 @@ class TestBuildRetrievalConfig:
         config = build_retrieval_config(status, "/my/project")
         assert config["vexor"]["enabled"] is False
 
-    def test_devrag_enabled_when_running(self) -> None:
-        status = BackendStatus(
-            docker_available=True,
-            devrag_container_exists=True,
-            devrag_container_running=True,
-        )
+    def test_devrag_enabled_when_governance_indexed(self) -> None:
+        status = BackendStatus(governance_indexed=True)
         config = build_retrieval_config(status, "/my/project")
         assert config["devrag"]["enabled"] is True
 
-    def test_devrag_disabled_when_not_running(self) -> None:
-        status = BackendStatus(docker_available=True, devrag_container_exists=False)
+    def test_devrag_disabled_when_not_indexed(self) -> None:
+        status = BackendStatus(governance_indexed=False)
         config = build_retrieval_config(status, "/my/project")
         assert config["devrag"]["enabled"] is False
 
@@ -225,12 +112,7 @@ class TestBuildRetrievalConfig:
         assert config["vexor"]["project_root"] == "/my/project"
 
     def test_both_enabled(self) -> None:
-        status = BackendStatus(
-            vexor_available=True,
-            docker_available=True,
-            devrag_container_exists=True,
-            devrag_container_running=True,
-        )
+        status = BackendStatus(vexor_available=True, governance_indexed=True)
         config = build_retrieval_config(status, "/my/project")
         assert config["vexor"]["enabled"] is True
         assert config["devrag"]["enabled"] is True
@@ -265,19 +147,15 @@ class TestMergeRetrievalIntoExisting:
         assert updated["retrieval"]["vexor"]["enabled"] is True
 
     def test_no_downgrade_devrag(self) -> None:
-        """Never disable devrag even if container gone."""
+        """Never disable devrag even if governance.db gone."""
         existing = {"retrieval": {"devrag": {"enabled": True}}}
-        status = BackendStatus(docker_available=False)
+        status = BackendStatus(governance_indexed=False)
         updated = merge_retrieval_into_existing(existing, status, "/root")
         assert updated["retrieval"]["devrag"]["enabled"] is True
 
-    def test_devrag_enabled_when_running(self) -> None:
+    def test_devrag_enabled_when_governance_indexed(self) -> None:
         existing = {"retrieval": {"devrag": {"enabled": False}}}
-        status = BackendStatus(
-            docker_available=True,
-            devrag_container_exists=True,
-            devrag_container_running=True,
-        )
+        status = BackendStatus(governance_indexed=True)
         updated = merge_retrieval_into_existing(existing, status, "/root")
         assert updated["retrieval"]["devrag"]["enabled"] is True
 
@@ -317,6 +195,7 @@ class TestPromptRetrievalSetup:
     def test_vexor_defaults_yes(self) -> None:
         """When vexor available, pressing Enter (default) enables it."""
         status = BackendStatus(vexor_available=True)
+        # Inputs: enable vexor (enter=yes), indexing (enter=yes), governance (enter=yes)
         with patch("builtins.input", return_value=""):
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
         assert enable_vexor is True
@@ -324,15 +203,16 @@ class TestPromptRetrievalSetup:
     def test_user_declines_vexor(self) -> None:
         """User can decline vexor."""
         status = BackendStatus(vexor_available=True)
-        with patch("builtins.input", return_value="n"):
+        # Inputs: decline vexor, governance (enter=yes)
+        with patch("builtins.input", side_effect=["n", ""]):
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
         assert enable_vexor is False
 
     def test_offers_indexing_when_vexor_enabled(self) -> None:
         """When vexor enabled, asks about indexing."""
         status = BackendStatus(vexor_available=True)
-        # First input: enable vexor (y), second: run indexing (y)
-        with patch("builtins.input", side_effect=["y", "y"]):
+        # Inputs: enable vexor, run indexing, enable governance
+        with patch("builtins.input", side_effect=["y", "y", "y"]):
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
         assert enable_vexor is True
         assert run_indexing is True
@@ -340,58 +220,38 @@ class TestPromptRetrievalSetup:
     def test_no_indexing_when_declined(self) -> None:
         """User can decline indexing."""
         status = BackendStatus(vexor_available=True)
-        with patch("builtins.input", side_effect=["y", "n"]):
+        # Inputs: enable vexor, decline indexing, enable governance
+        with patch("builtins.input", side_effect=["y", "n", "y"]):
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
         assert enable_vexor is True
         assert run_indexing is False
 
-    def test_unavailable_no_prompt(self) -> None:
-        """When nothing available, no prompts are shown."""
+    def test_no_vexor_still_asks_governance(self) -> None:
+        """When vexor unavailable, still asks about governance docs."""
         status = BackendStatus()
-        with patch("builtins.input") as mock_input:
+        with patch("builtins.input", return_value="") as mock_input:
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
-        mock_input.assert_not_called()
+        mock_input.assert_called_once()
         assert enable_vexor is False
-        assert enable_devrag is False
-        assert run_indexing is False
-
-    def test_devrag_defaults_yes(self) -> None:
-        """When devrag running, pressing Enter enables it."""
-        status = BackendStatus(
-            docker_available=True,
-            devrag_container_exists=True,
-            devrag_container_running=True,
-        )
-        with patch("builtins.input", return_value=""):
-            enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
         assert enable_devrag is True
 
-    def test_docker_available_devrag_missing_prompts_setup(self) -> None:
-        """When Docker available but no DevRag, offers to set it up."""
-        status = BackendStatus(docker_available=True, devrag_container_exists=False)
-        with patch("builtins.input", return_value="n") as mock_input:
+    def test_governance_defaults_yes(self) -> None:
+        """Pressing Enter enables governance indexing."""
+        status = BackendStatus()
+        with patch("builtins.input", return_value=""):
             _, enable_devrag, _ = prompt_retrieval_setup(status)
-        assert enable_devrag is False
-        # Should have prompted about DevRag setup
-        calls = [str(c) for c in mock_input.call_args_list]
-        assert any("devrag" in c.lower() for c in calls)
+        assert enable_devrag is True
 
-    def test_docker_available_devrag_stopped_prompts_start(self) -> None:
-        """When DevRag container exists but stopped, offers to start it."""
-        status = BackendStatus(
-            docker_available=True,
-            devrag_container_exists=True,
-            devrag_container_running=False,
-        )
-        with patch("builtins.input", return_value="n") as mock_input:
+    def test_user_declines_governance(self) -> None:
+        """User can decline governance indexing."""
+        status = BackendStatus()
+        with patch("builtins.input", return_value="n"):
             _, enable_devrag, _ = prompt_retrieval_setup(status)
         assert enable_devrag is False
-        calls = [str(c) for c in mock_input.call_args_list]
-        assert any("devrag" in c.lower() or "start" in c.lower() for c in calls)
 
     def test_dry_run_no_prompts(self) -> None:
         """In dry-run mode, no prompts are shown."""
-        status = BackendStatus(vexor_available=True, devrag_container_running=True)
+        status = BackendStatus(vexor_available=True)
         with patch("builtins.input") as mock_input:
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(
                 status, dry_run=True,
@@ -423,89 +283,25 @@ class TestRunInitialIndex:
         assert "timeout" in result["message"].lower()
 
 
-class TestSetupDevrag:
-    def test_builds_and_starts_container(self) -> None:
-        """Builds image and runs container successfully."""
-        build_result = MagicMock(returncode=0, stdout="", stderr="")
-        run_result = MagicMock(returncode=0, stdout="abc123\n", stderr="")
-
-        def side_effect(cmd, **kwargs):
-            if "build" in cmd:
-                return build_result
-            if "run" in cmd:
-                return run_result
-            return MagicMock(returncode=1)
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            result = setup_devrag(project_root="/my/project")
+class TestRunGovernanceIndex:
+    def test_success(self, tmp_path) -> None:
+        """Indexes governance docs and returns stats."""
+        root = tmp_path / "project"
+        root.mkdir()
+        rules = root / ".claude" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "test.md").write_text("## Test\nTest content")
+        db_path = str(tmp_path / "governance.db")
+        result = run_governance_index(str(root), db_path)
         assert result["status"] == "ok"
+        assert result["files_indexed"] == 1
+        assert result["chunks_indexed"] == 1
 
-    def test_mounts_project_root(self) -> None:
-        """Container run command includes volume mount for project root."""
-        calls = []
-
-        def side_effect(cmd, **kwargs):
-            calls.append(cmd)
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        with patch(MOCK_TARGET, side_effect=side_effect):
-            setup_devrag(project_root="/my/project")
-        run_cmd = [c for c in calls if "run" in c]
-        assert len(run_cmd) == 1
-        assert "-v" in run_cmd[0]
-        assert "/my/project:/app" in run_cmd[0]
-
-    def test_starts_existing_stopped_container(self) -> None:
-        """When container exists but stopped, starts it."""
-        start_result = MagicMock(returncode=0, stdout="devrag\n", stderr="")
-
-        with patch(MOCK_TARGET, return_value=start_result):
-            result = setup_devrag(container_exists=True)
+    def test_empty_project(self, tmp_path) -> None:
+        """Empty project returns ok with zero counts."""
+        root = tmp_path / "empty"
+        root.mkdir()
+        db_path = str(tmp_path / "governance.db")
+        result = run_governance_index(str(root), db_path)
         assert result["status"] == "ok"
-
-    def test_docker_not_found(self) -> None:
-        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
-            result = setup_devrag()
-        assert result["status"] == "error"
-        assert "docker" in result["message"].lower()
-
-    def test_build_fails(self) -> None:
-        build_result = MagicMock(
-            returncode=1, stdout="", stderr="build error\n",
-        )
-        with patch(MOCK_TARGET, return_value=build_result):
-            result = setup_devrag()
-        assert result["status"] == "error"
-        assert "build" in result["message"].lower()
-
-    def test_timeout(self) -> None:
-        with patch(
-            MOCK_TARGET,
-            side_effect=subprocess.TimeoutExpired(["docker"], 120),
-        ):
-            result = setup_devrag()
-        assert result["status"] == "error"
-        assert "timeout" in result["message"].lower()
-
-    def test_prompt_offers_setup_when_docker_available(self) -> None:
-        """When Docker available but no DevRag, prompt offers to set it up."""
-        status = BackendStatus(docker_available=True, devrag_container_exists=False)
-        mock_setup = MagicMock(return_value={"status": "ok"})
-        # First input: vexor no (skip), second: setup devrag yes
-        with (
-            patch("builtins.input", side_effect=["y"]),
-            patch(
-                "stratus.bootstrap.retrieval_setup.setup_devrag",
-                mock_setup,
-            ),
-        ):
-            _, enable_devrag, _ = prompt_retrieval_setup(status)
-        assert enable_devrag is True
-        mock_setup.assert_called_once()
-
-    def test_prompt_user_declines_setup(self) -> None:
-        """User can decline DevRag setup."""
-        status = BackendStatus(docker_available=True, devrag_container_exists=False)
-        with patch("builtins.input", return_value="n"):
-            _, enable_devrag, _ = prompt_retrieval_setup(status)
-        assert enable_devrag is False
+        assert result["files_indexed"] == 0

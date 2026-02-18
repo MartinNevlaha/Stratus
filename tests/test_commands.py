@@ -397,6 +397,10 @@ class TestCmdInit:
                 "stratus.bootstrap.retrieval_setup.detect_backends",
                 return_value=BackendStatus(),
             ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
+                return_value=(False, False, False),
+            ),
         ):
             cmd_init(ns)
         mock_interactive.assert_called_once()
