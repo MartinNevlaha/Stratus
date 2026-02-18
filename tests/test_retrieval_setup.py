@@ -419,3 +419,43 @@ class TestSetupVexorLocal:
             setup_vexor_local("/opt/vexor")
             cmd = mock_run.call_args[0][0]
             assert "/opt/vexor" in str(cmd)
+
+
+class TestRunInitialIndexBackground:
+    MOCK_POPEN = "stratus.bootstrap.retrieval_setup.subprocess.Popen"
+
+    def test_success_returns_true(self) -> None:
+        with patch(self.MOCK_POPEN) as mock_popen:
+            from stratus.bootstrap.retrieval_setup import run_initial_index_background
+            result = run_initial_index_background("/my/project")
+        assert result is True
+        mock_popen.assert_called_once()
+
+    def test_binary_not_found_returns_false(self) -> None:
+        with patch(self.MOCK_POPEN, side_effect=FileNotFoundError):
+            from stratus.bootstrap.retrieval_setup import run_initial_index_background
+            result = run_initial_index_background("/my/project")
+        assert result is False
+
+    def test_passes_correct_command(self) -> None:
+        with patch(self.MOCK_POPEN) as mock_popen:
+            from stratus.bootstrap.retrieval_setup import run_initial_index_background
+            run_initial_index_background("/my/project")
+            cmd = mock_popen.call_args[0][0]
+            assert "index" in cmd
+            assert "--path" in cmd
+            assert "/my/project" in cmd
+
+    def test_starts_new_session(self) -> None:
+        with patch(self.MOCK_POPEN) as mock_popen:
+            from stratus.bootstrap.retrieval_setup import run_initial_index_background
+            run_initial_index_background("/my/project")
+            kwargs = mock_popen.call_args[1]
+            assert kwargs.get("start_new_session") is True
+
+    def test_custom_binary(self) -> None:
+        with patch(self.MOCK_POPEN) as mock_popen:
+            from stratus.bootstrap.retrieval_setup import run_initial_index_background
+            run_initial_index_background("/my/project", vexor_binary="/opt/vexor")
+            cmd = mock_popen.call_args[0][0]
+            assert "/opt/vexor" in str(cmd)

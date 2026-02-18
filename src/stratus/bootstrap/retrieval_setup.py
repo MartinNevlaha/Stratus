@@ -155,6 +155,23 @@ def setup_vexor_local(vexor_binary: str = "vexor") -> bool:
         return False
 
 
+def run_initial_index_background(
+    project_root: str,
+    vexor_binary: str = "vexor",
+) -> bool:
+    """Start vexor indexing as a detached background process. Returns True if started."""
+    try:
+        subprocess.Popen(
+            [vexor_binary, "index", "--path", project_root],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return True
+    except FileNotFoundError:
+        return False
+
+
 def run_initial_index(
     project_root: str,
     vexor_binary: str = "vexor",
@@ -165,7 +182,7 @@ def run_initial_index(
             [vexor_binary, "index", "--path", project_root],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=1200,
         )
     except FileNotFoundError:
         return {"status": "error", "message": "vexor binary not found"}
