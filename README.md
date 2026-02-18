@@ -171,6 +171,193 @@ machine (plan → implement → verify → learn). Reviewer agents produce PASS/
 generates `project-graph.json` and `.ai-framework.json`, and registers hooks and the MCP server
 into `.claude/settings.json` and `.mcp.json`. Registration is idempotent.
 
+## Adaptive Learning
+
+The learning subsystem detects recurring patterns in your development workflow and proposes
+reusable rules, ADRs, templates, and skills. Ships disabled by default.
+
+### How It Works
+
+```
+git commit (x5)  -->  learning_trigger hook  -->  POST /api/learning/analyze
+                                                        |
+                      +--------------------------------+
+                      |
+                      v
+              Git Analysis              AST Analysis
+        (structural changes,      (function signatures,
+         import patterns)          class hierarchies,
+                                   error handlers)
+                      |                    |
+                      +--------+-----------+
+                               |
+                               v
+                    Heuristic Scoring (H1-H7)
+              confidence = base * consistency
+                         * recency * scope
+                         * prior_decision_factor
+                               |
+                               v
+                    Decision Tree Filter
+              (min count, single-file, cooldown,
+               existing rule dedup)
+                               |
+                               v
+                    Proposal Generation
+              (max 3/session, LLM prompt templates)
+                               |
+                               v
+                  User decides: accept / reject / ignore
+                               |
+               +---------------+----------------+
+               |                                |
+            ACCEPT                        REJECT/IGNORE
+               |                                |
+         Create artifact                  7-day cooldown
+         Save memory event               Lower prior_factor
+         Snapshot baseline               Save memory event
+```
+
+**Trigger**: The `learning_trigger` hook fires on `PostToolUse` for `git commit`, `git merge`,
+and `git pull`. After every 5 commits (configurable), it sends an analysis request to the HTTP
+API. The hook always exits 0 — it never blocks the developer.
+
+**Analysis**: `GitAnalyzer` runs `git diff` to find structural changes and import patterns.
+`AstAnalyzer` parses Python via stdlib `ast` (TypeScript via regex) to extract function
+signatures, class hierarchies, and error handling patterns. Cross-file repetition produces
+`Detection` objects.
+
+**Scoring**: Seven heuristics compute confidence scores. The `prior_decision_factor` creates a
+reinforcement loop: past accepts boost confidence for similar patterns, past rejects lower it.
+A decision tree discards low-count, single-file, and recently-rejected patterns.
+
+**Proposals**: Scored candidates are deduplicated, checked against existing `.claude/rules/`
+files, and converted to proposals with LLM prompt templates. Stratus never calls an LLM API
+itself — interpretation happens through agents or manual review.
+
+### Artifacts
+
+Accepted proposals create files that Claude Code discovers automatically:
+
+| Proposal Type | Artifact Path | How Claude Code Uses It |
+|---|---|---|
+| RULE | `.claude/rules/learning-<slug>.md` | Loaded into system prompt of every session |
+| ADR | `docs/decisions/<slug>.md` | Indexed by GovernanceStore, searchable via retrieval |
+| TEMPLATE | `.claude/templates/<slug>.md` | Available for project scaffolding |
+| SKILL | `.claude/skills/<slug>/prompt.md` | Invocable by name in Claude Code |
+| PROJECT_GRAPH | `.ai-framework/project-graph.json` | Informs service detection and agent prompts |
+
+Rules are the primary output. Once `.claude/rules/learning-<slug>.md` is on disk, Claude Code
+includes it in the system prompt for all future sessions in that project — no configuration needed.
+
+### Effectiveness Feedback Loop
+
+Hooks (`file_checker`, `tdd_enforcer`) record failures to the analytics system. When a rule is
+accepted, the current failure rate is baselined. Over time, effectiveness is scored:
+
+```
+score = 1.0 - (current_failure_rate / baseline_failure_rate) / 2.0
+```
+
+- Score > 0.6: **effective** (failures decreased)
+- 0.4 - 0.6: **neutral**
+- < 0.4: **ineffective**
+
+Low-impact rules are surfaced via `GET /api/learning/analytics/rules/low-impact`.
+
+### Anti-Annoyance Controls
+
+- Disabled by default (`global_enabled: false`)
+- Max 3 proposals per session
+- 7-day cooldown after reject/ignore
+- 24-hour warmup before first analysis
+- Conservative confidence threshold (0.7)
+
+## Agent Orchestration
+
+Spec-driven development uses the `/spec` workflow: plan → implement → verify → learn. Two
+orchestration backends share the same state machine, review logic, and worktree isolation.
+
+### Task Tool (Default)
+
+Main Claude (Opus) spawns disposable subagents via the `Task` tool. Each agent gets a fresh
+context, executes its assignment, and terminates. All state flows through the coordinator.
+
+```
+/spec <slug>
+  |
+  PLAN -----> Main Claude writes plan, user approves
+  |
+  IMPLEMENT -> worktree.create() -> git worktree on spec/<slug>
+  |            For each task:
+  |              Task(implementer, "Implement task N...")
+  |              -> Agent runs TDD, hooks check linting + tests
+  |
+  VERIFY ----> Task(spec-reviewer-compliance, run_in_background=true)
+  |            Task(spec-reviewer-quality, run_in_background=true)
+  |            -> parse_verdict() extracts PASS/FAIL + findings
+  |            -> aggregate_verdicts()
+  |            |
+  |            +-- All PASS? -> LEARN
+  |            +-- FAIL? -> fix loop (max 3 iterations)
+  |                         build_fix_instructions(findings)
+  |                         -> back to IMPLEMENT -> VERIFY
+  |
+  LEARN -----> sync_worktree() -> squash-merge to main
+               cleanup_worktree() -> remove worktree + branch
+               Save memory events
+```
+
+### Agent Teams (Opt-In, Experimental)
+
+Instead of disposable agents, creates persistent teammates that share a task list and
+communicate directly. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and configuration
+in `.ai-framework.json`:
+
+```json
+{
+  "agent_teams": {
+    "enabled": true,
+    "mode": "agent-teams",
+    "teammate_mode": "auto",
+    "max_teammates": 5
+  }
+}
+```
+
+The lifecycle is the same (PLAN → IMPLEMENT → VERIFY → LEARN), but dispatch differs:
+
+- **Implementation**: `TeamManager` creates a team with N teammates, each owning non-overlapping
+  files. Teammates auto-claim tasks from a shared task list.
+- **Review**: `TeamManager` creates a review team. `TeammateIdle` hook enforces verdict format
+  (exit 2 = keep working). `TaskCompleted` hook validates output completeness.
+- **Quality gates**: `teammate_idle` and `task_completed` hooks are active only in this mode.
+  They never crash — all errors swallowed with exit 0.
+
+### Comparison
+
+| Aspect | Task Tool | Agent Teams |
+|---|---|---|
+| Agent lifecycle | Disposable (spawn, execute, terminate) | Persistent (live across tasks) |
+| Communication | Through coordinator only | Direct inter-agent messaging |
+| Parallelism | `run_in_background` + polling | Shared task list, auto-claiming |
+| Quality gates | Coordinator validates output | `TeammateIdle` + `TaskCompleted` hooks |
+| Token cost | Lower (results summarized) | Higher (each teammate = full instance) |
+| Stability | Production | Experimental |
+
+### Shared Components
+
+Both modes use the same:
+- **SpecCoordinator** (`orchestration/coordinator.py`) — pure state machine, manages phase
+  transitions. Does not generate prompts or call Claude APIs.
+- **TeamManager** (`orchestration/teams.py`) — generates prompts for Agent Teams, validates
+  outputs. Does not call Claude APIs directly.
+- **Reviewer agents** (`.claude/agents/spec-reviewer-*.md`) — read-only Opus agents producing
+  `Verdict: PASS/FAIL` with structured findings. Same definitions in both modes.
+- **Review logic** (`orchestration/review.py`) — `parse_verdict()`, `aggregate_verdicts()`,
+  `needs_fix_loop()`. Operates on `ReviewVerdict` objects, never string matching.
+- **Worktree isolation** (`orchestration/worktree.py`) — git worktree create/sync/cleanup.
+
 ## Configuration
 
 | Environment Variable | Default | Description |
