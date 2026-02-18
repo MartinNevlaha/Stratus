@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from stratus.bootstrap.registration import (
+    _is_stratus_hook,
+    _merge_hooks,
     build_hooks_config,
     build_mcp_config,
     register_hooks,
@@ -35,12 +37,12 @@ class TestBuildHooksConfig:
         }
         assert expected == set(hooks.keys())
 
-    def test_post_tool_use_has_three_matchers(self) -> None:
+    def test_post_tool_use_has_four_matchers(self) -> None:
         hooks = build_hooks_config()["hooks"]
         assert isinstance(hooks, dict)
         post_tool_use = hooks["PostToolUse"]
         assert isinstance(post_tool_use, list)
-        assert len(post_tool_use) == 3
+        assert len(post_tool_use) == 4
 
     def test_write_edit_matcher_has_two_hooks(self) -> None:
         hooks = build_hooks_config()["hooks"]
@@ -98,6 +100,148 @@ class TestBuildHooksConfig:
         assert hook_entries[0]["command"] == "uv run python -m stratus.hooks.learning_trigger"
 
 
+class TestIsStratusHook:
+    def test_uv_run_prefix_detected(self) -> None:
+        entry = {"type": "command", "command": "uv run python -m stratus.hooks.context_monitor"}
+        assert _is_stratus_hook(entry) is True
+
+    def test_plugin_prefix_detected(self) -> None:
+        entry = {"type": "command", "command": "stratus hook context_monitor"}
+        assert _is_stratus_hook(entry) is True
+
+    def test_user_command_not_detected(self) -> None:
+        entry = {"type": "command", "command": "my-custom-linter"}
+        assert _is_stratus_hook(entry) is False
+
+    def test_missing_command_key_returns_false(self) -> None:
+        entry = {"type": "command"}
+        assert _is_stratus_hook(entry) is False
+
+    def test_non_string_command_returns_false(self) -> None:
+        entry = {"type": "command", "command": 42}
+        assert _is_stratus_hook(entry) is False
+
+
+class TestMergeHooks:
+    def test_empty_existing_returns_stratus_hooks(self) -> None:
+        stratus = build_hooks_config()["hooks"]
+        assert isinstance(stratus, dict)
+        result = _merge_hooks({}, stratus)
+        assert result == stratus
+
+    def test_empty_stratus_preserves_user_hooks(self) -> None:
+        user = {
+            "MyEvent": [
+                {"matcher": ".*", "hooks": [{"type": "command", "command": "my-tool"}]}
+            ]
+        }
+        result = _merge_hooks(user, {})
+        assert result == user
+
+    def test_user_hooks_preserved_alongside_stratus(self) -> None:
+        user_hook = {"type": "command", "command": "my-custom-linter"}
+        stratus_hook = {
+            "type": "command",
+            "command": "uv run python -m stratus.hooks.file_checker",
+        }
+        new_stratus_hook = {
+            "type": "command",
+            "command": "uv run python -m stratus.hooks.file_checker",
+        }
+        existing = {
+            "PostToolUse": [
+                {"matcher": "Write|Edit", "hooks": [user_hook, stratus_hook]},
+            ]
+        }
+        stratus = {
+            "PostToolUse": [
+                {"matcher": "Write|Edit", "hooks": [new_stratus_hook]},
+            ]
+        }
+        result = _merge_hooks(existing, stratus)
+        write_edit = [g for g in result["PostToolUse"] if g["matcher"] == "Write|Edit"]
+        assert len(write_edit) == 1
+        hooks = write_edit[0]["hooks"]
+        # User hook should come first, then stratus hooks
+        assert hooks[0] == user_hook
+        # Stratus hook should be present
+        assert new_stratus_hook in hooks
+
+    def test_old_stratus_hook_cleaned_up(self) -> None:
+        """A stratus hook no longer in current HOOK_SPECS should be removed."""
+        old_hook = {
+            "type": "command",
+            "command": "uv run python -m stratus.hooks.deprecated_hook",
+        }
+        existing = {
+            "PostToolUse": [
+                {"matcher": "SomeOldMatcher", "hooks": [old_hook]},
+            ]
+        }
+        result = _merge_hooks(existing, {})
+        # The old stratus hook group should be removed (empty after stripping)
+        post = result.get("PostToolUse", [])
+        old_groups = [g for g in post if g["matcher"] == "SomeOldMatcher"]
+        assert len(old_groups) == 0
+
+    def test_user_event_type_not_in_stratus_preserved(self) -> None:
+        user = {
+            "MyCustomEvent": [
+                {"matcher": ".*", "hooks": [{"type": "command", "command": "my-tool"}]}
+            ]
+        }
+        stratus = build_hooks_config()["hooks"]
+        assert isinstance(stratus, dict)
+        result = _merge_hooks(user, stratus)
+        assert "MyCustomEvent" in result
+        assert result["MyCustomEvent"] == user["MyCustomEvent"]
+
+    def test_plugin_prefix_hooks_replaced(self) -> None:
+        """Hooks with 'stratus hook' prefix are also treated as stratus-managed."""
+        old_plugin_hook = {"type": "command", "command": "stratus hook old_module"}
+        new_stratus_hook = {
+            "type": "command",
+            "command": "uv run python -m stratus.hooks.context_monitor",
+        }
+        existing = {
+            "PostToolUse": [
+                {"matcher": ".*", "hooks": [old_plugin_hook]},
+            ]
+        }
+        stratus = {
+            "PostToolUse": [
+                {"matcher": ".*", "hooks": [new_stratus_hook]},
+            ]
+        }
+        result = _merge_hooks(existing, stratus)
+        dot_star = [g for g in result["PostToolUse"] if g["matcher"] == ".*"]
+        assert len(dot_star) == 1
+        hooks = dot_star[0]["hooks"]
+        # Old plugin hook should be gone, new stratus hook present
+        assert old_plugin_hook not in hooks
+        assert new_stratus_hook in hooks
+
+    def test_empty_matcher_group_removed(self) -> None:
+        """If stripping stratus hooks leaves a group empty, remove it."""
+        stratus_only = {
+            "type": "command",
+            "command": "uv run python -m stratus.hooks.deprecated_hook",
+        }
+        existing = {
+            "PostToolUse": [
+                {"matcher": "OldMatcher", "hooks": [stratus_only]},
+            ]
+        }
+        result = _merge_hooks(existing, {})
+        post = result.get("PostToolUse", [])
+        old_groups = [g for g in post if g["matcher"] == "OldMatcher"]
+        assert len(old_groups) == 0
+
+    def test_both_empty_returns_empty(self) -> None:
+        result = _merge_hooks({}, {})
+        assert result == {}
+
+
 class TestRegisterHooks:
     def test_creates_settings_json_in_dot_claude(self, tmp_path: Path) -> None:
         path = register_hooks(tmp_path)
@@ -141,6 +285,68 @@ class TestRegisterHooks:
         path = register_hooks(tmp_path)
         assert isinstance(path, Path)
         assert path.name == "settings.json"
+
+    def test_preserves_user_hooks_in_same_event_type(self, tmp_path: Path) -> None:
+        """User PostToolUse hook survives register_hooks."""
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        user_hook = {"type": "command", "command": "my-custom-linter"}
+        existing = {
+            "hooks": {
+                "PostToolUse": [
+                    {"matcher": "Write|Edit", "hooks": [user_hook]},
+                ]
+            }
+        }
+        _ = (dot_claude / "settings.json").write_text(json.dumps(existing))
+        register_hooks(tmp_path)
+        data = json.loads((dot_claude / "settings.json").read_text())
+        # Find Write|Edit group in PostToolUse
+        post = data["hooks"]["PostToolUse"]
+        write_edit = [g for g in post if g["matcher"] == "Write|Edit"]
+        assert len(write_edit) == 1
+        hooks = write_edit[0]["hooks"]
+        assert user_hook in hooks
+
+    def test_preserves_user_hooks_in_different_event_type(self, tmp_path: Path) -> None:
+        """User MyCustomEvent hook survives register_hooks."""
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        user_hook = {"type": "command", "command": "my-custom-tool"}
+        existing = {
+            "hooks": {
+                "MyCustomEvent": [
+                    {"matcher": ".*", "hooks": [user_hook]},
+                ]
+            }
+        }
+        _ = (dot_claude / "settings.json").write_text(json.dumps(existing))
+        register_hooks(tmp_path)
+        data = json.loads((dot_claude / "settings.json").read_text())
+        assert "MyCustomEvent" in data["hooks"]
+        assert data["hooks"]["MyCustomEvent"][0]["hooks"][0] == user_hook
+
+    def test_cleans_up_old_stratus_hooks(self, tmp_path: Path) -> None:
+        """A deprecated stratus hook is removed after register_hooks."""
+        dot_claude = tmp_path / ".claude"
+        dot_claude.mkdir()
+        old_hook = {
+            "type": "command",
+            "command": "uv run python -m stratus.hooks.deprecated_hook",
+        }
+        existing = {
+            "hooks": {
+                "PostToolUse": [
+                    {"matcher": "OldMatcher", "hooks": [old_hook]},
+                ]
+            }
+        }
+        _ = (dot_claude / "settings.json").write_text(json.dumps(existing))
+        register_hooks(tmp_path)
+        data = json.loads((dot_claude / "settings.json").read_text())
+        post = data["hooks"]["PostToolUse"]
+        old_groups = [g for g in post if g["matcher"] == "OldMatcher"]
+        assert len(old_groups) == 0
 
 
 class TestBuildMcpConfig:

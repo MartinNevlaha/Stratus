@@ -85,6 +85,56 @@ async def list_invariants(request: Request) -> JSONResponse:
     )
 
 
+async def validate_invariants(request: Request) -> JSONResponse:
+    """POST /api/rules/validate-invariants — run invariant validation."""
+    from stratus.rule_engine.invariants import validate_against_invariants
+    from stratus.rule_engine.models import InvariantContext
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    project_root = None
+    try:
+        project_root = request.app.state.project_root
+    except Exception:
+        pass
+
+    disabled_ids = body.get("disabled_ids", [])
+    spec_active = body.get("spec_active", False)
+
+    ctx = InvariantContext(
+        project_root=project_root,
+        spec_active=spec_active,
+        disabled_ids=disabled_ids,
+    )
+
+    if spec_active:
+        try:
+            snapshot_data = body.get("previous_snapshot")
+            if snapshot_data:
+                from stratus.rule_engine.models import RulesSnapshot
+
+                ctx.previous_rules_snapshot = RulesSnapshot.model_validate(snapshot_data)
+        except Exception:
+            pass
+
+    index = request.app.state.rules_index
+    disabled = disabled_ids or []
+    active = index.get_active_invariants(disabled_ids=disabled or None)
+
+    violations = validate_against_invariants(active, ctx)
+
+    return JSONResponse(
+        {
+            "valid": len(violations) == 0,
+            "violation_count": len(violations),
+            "violations": [v.model_dump() for v in violations],
+        }
+    )
+
+
 async def check_immutability(request: Request) -> JSONResponse:
     """POST /api/rules/check-immutability — compare current rules against a previous snapshot."""
     try:
@@ -111,5 +161,6 @@ routes = [
     Route("/api/skills/{name}", get_skill),
     Route("/api/rules", list_rules),
     Route("/api/rules/invariants", list_invariants),
+    Route("/api/rules/validate-invariants", validate_invariants, methods=["POST"]),
     Route("/api/rules/check-immutability", check_immutability, methods=["POST"]),
 ]

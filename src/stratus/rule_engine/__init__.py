@@ -6,6 +6,8 @@ from stratus.rule_engine.invariants import FRAMEWORK_INVARIANTS, validate_agains
 from stratus.rule_engine.models import (
     ImmutabilityViolation,
     Invariant,
+    InvariantContext,
+    InvariantViolation,
     Rule,
     RuleSource,
     RulesSnapshot,
@@ -15,6 +17,8 @@ __all__ = [
     "FRAMEWORK_INVARIANTS",
     "ImmutabilityViolation",
     "Invariant",
+    "InvariantContext",
+    "InvariantViolation",
     "Rule",
     "RuleSource",
     "RulesConfig",

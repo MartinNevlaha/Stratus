@@ -78,20 +78,24 @@ _PHASE_ORDER: list[DeliveryPhase] = list(DeliveryPhase)
 
 _FIX_LOOP_PHASES = {DeliveryPhase.QA, DeliveryPhase.GOVERNANCE, DeliveryPhase.PERFORMANCE}
 
-# Keyword heuristics for task-to-role matching
-_ROLE_KEYWORDS: dict[str, list[str]] = {
-    "backend-engineer": ["api", "endpoint", "backend", "service", "handler", "controller", "route"],
-    "frontend-engineer": ["ui", "frontend", "component", "page", "layout", "css", "react"],
-    "mobile-engineer": ["mobile", "ios", "android", "react native", "app screen"],
-    "qa-engineer": ["test", "coverage", "e2e", "integration test", "spec"],
-    "database-engineer": ["database", "migration", "schema", "query", "sql", "orm", "table"],
-    "devops-engineer": ["deploy", "ci", "cd", "pipeline", "docker", "kubernetes", "infra"],
-    "security-reviewer": ["security", "auth", "vulnerability", "cve", "owasp"],
-    "performance-engineer": ["benchmark", "profile", "optimize", "latency", "throughput"],
-    "documentation-engineer": ["docs", "readme", "changelog", "documentation"],
-    "debugger": ["debug", "trace", "diagnose", "root cause"],
-    "code-reviewer": ["review", "lint", "code quality"],
-}
+def _compute_role_keywords() -> dict[str, list[str]]:
+    """Compute _ROLE_KEYWORDS from the agent registry."""
+    from stratus.registry.loader import AgentRegistry
+
+    registry = AgentRegistry.load()
+    result: dict[str, list[str]] = {}
+    for agent in registry.filter_by_mode("swords"):
+        if not agent.keywords:
+            continue
+        # Use short name (strip delivery- prefix)
+        name = agent.name
+        if name.startswith("delivery-"):
+            name = name[len("delivery-"):]
+        result[name] = agent.keywords
+    return result
+
+
+_ROLE_KEYWORDS: dict[str, list[str]] = _compute_role_keywords()
 
 
 def role_to_agent_name(role: str) -> str:
@@ -184,8 +188,17 @@ class DeliveryDispatcher:
                 agent = role_to_agent_name(role)
                 rationale = f"Keywords match `{role}`"
             else:
-                agent = "_unassigned_"
-                rationale = "No keyword match"
+                # Fall back to phase lead, then first available role
+                lead = state.phase_lead or PHASE_LEADS.get(state.delivery_phase)
+                if lead and lead in roles:
+                    agent = role_to_agent_name(lead)
+                    rationale = "Fallback to phase lead"
+                elif roles:
+                    agent = role_to_agent_name(roles[0])
+                    rationale = "Fallback to first available role"
+                else:
+                    agent = role_to_agent_name("tpm")
+                    rationale = "Fallback to TPM"
             lines.append(f"| {tid}: {desc} | `{agent}` | {rationale} |")
 
         return "\n".join(lines)

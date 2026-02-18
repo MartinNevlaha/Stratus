@@ -240,8 +240,10 @@ def test_filter_agents_optional_included_when_phase_enabled():
     filenames = {s.filename for s in result}
 
     assert "delivery-product-owner.md" in filenames
-    # Others not in enabled_phases still excluded
-    assert "delivery-strategic-architect.md" not in filenames
+    # strategic-architect also has "discovery" in its phases
+    assert "delivery-strategic-architect.md" in filenames
+    # Agents gated on other phases still excluded
+    assert "delivery-performance-engineer.md" not in filenames
 
 
 @pytest.mark.unit

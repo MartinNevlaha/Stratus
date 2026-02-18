@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -38,3 +40,21 @@ class ImmutabilityViolation(BaseModel):
     rule_name: str
     change_type: str  # "added" | "removed" | "modified"
     details: str = ""
+
+
+@dataclass
+class InvariantContext:
+    """Context for invariant validation."""
+
+    project_root: Path | None = None
+    previous_rules_snapshot: RulesSnapshot | None = None
+    spec_active: bool = False
+    disabled_ids: list[str] = field(default_factory=list)
+
+
+class InvariantViolation(BaseModel):
+    """A concrete violation found during invariant validation."""
+
+    invariant_id: str
+    message: str
+    file_path: str | None = None

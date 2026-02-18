@@ -49,6 +49,25 @@ def evaluate_completion(payload: dict[str, str]) -> tuple[int, str]:
         return 0, ""
 
 
+def _run_invariant_check() -> None:
+    """Best-effort invariant validation via HTTP API. Errors swallowed."""
+    try:
+        import httpx
+
+        from stratus.hooks._common import get_api_url
+
+        url = f"{get_api_url()}/api/rules/validate-invariants"
+        resp = httpx.post(url, json={}, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            violations = data.get("violations", [])
+            for v in violations:
+                msg = v.get("message", "")
+                print(f"Invariant violation: {msg}", file=sys.stderr)
+    except Exception:
+        pass  # Best-effort — never block
+
+
 def main() -> None:
     """Entry point for TaskCompleted hook."""
     from stratus.hooks._common import read_hook_input
@@ -57,6 +76,12 @@ def main() -> None:
     exit_code, msg = evaluate_completion(payload)
     if msg:
         print(msg, file=sys.stderr)
+
+    # Best-effort invariant validation for implementation tasks
+    task_type = payload.get("task_type", "") if isinstance(payload, dict) else ""
+    if exit_code == 0 and task_type == "implementation":
+        _run_invariant_check()
+
     sys.exit(exit_code)
 
 

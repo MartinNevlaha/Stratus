@@ -20,52 +20,33 @@ from stratus.orchestration.delivery_state import (
     write_delivery_state,
 )
 
-PHASE_ROLES: dict[DeliveryPhase, list[str]] = {
-    DeliveryPhase.DISCOVERY: ["product-owner", "tpm", "strategic-architect"],
-    DeliveryPhase.ARCHITECTURE: [
-        "strategic-architect",
-        "system-architect",
-        "security-reviewer",
-    ],
-    DeliveryPhase.PLANNING: ["tpm", "system-architect", "cost-controller"],
-    DeliveryPhase.IMPLEMENTATION: [
-        "backend-engineer",
-        "frontend-engineer",
-        "mobile-engineer",
-        "devops-engineer",
-        "database-engineer",
-    ],
-    DeliveryPhase.QA: [
-        "qa-engineer",
-        "code-reviewer",
-        "debugger",
-        "quality-gate-manager",
-    ],
-    DeliveryPhase.GOVERNANCE: [
-        "risk-officer",
-        "security-reviewer",
-        "quality-gate-manager",
-    ],
-    DeliveryPhase.PERFORMANCE: ["performance-engineer", "devops-engineer"],
-    DeliveryPhase.RELEASE: [
-        "release-manager",
-        "devops-engineer",
-        "documentation-engineer",
-    ],
-    DeliveryPhase.LEARNING: ["product-owner", "tpm"],
-}
 
-PHASE_LEADS: dict[DeliveryPhase, str] = {
-    DeliveryPhase.DISCOVERY: "product-owner",
-    DeliveryPhase.ARCHITECTURE: "strategic-architect",
-    DeliveryPhase.PLANNING: "tpm",
-    DeliveryPhase.IMPLEMENTATION: "tpm",
-    DeliveryPhase.QA: "quality-gate-manager",
-    DeliveryPhase.GOVERNANCE: "risk-officer",
-    DeliveryPhase.PERFORMANCE: "performance-engineer",
-    DeliveryPhase.RELEASE: "release-manager",
-    DeliveryPhase.LEARNING: "product-owner",
-}
+def _compute_phase_roles() -> dict[DeliveryPhase, list[str]]:
+    """Compute PHASE_ROLES from the agent registry."""
+    from stratus.registry.loader import AgentRegistry
+
+    registry = AgentRegistry.load()
+    result: dict[DeliveryPhase, list[str]] = {}
+    for phase in DeliveryPhase:
+        result[phase] = registry.get_phase_roles(phase.value)
+    return result
+
+
+def _compute_phase_leads() -> dict[DeliveryPhase, str]:
+    """Compute PHASE_LEADS from the agent registry."""
+    from stratus.registry.loader import AgentRegistry
+
+    registry = AgentRegistry.load()
+    result: dict[DeliveryPhase, str] = {}
+    for phase in DeliveryPhase:
+        lead = registry.get_phase_lead(phase.value)
+        if lead:
+            result[phase] = lead
+    return result
+
+
+PHASE_ROLES: dict[DeliveryPhase, list[str]] = _compute_phase_roles()
+PHASE_LEADS: dict[DeliveryPhase, str] = _compute_phase_leads()
 
 _FIX_LOOP_PHASES = {
     DeliveryPhase.QA,
@@ -125,6 +106,18 @@ class DeliveryCoordinator:
 
     def start_delivery(self, slug: str, plan_path: str | None = None) -> DeliveryState:
         """Start a new delivery lifecycle."""
+        # Validate mode agents
+        try:
+            import sys
+
+            from stratus.registry.validation import validate_mode_agents
+
+            warnings = validate_mode_agents("swords")
+            for w in warnings:
+                print(f"Registry warning: {w.message}", file=sys.stderr)
+        except ImportError:
+            pass
+
         active = self._active_phases()
         first_phase = next((p for p in PHASE_ORDER if p.value in active), None)
         if first_phase is None:

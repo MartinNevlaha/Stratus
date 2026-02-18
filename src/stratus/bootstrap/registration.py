@@ -19,10 +19,12 @@ from stratus.runtime_agents import (
 # (event_type, matcher, module_name)
 HOOK_SPECS: list[tuple[str, str, str]] = [
     ("PreToolUse", "WebSearch|WebFetch", "tool_redirect"),
+    ("PreToolUse", "Write|Edit|NotebookEdit", "delegation_guard"),
     ("PostToolUse", ".*", "context_monitor"),
     ("PostToolUse", "Write|Edit", "file_checker"),
     ("PostToolUse", "Write|Edit", "tdd_enforcer"),
     ("PostToolUse", "Bash", "learning_trigger"),
+    ("PostToolUse", "Task", "phase_guard"),
     ("PreCompact", ".*", "pre_compact"),
     ("SessionStart", "compact", "post_compact_restore"),
     ("SessionEnd", ".*", "session_end"),
@@ -32,43 +34,64 @@ HOOK_SPECS: list[tuple[str, str, str]] = [
 ]
 
 _CMD_PREFIX = "uv run python -m stratus.hooks."
+_CMD_PREFIXES: tuple[str, ...] = (_CMD_PREFIX, "stratus hook ")
 _MANAGED_MARKER = "<!-- managed-by: stratus"
 
 
 def build_hooks_config() -> dict[str, object]:
-    """Convert HOOK_SPECS into a settings.json `hooks` dict.
-
-    Groups entries by (event_type, matcher) so multiple hooks on the same
-    event+matcher are coalesced into a single group list.
-    """
-    # Preserve insertion order: (event_type, matcher) -> list of hook entries
+    """Convert HOOK_SPECS into a settings.json `hooks` dict."""
     groups: dict[tuple[str, str], list[dict[str, object]]] = {}
     for event_type, matcher, module in HOOK_SPECS:
-        key = (event_type, matcher)
-        if key not in groups:
-            groups[key] = []
-        groups[key].append({"type": "command", "command": f"{_CMD_PREFIX}{module}"})
-
-    # Collect into per-event-type lists
+        groups.setdefault((event_type, matcher), []).append(
+            {"type": "command", "command": f"{_CMD_PREFIX}{module}"}
+        )
     events: dict[str, list[dict[str, object]]] = {}
     for (event_type, matcher), hook_entries in groups.items():
-        if event_type not in events:
-            events[event_type] = []
-        events[event_type].append({"matcher": matcher, "hooks": hook_entries})
-
+        events.setdefault(event_type, []).append({"matcher": matcher, "hooks": hook_entries})
     return {"hooks": events}
 
 
+def _is_stratus_hook(entry: dict[str, object]) -> bool:
+    """Return True if hook entry is managed by stratus."""
+    cmd = entry.get("command")
+    if not isinstance(cmd, str):
+        return False
+    return any(cmd.startswith(p) for p in _CMD_PREFIXES)
+
+
+def _merge_hooks(
+    existing: dict[str, object],
+    stratus: dict[str, object],
+) -> dict[str, list[dict[str, object]]]:
+    """Merge stratus hooks into existing at event-type level, preserving user hooks."""
+    stratus_idx: dict[str, dict[str, list[dict[str, object]]]] = {}
+    for evt, groups in stratus.items():
+        if isinstance(groups, list):
+            stratus_idx[evt] = {g["matcher"]: list(g["hooks"]) for g in groups}
+
+    result: dict[str, list[dict[str, object]]] = {}
+    for event_type in dict.fromkeys([*existing, *stratus]):
+        ex_groups = existing.get(event_type, [])
+        if not isinstance(ex_groups, list):
+            ex_groups = []
+        s_matchers = dict(stratus_idx.get(event_type, {}))
+        merged: list[dict[str, object]] = []
+        for group in ex_groups:
+            matcher = group["matcher"]
+            user = [h for h in group["hooks"] if not _is_stratus_hook(h)]
+            combined = user + s_matchers.pop(matcher, [])
+            if combined:
+                merged.append({"matcher": matcher, "hooks": combined})
+        for matcher, hooks in s_matchers.items():
+            if hooks:
+                merged.append({"matcher": matcher, "hooks": hooks})
+        if merged:
+            result[event_type] = merged
+    return result
+
+
 def register_hooks(git_root: Path | None, *, dry_run: bool = False, scope: str = "local") -> Path:
-    """Merge hook config into .claude/settings.json.
-
-    Replaces the `hooks` key while preserving all other keys. Creates the
-    `.claude/` directory if it does not exist. Idempotent. Returns path to
-    settings.json. If dry_run is True, no files are written.
-
-    When scope='global', writes to ~/.claude/settings.json instead of
-    project-local .claude/settings.json. git_root can be None for global scope.
-    """
+    """Merge stratus hooks into .claude/settings.json, preserving user hooks."""
     if scope == "global":
         dot_claude = Path.home() / ".claude"
     else:
@@ -81,7 +104,12 @@ def register_hooks(git_root: Path | None, *, dry_run: bool = False, scope: str =
         existing = cast(dict[str, object], json.loads(settings_path.read_text()))
 
     hook_config = build_hooks_config()
-    merged = {**existing, **hook_config}
+    existing_hooks = existing.get("hooks", {})
+    merged_hooks = _merge_hooks(
+        existing_hooks if isinstance(existing_hooks, dict) else {},
+        hook_config.get("hooks", {}),
+    )
+    merged = {**existing, "hooks": merged_hooks}
 
     if not dry_run:
         dot_claude.mkdir(parents=True, exist_ok=True)

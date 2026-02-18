@@ -18,22 +18,30 @@ def _agent(id: str, category: str, model: str) -> dict[str, str]:
     return {"id": id, "label": id, "category": category, "model": model}
 
 
-SPEC_PHASE_AGENTS: dict[str, list[dict[str, str]]] = {
-    "plan": [
-        _agent("architecture-guide", "planning", "opus"),
-        _agent("plan-verifier", "planning", "opus"),
-        _agent("plan-challenger", "planning", "opus"),
-    ],
-    "implement": [
-        _agent("framework-expert", "implementation", "sonnet"),
-    ],
-    "verify": [
-        _agent("spec-reviewer-compliance", "review", "opus"),
-        _agent("spec-reviewer-quality", "review", "opus"),
-        _agent("qa-engineer", "testing", "haiku"),
-    ],
-    "learn": [],
-}
+def _build_spec_phase_agents() -> dict[str, list[dict[str, str]]]:
+    """Build SPEC_PHASE_AGENTS from the agent registry."""
+    from stratus.registry.loader import AgentRegistry
+
+    registry = AgentRegistry.load()
+    result: dict[str, list[dict[str, str]]] = {}
+    # Map phases to category labels
+    phase_categories = {
+        "plan": "planning",
+        "implement": "implementation",
+        "verify": "review",
+        "learn": None,
+    }
+    for phase, category in phase_categories.items():
+        agents = registry.filter_by_phase(phase)
+        default_agents = [a for a in agents if "default" in a.orchestration_modes]
+        if category is None:
+            result[phase] = []
+            continue
+        result[phase] = [_agent(a.name, category, a.model) for a in default_agents]
+    return result
+
+
+SPEC_PHASE_AGENTS: dict[str, list[dict[str, str]]] = _build_spec_phase_agents()
 
 
 def _build_orchestration(request: Request) -> dict:

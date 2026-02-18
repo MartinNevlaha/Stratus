@@ -24,41 +24,30 @@ class SkillSpec:
     optional: bool = False
 
 
-AGENT_CATALOG: list[AgentSpec] = [
-    # Process layer — universal (all stacks)
-    AgentSpec("delivery-product-owner.md", None, "process", optional=True),
-    AgentSpec("delivery-tpm.md", None, "process"),
-    AgentSpec("delivery-strategic-architect.md", None, "process", optional=True),
-    AgentSpec("delivery-risk-officer.md", None, "process"),
-    AgentSpec("delivery-security-reviewer.md", None, "process"),
-    AgentSpec("delivery-quality-gate-manager.md", None, "process"),
-    AgentSpec("delivery-release-manager.md", None, "process"),
-    AgentSpec("delivery-cost-controller.md", None, "process"),
-    # Engineering layer — stack-filtered
-    AgentSpec("delivery-system-architect.md", None, "engineering", optional=True),
-    AgentSpec(
-        "delivery-backend-engineer.md",
-        frozenset({ServiceType.NESTJS, ServiceType.PYTHON, ServiceType.GO, ServiceType.RUST}),
-        "engineering",
-    ),
-    AgentSpec(
-        "delivery-frontend-engineer.md",
-        frozenset({ServiceType.NEXTJS, ServiceType.REACT_NATIVE}),
-        "engineering",
-    ),
-    AgentSpec(
-        "delivery-mobile-engineer.md",
-        frozenset({ServiceType.REACT_NATIVE}),
-        "engineering",
-    ),
-    AgentSpec("delivery-devops-engineer.md", None, "engineering"),
-    AgentSpec("delivery-database-engineer.md", None, "engineering"),
-    AgentSpec("delivery-qa-engineer.md", None, "engineering"),
-    AgentSpec("delivery-debugger.md", None, "engineering"),
-    AgentSpec("delivery-performance-engineer.md", None, "engineering", optional=True),
-    AgentSpec("delivery-code-reviewer.md", None, "engineering"),
-    AgentSpec("delivery-documentation-engineer.md", None, "engineering"),
-]
+def _entry_to_spec(entry: object) -> AgentSpec:
+    """Convert a registry AgentEntry to an AgentSpec."""
+    stacks: frozenset[ServiceType] | None = None
+    if entry.applicable_stacks is not None:  # type: ignore[union-attr]
+        stacks = frozenset(
+            ServiceType(s) for s in entry.applicable_stacks  # type: ignore[union-attr]
+        )
+    return AgentSpec(
+        filename=entry.filename,  # type: ignore[union-attr]
+        applicable_stacks=stacks,
+        layer=entry.layer,  # type: ignore[union-attr]
+        optional=entry.optional,  # type: ignore[union-attr]
+    )
+
+
+def _build_catalog() -> list[AgentSpec]:
+    """Build AGENT_CATALOG from the unified agent registry."""
+    from stratus.registry.loader import AgentRegistry
+
+    registry = AgentRegistry.load()
+    return [_entry_to_spec(e) for e in registry.filter_by_mode("swords")]
+
+
+AGENT_CATALOG: list[AgentSpec] = _build_catalog()
 
 SKILL_CATALOG: list[SkillSpec] = [
     SkillSpec("run-discovery", "delivery-product-owner.md", "discovery", optional=True),
@@ -73,15 +62,6 @@ SKILL_CATALOG: list[SkillSpec] = [
     SkillSpec("release-prepare", "delivery-release-manager.md", "release"),
     SkillSpec("governance-audit", "delivery-risk-officer.md", "governance"),
 ]
-
-# Maps optional agent filenames to their associated phase name.
-_OPTIONAL_AGENT_PHASES: dict[str, str] = {
-    "delivery-product-owner.md": "discovery",
-    "delivery-strategic-architect.md": "architecture",
-    "delivery-system-architect.md": "architecture",
-    "delivery-performance-engineer.md": "performance",
-}
-
 
 def get_detected_types(graph: dict[str, list[dict[str, str]]] | None) -> set[ServiceType]:
     """Extract detected ServiceType values from a ProjectGraph dict."""
@@ -103,17 +83,13 @@ def filter_agents(
     enabled_phases: set[str] | None = None,
 ) -> list[AgentSpec]:
     """Filter AGENT_CATALOG by stack detection and phase configuration."""
-    result: list[AgentSpec] = []
-    for spec in AGENT_CATALOG:
-        if spec.optional:
-            phase = _OPTIONAL_AGENT_PHASES.get(spec.filename)
-            if not enabled_phases or phase not in enabled_phases:
-                continue
-        if spec.applicable_stacks is not None:
-            if not detected_types or not (spec.applicable_stacks & detected_types):
-                continue
-        result.append(spec)
-    return result
+    from stratus.registry.loader import AgentRegistry
+
+    stacks = {t.value for t in detected_types}
+    registry = AgentRegistry.load()
+    entries = registry.filter_by_stack(stacks, enabled_phases=enabled_phases)
+    swords = [e for e in entries if "swords" in e.orchestration_modes]
+    return [_entry_to_spec(e) for e in swords]
 
 
 def filter_skills(

@@ -58,6 +58,18 @@ class TeamManager:
             )
         if spec_state.plan_path:
             lines.append(f"Plan path: {spec_state.plan_path}")
+
+        # Add registry validation warnings
+        try:
+            from stratus.registry.validation import validate_team_composition
+
+            phase = spec_state.phase if hasattr(spec_state, "phase") else "implement"
+            warnings = validate_team_composition(agents, phase)
+            for w in warnings:
+                lines.append(f"Warning: {w.message}")
+        except ImportError:
+            pass
+
         return "\n".join(lines)
 
     def build_review_team_prompt(self, spec_state: SpecState) -> str:

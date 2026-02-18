@@ -80,6 +80,16 @@ src/stratus/
     session_end.py    # SessionEnd: cleanup / persist session state on session end
     teammate_idle.py  # TeammateIdle: quality gate — validates reviewer verdict format
     task_completed.py # TaskCompleted: quality gate — validates task output completeness
+    delegation_guard.py # PreToolUse: blocks writes during VERIFY, warns during IMPLEMENT
+    phase_guard.py    # PostToolUse: warns on phase-inconsistent agent spawning
+
+  registry/
+    __init__.py         # Public exports for registry layer
+    models.py           # Pydantic model: AgentEntry
+    agent-registry.json # Single source of truth: 26 agents with metadata
+    loader.py           # AgentRegistry: load, query, filter agents
+    routing.py          # Deterministic task routing, overlapping pair resolution
+    validation.py       # Team composition, mode, write-permission validation
 
   orchestration/
     models.py         # Pydantic models: SpecState, ReviewResult, WorktreeInfo, TeamConfig, enums
@@ -152,6 +162,14 @@ tests/
   test_orchestration_routes.py # Orchestration HTTP route tests
   test_dashboard_routes.py # Dashboard aggregated endpoint + static serving tests
   test_statusline.py       # Statusline output format tests
+  test_invariant_validation.py # Invariant validation tests (file size, rules immutability)
+  test_registry_models.py  # AgentEntry model tests
+  test_registry_loader.py  # AgentRegistry loader tests
+  test_registry_routing.py # Deterministic routing tests
+  test_registry_validation.py # Team/mode/write validation tests
+  test_delegation_guard.py # Delegation guard hook tests
+  test_phase_guard.py      # Phase guard hook tests
+  test_spec_skill.py       # Spec skill file structure tests
 
 .claude/
   agents/
@@ -162,10 +180,13 @@ tests/
     plan-challenger.md       # Adversarial plan review (opus, read-only)
     spec-reviewer-compliance.md  # Implementation vs spec check (opus, read-only)
     spec-reviewer-quality.md     # Code quality review (opus, read-only)
+  rules/
+    01-agent-workflow.md     # Hard delegation rule: coordinator never writes code
   skills/
     run-tests/               # Delegates to qa-engineer
     explain-architecture/    # Delegates to architecture-guide
     implement-mcp/           # Delegates to framework-expert
+    spec/                    # /spec coordinator skill (context: fork, no agent)
 
 plugin/
   .claude-plugin/
@@ -173,9 +194,11 @@ plugin/
   .mcp.json                 # MCP server config (stratus mcp-serve, stdio)
   commands/                 # 8 command files (init, doctor, status, analyze, reindex, proposals, decide, worktree)
   agents/                   # 26 agent definitions (7 core + 19 delivery)
-  skills/                   # 10 skill definitions (3 core + 7 delivery)
+  rules/
+    01-agent-workflow.md    # Hard delegation rule (plugin copy)
+  skills/                   # 11 skill definitions (3 core + 7 delivery + 1 spec)
   hooks/
-    hooks.json              # Hook configuration (11 hooks using `stratus hook <module>`)
+    hooks.json              # Hook configuration (13 hooks using `stratus hook <module>`)
 
 scripts/
   install.sh          # POSIX installer (pipx or venv fallback, no sudo)
@@ -359,3 +382,20 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - Calls `GET /api/dashboard/state` with 500ms timeout for stratus state
 - Graceful degradation: server offline → shows "offline" segment, rest of line still works
 - No new dependencies — uses httpx (already a dep) and json stdlib
+
+### Delegation Enforcement & Agent Registry
+
+- `.claude/rules/01-agent-workflow.md` establishes coordinator delegation model (prompt-based)
+- `delegation_guard` PreToolUse hook: hard block (exit 2) during VERIFY, warning during IMPLEMENT
+- `phase_guard` PostToolUse hook: warns on phase-inconsistent agent spawning (informational only, exit 0)
+- Platform limitation: hooks do NOT receive caller identity — cannot distinguish coordinator from agent
+- Agent `tools` frontmatter provides hard enforcement on spawned agents (Claude Code enforces)
+- `registry/agent-registry.json` is single source of truth for all 26 agents (7 core + 19 delivery)
+- `AgentRegistry` loaded via `importlib.resources` (bundled package data)
+- `can_write` is metadata — enforced by agent `tools` frontmatter, not runtime
+- Routing table resolves 4 overlapping agent pairs (qa, architecture, implementation, review)
+- `route_task()` is deterministic: never returns `_unassigned_`
+- `validate_against_invariants()` checks `inv-file-size-limit` and `inv-rules-immutable-in-spec`
+- Other invariants (`inv-process-no-code`, `inv-reviewers-readonly`, etc.) are documented-only
+- `POST /api/rules/validate-invariants` endpoint + TaskCompleted hook (best-effort)
+- `/spec` skill uses `context: fork` without `agent:` field — acts as multi-agent coordinator

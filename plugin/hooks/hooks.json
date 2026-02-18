@@ -4,6 +4,10 @@
       {
         "matcher": "WebSearch|WebFetch",
         "hooks": [{ "type": "command", "command": "stratus hook tool_redirect" }]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "stratus hook delegation_guard" }]
       }
     ],
     "PostToolUse": [
@@ -21,6 +25,10 @@
       {
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "stratus hook learning_trigger" }]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [{ "type": "command", "command": "stratus hook phase_guard" }]
       }
     ],
     "PreCompact": [
