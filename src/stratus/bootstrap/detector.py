@@ -33,6 +33,13 @@ def detect_services(repo_root: Path) -> ProjectGraph:
     shared: list[SharedComponent] = []
     docker_compose_files: list[str] = []
 
+    # Check repo root first (single-service repos like Next.js at root)
+    root_result = _classify_dir(repo_root, repo_root)
+    if isinstance(root_result, ServiceInfo):
+        services.append(root_result)
+    elif isinstance(root_result, SharedComponent):
+        shared.append(root_result)
+
     candidates: list[Path] = []
     for entry in sorted(repo_root.iterdir()):
         if entry.name in SKIP_DIRS or entry.name.startswith("."):
