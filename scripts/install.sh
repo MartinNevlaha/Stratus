@@ -82,5 +82,38 @@ WRAPPER
     "$wrapper" --version
 fi
 
+# --- Resolve stratus binary path ---
+STRATUS_BIN="stratus"
+if ! command -v "$STRATUS_BIN" >/dev/null 2>&1; then
+    if [ -f "$BIN_DIR/stratus" ]; then
+        STRATUS_BIN="$BIN_DIR/stratus"
+    elif [ -f "$VENV_DIR/bin/stratus" ]; then
+        STRATUS_BIN="$VENV_DIR/bin/stratus"
+    fi
+fi
+
+# --- Init: detect scope, register hooks + MCP, start HTTP server ---
 log ""
-log "Installation complete. Run 'stratus init' to set up your project."
+if git rev-parse --show-toplevel >/dev/null 2>&1; then
+    log "Git repository detected — running project-local init..."
+    if "$STRATUS_BIN" init --scope local; then
+        log ""
+        log "Installation complete. Hooks, MCP, and HTTP server configured for this project."
+        log "Dashboard: http://localhost:41777/dashboard"
+    else
+        log ""
+        log "Installation complete. Run 'stratus init' in your project to finish setup."
+    fi
+else
+    log "No git repository — running global init..."
+    if "$STRATUS_BIN" init --scope global; then
+        log ""
+        log "Installation complete. Hooks, MCP, and HTTP server are ready globally."
+        log "Dashboard: http://localhost:41777/dashboard"
+    else
+        log ""
+        log "Installation complete. Run 'stratus init' to finish setup."
+    fi
+    log ""
+    log "To configure for a specific project, cd into it and run: stratus init"
+fi

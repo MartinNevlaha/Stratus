@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -62,6 +63,8 @@ def cmd_init(args: argparse.Namespace) -> None:
                 print(f"[dry-run] Would register MCP at {mcp_path}")
             else:
                 print(f"MCP: {mcp_path}")
+        if not dry_run:
+            _ensure_server()
         print("\nGlobal installation complete (hooks and MCP registered in ~/.claude/)")
         return
 
@@ -208,6 +211,10 @@ def cmd_init(args: argparse.Namespace) -> None:
             written = register_agents(git_root, delivery_config, detected_types, force=force)
             print(f"Agents: {len(written)} agent(s) installed")
 
+    # Step 11: Ensure HTTP server is running
+    if not dry_run:
+        _ensure_server()
+
 
 def _interactive_init() -> tuple[str, bool]:
     """Prompt user for init options. Returns (scope, enable_delivery)."""
@@ -224,6 +231,47 @@ def _interactive_init() -> tuple[str, bool]:
 
     print()
     return scope, enable_delivery
+
+
+def _ensure_server() -> None:
+    """Start the HTTP server if not already running."""
+    from stratus.hooks._common import get_api_url
+    from stratus.session.config import DEFAULT_PORT
+
+    api_url = get_api_url()
+
+    # Check if already running
+    try:
+        resp = httpx.get(f"{api_url}/health", timeout=2.0)
+        if resp.status_code == 200:
+            print(f"Server: already running at {api_url}")
+            return
+    except Exception:
+        pass
+
+    # Spawn server as background daemon
+    port = DEFAULT_PORT
+    print(f"Starting HTTP server on port {port}...")
+    subprocess.Popen(
+        [sys.executable, "-m", "stratus.server.runner"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    # Wait for server to become ready
+    for _ in range(10):
+        time.sleep(0.5)
+        try:
+            resp = httpx.get(f"{api_url}/health", timeout=2.0)
+            if resp.status_code == 200:
+                print(f"Server: running at {api_url}")
+                print(f"Dashboard: {api_url}/dashboard")
+                return
+        except Exception:
+            continue
+
+    print("Warning: server started but did not respond in time")
 
 
 def cmd_doctor(_args: argparse.Namespace) -> None:

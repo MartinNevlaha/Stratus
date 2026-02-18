@@ -61,3 +61,7 @@ def run_server(config: Config | None = None) -> None:
         )
     finally:
         remove_port_lock()
+
+
+if __name__ == "__main__":
+    run_server()
