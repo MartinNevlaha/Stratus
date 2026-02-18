@@ -82,7 +82,24 @@ Default URL: `http://127.0.0.1:41777`
 stratus doctor
 ```
 
-### 4. Open dashboard (optional)
+### 4. Reconcile existing agents, skills and rules (recommended)
+
+If your project already has agents, skills, rules, or slash-commands, run the reconciliation audit inside Claude Code:
+
+```
+/stratus:sync-stratus
+```
+
+This skill scans your entire environment — agents, skills, rules, commands, and `CLAUDE.md` at all levels (global, project, subdirectory) — and produces a conflict report against the Stratus delegation model. It is **plan-only** and does not modify any files.
+
+You will receive:
+- A classified conflict report (CRITICAL / MAJOR / MINOR)
+- A consolidation strategy with explicit merge proposals
+- Ordered migration steps from lowest to highest risk
+
+Run this before your first `/stratus:spec` session to ensure clean orchestration.
+
+### 5. Open dashboard (optional)
 
 `http://127.0.0.1:41777/dashboard`
 
