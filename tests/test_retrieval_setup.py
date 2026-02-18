@@ -12,6 +12,7 @@ from stratus.bootstrap.retrieval_setup import (
     merge_retrieval_into_existing,
     prompt_retrieval_setup,
     run_initial_index,
+    setup_devrag,
 )
 
 MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
@@ -365,6 +366,29 @@ class TestPromptRetrievalSetup:
             enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(status)
         assert enable_devrag is True
 
+    def test_docker_available_devrag_missing_prompts_setup(self) -> None:
+        """When Docker available but no DevRag, offers to set it up."""
+        status = BackendStatus(docker_available=True, devrag_container_exists=False)
+        with patch("builtins.input", return_value="n") as mock_input:
+            _, enable_devrag, _ = prompt_retrieval_setup(status)
+        assert enable_devrag is False
+        # Should have prompted about DevRag setup
+        calls = [str(c) for c in mock_input.call_args_list]
+        assert any("devrag" in c.lower() for c in calls)
+
+    def test_docker_available_devrag_stopped_prompts_start(self) -> None:
+        """When DevRag container exists but stopped, offers to start it."""
+        status = BackendStatus(
+            docker_available=True,
+            devrag_container_exists=True,
+            devrag_container_running=False,
+        )
+        with patch("builtins.input", return_value="n") as mock_input:
+            _, enable_devrag, _ = prompt_retrieval_setup(status)
+        assert enable_devrag is False
+        calls = [str(c) for c in mock_input.call_args_list]
+        assert any("devrag" in c.lower() or "start" in c.lower() for c in calls)
+
     def test_dry_run_no_prompts(self) -> None:
         """In dry-run mode, no prompts are shown."""
         status = BackendStatus(vexor_available=True, devrag_container_running=True)
@@ -397,3 +421,76 @@ class TestRunInitialIndex:
             result = run_initial_index("/my/project")
         assert result["status"] == "error"
         assert "timeout" in result["message"].lower()
+
+
+class TestSetupDevrag:
+    def test_builds_and_starts_container(self) -> None:
+        """Builds image and runs container successfully."""
+        build_result = MagicMock(returncode=0, stdout="", stderr="")
+        run_result = MagicMock(returncode=0, stdout="abc123\n", stderr="")
+
+        def side_effect(cmd, **kwargs):
+            if "build" in cmd:
+                return build_result
+            if "run" in cmd:
+                return run_result
+            return MagicMock(returncode=1)
+
+        with patch(MOCK_TARGET, side_effect=side_effect):
+            result = setup_devrag()
+        assert result["status"] == "ok"
+
+    def test_starts_existing_stopped_container(self) -> None:
+        """When container exists but stopped, starts it."""
+        start_result = MagicMock(returncode=0, stdout="devrag\n", stderr="")
+
+        with patch(MOCK_TARGET, return_value=start_result):
+            result = setup_devrag(container_exists=True)
+        assert result["status"] == "ok"
+
+    def test_docker_not_found(self) -> None:
+        with patch(MOCK_TARGET, side_effect=FileNotFoundError):
+            result = setup_devrag()
+        assert result["status"] == "error"
+        assert "docker" in result["message"].lower()
+
+    def test_build_fails(self) -> None:
+        build_result = MagicMock(
+            returncode=1, stdout="", stderr="build error\n",
+        )
+        with patch(MOCK_TARGET, return_value=build_result):
+            result = setup_devrag()
+        assert result["status"] == "error"
+        assert "build" in result["message"].lower()
+
+    def test_timeout(self) -> None:
+        with patch(
+            MOCK_TARGET,
+            side_effect=subprocess.TimeoutExpired(["docker"], 120),
+        ):
+            result = setup_devrag()
+        assert result["status"] == "error"
+        assert "timeout" in result["message"].lower()
+
+    def test_prompt_offers_setup_when_docker_available(self) -> None:
+        """When Docker available but no DevRag, prompt offers to set it up."""
+        status = BackendStatus(docker_available=True, devrag_container_exists=False)
+        mock_setup = MagicMock(return_value={"status": "ok"})
+        # First input: vexor no (skip), second: setup devrag yes
+        with (
+            patch("builtins.input", side_effect=["y"]),
+            patch(
+                "stratus.bootstrap.retrieval_setup.setup_devrag",
+                mock_setup,
+            ),
+        ):
+            _, enable_devrag, _ = prompt_retrieval_setup(status)
+        assert enable_devrag is True
+        mock_setup.assert_called_once()
+
+    def test_prompt_user_declines_setup(self) -> None:
+        """User can decline DevRag setup."""
+        status = BackendStatus(docker_available=True, devrag_container_exists=False)
+        with patch("builtins.input", return_value="n"):
+            _, enable_devrag, _ = prompt_retrieval_setup(status)
+        assert enable_devrag is False

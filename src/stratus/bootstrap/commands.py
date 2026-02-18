@@ -99,12 +99,21 @@ def cmd_init(args: argparse.Namespace) -> None:
 
     if not skip_retrieval:
         backend_status = detect_backends()
-        if backend_status.vexor_available or backend_status.devrag_container_running:
-            print("\nRetrieval backends detected:")
+        has_any = backend_status.vexor_available or backend_status.docker_available
+        if has_any:
+            print("\nRetrieval backends:")
             if backend_status.vexor_available:
                 print(f"  Vexor: available ({backend_status.vexor_version})")
+            else:
+                print("  Vexor: not found")
             if backend_status.devrag_container_running:
                 print("  DevRag: running")
+            elif backend_status.devrag_container_exists:
+                print("  DevRag: stopped")
+            elif backend_status.docker_available:
+                print("  DevRag: container not found")
+            else:
+                print("  DevRag: Docker not available")
 
         ai_path = git_root / ".ai-framework.json"
         if ai_path.exists() and not force:

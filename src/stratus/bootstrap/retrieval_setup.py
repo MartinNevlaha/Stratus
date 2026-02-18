@@ -139,8 +139,92 @@ def prompt_retrieval_setup(
     if status.devrag_container_running:
         answer = input("Enable DevRag governance search? [Y/n] ").strip().lower()
         enable_devrag = answer != "n"
+    elif status.docker_available:
+        if status.devrag_container_exists:
+            answer = input("Start stopped DevRag container? [Y/n] ").strip().lower()
+            if answer != "n":
+                result = setup_devrag(container_exists=True)
+                enable_devrag = result["status"] == "ok"
+                if enable_devrag:
+                    print("  DevRag: started")
+                else:
+                    print(f"  DevRag: failed to start — {result['message']}")
+        else:
+            answer = input("Set up DevRag governance search? [Y/n] ").strip().lower()
+            if answer != "n":
+                result = setup_devrag()
+                enable_devrag = result["status"] == "ok"
+                if enable_devrag:
+                    print("  DevRag: container created and running")
+                else:
+                    print(f"  DevRag: setup failed — {result['message']}")
 
     return enable_vexor, enable_devrag, run_indexing
+
+
+def setup_devrag(
+    *,
+    container_exists: bool = False,
+    container_name: str = "devrag",
+    image_name: str = "stratus-devrag",
+) -> dict:
+    """Build DevRag Docker image and start the container. Returns status dict."""
+    try:
+        if container_exists:
+            result = subprocess.run(
+                ["docker", "start", container_name],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                return {"status": "error", "message": f"start failed: {result.stderr.strip()}"}
+            return {"status": "ok"}
+
+        # Build image from bundled Dockerfile
+        dockerfile = _get_devrag_dockerfile()
+        from pathlib import Path
+
+        context_dir = str(Path(dockerfile).parent)
+        result = subprocess.run(
+            ["docker", "build", "-t", image_name, "-f", dockerfile, context_dir],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            return {"status": "error", "message": f"build failed: {result.stderr.strip()}"}
+
+        # Run container
+        result = subprocess.run(
+            [
+                "docker", "run", "-d",
+                "--name", container_name,
+                "--restart", "unless-stopped",
+                "--memory", "512m",
+                image_name,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return {"status": "error", "message": f"run failed: {result.stderr.strip()}"}
+
+        return {"status": "ok"}
+
+    except FileNotFoundError:
+        return {"status": "error", "message": "docker not found"}
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "timeout"}
+
+
+def _get_devrag_dockerfile() -> str:
+    """Locate the bundled DevRag Dockerfile. Returns path as string."""
+    from importlib import resources
+
+    pkg = resources.files("stratus.bootstrap.docker")
+    return str(pkg.joinpath("Dockerfile.devrag"))
 
 
 def run_initial_index(
