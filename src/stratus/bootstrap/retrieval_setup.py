@@ -147,6 +147,8 @@ def run_initial_index(
         return {"status": "error", "message": "indexing timeout"}
 
     if result.returncode != 0:
-        return {"status": "error", "message": result.stderr.strip()}
+        detail = result.stderr.strip() or result.stdout.strip()
+        msg = f"exit code {result.returncode}" + (f": {detail}" if detail else "")
+        return {"status": "error", "message": msg}
 
     return {"status": "ok", "output": result.stdout.strip()}

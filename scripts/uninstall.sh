@@ -34,7 +34,13 @@ warn() { printf 'WARNING: %s\n' "$1" >&2; }
 confirm() {
     if [ "$skip_confirm" -eq 1 ]; then return 0; fi
     printf '%s [y/N] ' "$1"
-    read -r answer
+    if [ -t 0 ]; then
+        read -r answer
+    elif [ -e /dev/tty ]; then
+        read -r answer </dev/tty
+    else
+        answer="n"
+    fi
     case "$answer" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
 }
 

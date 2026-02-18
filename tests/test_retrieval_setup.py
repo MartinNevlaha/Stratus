@@ -282,6 +282,29 @@ class TestRunInitialIndex:
         assert result["status"] == "error"
         assert "timeout" in result["message"].lower()
 
+    def test_failure_with_empty_stderr_includes_exit_code(self) -> None:
+        """Regression: vexor exits non-zero with empty stderr — message must not be blank."""
+        result_mock = MagicMock(returncode=1, stdout="", stderr="")
+        with patch(MOCK_TARGET, return_value=result_mock):
+            result = run_initial_index("/my/project")
+        assert result["status"] == "error"
+        assert result["message"], "message must not be empty"
+        assert "1" in result["message"]  # exit code included
+
+    def test_failure_prefers_stderr_over_stdout(self) -> None:
+        """When both are set, stderr is the primary error message."""
+        result_mock = MagicMock(returncode=2, stdout="some stdout", stderr="real error")
+        with patch(MOCK_TARGET, return_value=result_mock):
+            result = run_initial_index("/my/project")
+        assert "real error" in result["message"]
+
+    def test_failure_falls_back_to_stdout_when_stderr_empty(self) -> None:
+        """When stderr is empty, stdout is used as the error detail."""
+        result_mock = MagicMock(returncode=1, stdout="vexor: cannot open path\n", stderr="")
+        with patch(MOCK_TARGET, return_value=result_mock):
+            result = run_initial_index("/my/project")
+        assert "cannot open path" in result["message"]
+
 
 class TestRunGovernanceIndex:
     def test_success(self, tmp_path) -> None:
