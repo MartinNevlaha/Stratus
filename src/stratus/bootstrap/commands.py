@@ -162,9 +162,25 @@ def cmd_init(args: argparse.Namespace) -> None:
     if run_indexing and not dry_run:
         print("Running initial indexing...")
         idx_result = run_initial_index(str(git_root))
+        if idx_result["status"] == "api_key_missing":
+            print("Vexor API key is not configured.")
+            try:
+                api_key = input("Enter your Vexor API key (Enter to skip): ").strip()
+            except EOFError:
+                api_key = ""
+            if api_key:
+                from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+
+                if configure_vexor_api_key(api_key):
+                    print("API key saved. Retrying indexing...")
+                    idx_result = run_initial_index(str(git_root))
+                else:
+                    print("Failed to save API key. Run: vexor config --set-api-key <token>")
+            else:
+                print("Skipped. Run: stratus reindex  after setting the key.")
         if idx_result["status"] == "ok":
             print(f"Indexing complete: {idx_result.get('output', '')}")
-        else:
+        elif idx_result["status"] != "api_key_missing":
             print(f"Indexing failed: {idx_result.get('message', '')}")
 
     # Step 6: Print summary

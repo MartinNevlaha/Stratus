@@ -305,6 +305,54 @@ class TestRunInitialIndex:
             result = run_initial_index("/my/project")
         assert "cannot open path" in result["message"]
 
+    def test_missing_api_key_returns_api_key_status(self) -> None:  # noqa: E301
+        """Vexor API key error is detected and returned as a distinct status."""
+        stdout = (
+            "Indexing files under /my/project...\n"
+            "API key is missing or still set to the placeholder. "
+            "Configure it via `vexor config --set-api-key <token>` "
+            "or an environment variable."
+        )
+        result_mock = MagicMock(returncode=1, stdout=stdout, stderr="")
+        with patch(MOCK_TARGET, return_value=result_mock):
+            result = run_initial_index("/my/project")
+        assert result["status"] == "api_key_missing"
+        assert "vexor config --set-api-key" in result["message"]
+
+
+class TestConfigureVexorApiKey:
+    MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
+
+    def test_success_returns_true(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+
+            assert configure_vexor_api_key("my-token") is True
+
+    def test_failure_returns_false(self) -> None:
+        result_mock = MagicMock(returncode=1)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+
+            assert configure_vexor_api_key("bad-token") is False
+
+    def test_binary_not_found_returns_false(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=FileNotFoundError):
+            from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+
+            assert configure_vexor_api_key("any-token") is False
+
+    def test_passes_key_to_vexor_config(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+
+            configure_vexor_api_key("secret-key-123")
+            cmd = mock_run.call_args[0][0]
+            assert "secret-key-123" in cmd
+            assert "--set-api-key" in cmd
+
 
 class TestRunGovernanceIndex:
     def test_success(self, tmp_path) -> None:

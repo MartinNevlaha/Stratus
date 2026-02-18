@@ -129,6 +129,20 @@ def run_governance_index(project_root: str, db_path: str) -> dict:
         return {"status": "error", "message": str(exc)}
 
 
+def configure_vexor_api_key(api_key: str, vexor_binary: str = "vexor") -> bool:
+    """Run `vexor config --set-api-key <key>`. Returns True on success."""
+    try:
+        result = subprocess.run(
+            [vexor_binary, "config", "--set-api-key", api_key],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def run_initial_index(
     project_root: str,
     vexor_binary: str = "vexor",
@@ -148,6 +162,11 @@ def run_initial_index(
 
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
+        if "API key" in detail:
+            return {
+                "status": "api_key_missing",
+                "message": "Vexor API key not configured. Run: vexor config --set-api-key <token>",
+            }
         msg = f"exit code {result.returncode}" + (f": {detail}" if detail else "")
         return {"status": "error", "message": msg}
 
