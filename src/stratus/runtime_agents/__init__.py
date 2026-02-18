@@ -2,6 +2,7 @@
 
 from stratus.runtime_agents._catalog import (
     AGENT_CATALOG,
+    CORE_SKILL_DIRNAMES,
     SKILL_CATALOG,
     AgentSpec,
     SkillSpec,
@@ -17,6 +18,7 @@ __all__ = [
     "SkillSpec",
     "AGENT_CATALOG",
     "SKILL_CATALOG",
+    "CORE_SKILL_DIRNAMES",
     "filter_agents",
     "filter_skills",
     "read_agent_template",

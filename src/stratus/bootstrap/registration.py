@@ -10,6 +10,7 @@ from typing import cast
 from stratus.bootstrap.models import ServiceType
 from stratus.orchestration.delivery_config import DeliveryConfig
 from stratus.runtime_agents import (
+    CORE_SKILL_DIRNAMES,
     filter_agents,
     filter_skills,
     read_agent_template,
@@ -285,10 +286,24 @@ def register_agents(
         _ = dest.write_text(final_content, encoding="utf-8")
         written.append(dest.relative_to(git_root).as_posix())
 
-    # --- skills ---
+    # --- delivery skills ---
     for spec in filter_skills(enabled_phases=enabled_phases):
         dest = skills_dir / spec.dirname / "SKILL.md"
         template = read_skill_template(spec.dirname)
+        header = _managed_header(template)
+        final_content = f"{header}\n{template}"
+
+        if dest.exists() and not _is_managed(dest) and not force:
+            continue  # user-owned, skip
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        _ = dest.write_text(final_content, encoding="utf-8")
+        written.append(dest.relative_to(git_root).as_posix())
+
+    # --- core coordinator skills (spec, sync-stratus) ---
+    for dirname in CORE_SKILL_DIRNAMES:
+        dest = skills_dir / dirname / "SKILL.md"
+        template = read_skill_template(dirname)
         header = _managed_header(template)
         final_content = f"{header}\n{template}"
 

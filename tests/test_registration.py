@@ -292,7 +292,8 @@ class TestMergeHooks:
 
         # Matcher-less SessionStart hook preserved
         session_start = result.get("SessionStart", [])
-        user_group = {"hooks": [{"type": "command", "command": '"$CLAUDE_PROJECT_DIR"/schemas/scripts/sync-schemas.sh'}]}
+        cmd = '"$CLAUDE_PROJECT_DIR"/schemas/scripts/sync-schemas.sh'
+        user_group = {"hooks": [{"type": "command", "command": cmd}]}
         assert user_group in session_start
 
         # Stratus hooks present in previously-empty event types
@@ -679,6 +680,45 @@ class TestRegisterAgents:
 
         # force=True should have overwritten even the user-owned file
         assert user_file.read_text() != user_content
+
+    def test_register_agents_installs_core_skills(self, tmp_path: Path) -> None:
+        """Core coordinator skills (spec, sync-stratus) are always installed."""
+        from stratus.bootstrap.registration import register_agents
+
+        config = self._make_config(enabled=True)
+        register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
+
+        skills_dir = tmp_path / ".claude" / "skills"
+        assert (skills_dir / "spec" / "SKILL.md").exists(), "spec skill must be installed"
+        assert (skills_dir / "sync-stratus" / "SKILL.md").exists(), (
+            "sync-stratus skill must be installed"
+        )
+
+    def test_register_agents_core_skills_have_managed_header(self, tmp_path: Path) -> None:
+        """Core skills get the managed-by header so they can be updated on reinstall."""
+        from stratus.bootstrap.registration import _is_managed, register_agents
+
+        config = self._make_config(enabled=True)
+        register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
+
+        spec_skill = tmp_path / ".claude" / "skills" / "spec" / "SKILL.md"
+        sync_skill = tmp_path / ".claude" / "skills" / "sync-stratus" / "SKILL.md"
+        assert _is_managed(spec_skill)
+        assert _is_managed(sync_skill)
+
+    def test_register_agents_core_skills_skip_user_owned(self, tmp_path: Path) -> None:
+        """Core skills are not overwritten if user owns them (no managed header)."""
+        from stratus.bootstrap.registration import register_agents
+
+        skills_dir = tmp_path / ".claude" / "skills" / "spec"
+        skills_dir.mkdir(parents=True)
+        user_content = "# My custom spec skill"
+        (skills_dir / "SKILL.md").write_text(user_content)
+
+        config = self._make_config(enabled=True)
+        register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
+
+        assert (skills_dir / "SKILL.md").read_text() == user_content
 
 
 # ---------------------------------------------------------------------------

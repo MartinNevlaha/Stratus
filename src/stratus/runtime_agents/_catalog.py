@@ -49,6 +49,10 @@ def _build_catalog() -> list[AgentSpec]:
 
 AGENT_CATALOG: list[AgentSpec] = _build_catalog()
 
+# Core coordinator skills — always installed, not delivery/phase-specific.
+# Invoked as /spec and /sync-stratus in the user's project.
+CORE_SKILL_DIRNAMES: list[str] = ["spec", "sync-stratus"]
+
 SKILL_CATALOG: list[SkillSpec] = [
     SkillSpec("run-discovery", "delivery-product-owner.md", "discovery", optional=True),
     SkillSpec(
