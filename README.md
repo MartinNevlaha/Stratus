@@ -42,8 +42,10 @@ cd /path/to/your/project    # must be a git repository
 stratus init
 ```
 
-This detects services, generates `project-graph.json` and `.ai-framework.json`,
-registers hooks in `.claude/settings.json`, and the MCP server in `.mcp.json`.
+This detects services, probes retrieval backends (Vexor/DevRag), generates
+`project-graph.json` and `.ai-framework.json`, registers hooks in `.claude/settings.json`,
+and the MCP server in `.mcp.json`. Re-running on an existing project upgrades the retrieval
+config without downgrading previously enabled backends.
 
 **Global scope** — hooks and MCP registered in `~/.claude/` (works across all projects):
 
@@ -79,6 +81,7 @@ stratus doctor
 | `--enable-delivery` | Install delivery agents and skills |
 | `--skip-hooks` | Skip hook registration |
 | `--skip-mcp` | Skip MCP server registration |
+| `--skip-retrieval` | Skip retrieval backend detection and setup |
 | `--skip-agents` | Skip agent/skill installation |
 
 ## Quick Start
@@ -111,6 +114,7 @@ Claude Code will connect to the MCP server automatically once `init` has registe
 | `stratus init --force` | Overwrite existing config files |
 | `stratus init --skip-hooks` | Skip hook registration |
 | `stratus init --skip-mcp` | Skip MCP server registration |
+| `stratus init --skip-retrieval` | Skip retrieval backend auto-detection |
 | `stratus doctor` | Run health checks on all components |
 | `stratus serve` | Start the HTTP API server (default port 41777) |
 | `stratus mcp-serve` | Start the MCP stdio server |
@@ -203,6 +207,35 @@ Runtime dependencies: `mcp>=1.20` (transitive: starlette, uvicorn, pydantic, htt
 
 Optional external tools: Vexor binary (code search), Docker with the DevRag image (governance
 doc search). The framework degrades gracefully when either is unavailable.
+
+## Uninstall
+
+Remove stratus binary, data, and global config:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MartinNevlaha/stratus/main/scripts/uninstall.sh | sh
+```
+
+Or run locally:
+
+```bash
+./scripts/uninstall.sh
+```
+
+To also remove project-local artifacts (hooks, MCP entry, config files, managed agents/skills)
+from the current git repo:
+
+```bash
+./scripts/uninstall.sh --project
+```
+
+| Flag | Description |
+|---|---|
+| `--project` | Also clean stratus artifacts from the current git repo |
+| `--yes` | Skip confirmation prompts |
+
+The uninstaller only removes managed agent/skill files (those with the `<!-- managed-by: stratus`
+header). User-created files are never touched.
 
 ## License
 
