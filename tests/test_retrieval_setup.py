@@ -376,3 +376,46 @@ class TestRunGovernanceIndex:
         result = run_governance_index(str(root), db_path)
         assert result["status"] == "ok"
         assert result["files_indexed"] == 0
+
+
+class TestSetupVexorLocal:
+    MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
+
+    def test_success_returns_true(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            from stratus.bootstrap.retrieval_setup import setup_vexor_local
+            assert setup_vexor_local() is True
+
+    def test_failure_returns_false(self) -> None:
+        result_mock = MagicMock(returncode=1)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            from stratus.bootstrap.retrieval_setup import setup_vexor_local
+            assert setup_vexor_local() is False
+
+    def test_binary_not_found_returns_false(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=FileNotFoundError):
+            from stratus.bootstrap.retrieval_setup import setup_vexor_local
+            assert setup_vexor_local() is False
+
+    def test_timeout_returns_false(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["vexor"], 120)):
+            from stratus.bootstrap.retrieval_setup import setup_vexor_local
+            assert setup_vexor_local() is False
+
+    def test_passes_correct_command(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            from stratus.bootstrap.retrieval_setup import setup_vexor_local
+            setup_vexor_local()
+            cmd = mock_run.call_args[0][0]
+            assert "local" in cmd
+            assert "--setup" in cmd
+
+    def test_custom_binary(self) -> None:
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            from stratus.bootstrap.retrieval_setup import setup_vexor_local
+            setup_vexor_local("/opt/vexor")
+            cmd = mock_run.call_args[0][0]
+            assert "/opt/vexor" in str(cmd)

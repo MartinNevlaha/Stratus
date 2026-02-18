@@ -163,23 +163,39 @@ def cmd_init(args: argparse.Namespace) -> None:
         print("Running initial indexing...")
         idx_result = run_initial_index(str(git_root))
         if idx_result["status"] == "api_key_missing":
-            print("Vexor API key is not configured.")
+            print("\nVexor needs an embedding provider to index your code.")
+            print("  1) Local model — no API key, runs offline (recommended)")
+            print("  2) Cloud provider — OpenAI, Gemini, or custom (requires API key)")
+            print("  3) Skip for now")
             try:
-                api_key = input("Enter your Vexor API key (Enter to skip): ").strip()
+                choice = input("Provider [1/2/3] (default: 1): ").strip() or "1"
             except EOFError:
-                api_key = ""
-            if api_key:
-                if not api_key.startswith("sk-"):
-                    print("Warning: key does not look like an OpenAI key (expected sk-...).")
-                from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+                choice = "3"
 
-                if configure_vexor_api_key(api_key):
-                    print("API key saved. Retrying indexing...")
+            if choice == "1":
+                from stratus.bootstrap.retrieval_setup import setup_vexor_local
+                print("Downloading local embedding model (intfloat/multilingual-e5-small)...")
+                if setup_vexor_local():
+                    print("Local model ready. Retrying indexing...")
                     idx_result = run_initial_index(str(git_root))
                 else:
-                    print("Failed to save API key. Run: vexor config --set-api-key <token>")
+                    print("Local setup failed. Run manually: vexor local --setup")
+            elif choice == "2":
+                try:
+                    api_key = input("Enter your Vexor API key: ").strip()
+                except EOFError:
+                    api_key = ""
+                if api_key:
+                    from stratus.bootstrap.retrieval_setup import configure_vexor_api_key
+                    if configure_vexor_api_key(api_key):
+                        print("API key saved. Retrying indexing...")
+                        idx_result = run_initial_index(str(git_root))
+                    else:
+                        print("Failed to save API key. Run: vexor config --set-api-key <token>")
+                else:
+                    print("Skipped. Run: stratus reindex after configuring Vexor.")
             else:
-                print("Skipped. Run: stratus reindex  after setting the key.")
+                print("Skipped. Run: stratus reindex after setting up Vexor (vexor local --setup).")
         if idx_result["status"] == "ok":
             print(f"Indexing complete: {idx_result.get('output', '')}")
         elif idx_result["status"] != "api_key_missing":

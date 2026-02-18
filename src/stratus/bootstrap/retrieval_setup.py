@@ -143,6 +143,18 @@ def configure_vexor_api_key(api_key: str, vexor_binary: str = "vexor") -> bool:
         return False
 
 
+def setup_vexor_local(vexor_binary: str = "vexor") -> bool:
+    """Run `vexor local --setup` to download local embedding model. Returns True on success."""
+    try:
+        result = subprocess.run(
+            [vexor_binary, "local", "--setup"],
+            timeout=180,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def run_initial_index(
     project_root: str,
     vexor_binary: str = "vexor",
