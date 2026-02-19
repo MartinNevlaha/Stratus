@@ -24,7 +24,7 @@ You are the **coordinator** for a spec-driven development lifecycle. You orchest
 - Get user approval via AskUserQuestion before proceeding
 
 ### Phase 2: Implement
-- Delegate to `framework-expert` (Task tool, subagent_type: framework-expert) for each implementation task
+- Delegate to `implementation-expert` (Task tool, subagent_type: implementation-expert) for each implementation task
 - Each task should follow TDD: write failing test → implement → verify
 - Run tests after each task completes
 

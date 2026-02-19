@@ -45,7 +45,7 @@ def run_server(config: Config | None = None) -> None:
 
     write_port_lock(config.port)
 
-    def cleanup(signum, frame):
+    def cleanup(signum, frame) -> None:
         remove_port_lock()
         raise SystemExit(0)
 

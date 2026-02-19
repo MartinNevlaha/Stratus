@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from stratus.learning.analytics_db import AnalyticsDB
 
 from stratus.learning.models import (
     CandidateStatus,
@@ -35,10 +39,11 @@ class LearningDatabase:
         self._conn.close()
 
     @property
-    def analytics(self):
+    def analytics(self) -> AnalyticsDB:
         """Lazy-loaded AnalyticsDB sharing this connection."""
         if not hasattr(self, "_analytics"):
             from stratus.learning.analytics_db import AnalyticsDB
+
             self._analytics = AnalyticsDB(self._conn)
         return self._analytics
 
@@ -46,8 +51,7 @@ class LearningDatabase:
         files_json = json.dumps(candidate.files)
         instances_json = json.dumps(candidate.instances)
         assessment_json = (
-            candidate.llm_assessment.model_dump_json()
-            if candidate.llm_assessment else None
+            candidate.llm_assessment.model_dump_json() if candidate.llm_assessment else None
         )
         self._conn.execute(
             """INSERT OR REPLACE INTO pattern_candidates
@@ -55,24 +59,34 @@ class LearningDatabase:
                 confidence_final, files, description, instances,
                 detected_at, status, llm_assessment, description_hash)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (candidate.id, candidate.detection_type, candidate.count,
-             candidate.confidence_raw, candidate.confidence_final,
-             files_json, candidate.description, instances_json,
-             candidate.detected_at, candidate.status,
-             assessment_json, candidate.description_hash),
+            (
+                candidate.id,
+                candidate.detection_type,
+                candidate.count,
+                candidate.confidence_raw,
+                candidate.confidence_final,
+                files_json,
+                candidate.description,
+                instances_json,
+                candidate.detected_at,
+                candidate.status,
+                assessment_json,
+                candidate.description_hash,
+            ),
         )
         self._conn.commit()
         return candidate.id
 
     def get_candidate(self, cid: str) -> PatternCandidate | None:
-        row = self._conn.execute(
-            "SELECT * FROM pattern_candidates WHERE id = ?", (cid,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM pattern_candidates WHERE id = ?", (cid,)).fetchone()
         return self._row_to_candidate(row) if row else None
 
     def list_candidates(
-        self, *, status: CandidateStatus | None = None,
-        min_confidence: float = 0.0, limit: int = 50,
+        self,
+        *,
+        status: CandidateStatus | None = None,
+        min_confidence: float = 0.0,
+        limit: int = 50,
     ) -> list[PatternCandidate]:
         clauses: list[str] = []
         params: list = []
@@ -86,12 +100,15 @@ class LearningDatabase:
         params.append(limit)
         rows = self._conn.execute(
             f"SELECT * FROM pattern_candidates WHERE {where}"
-            " ORDER BY confidence_final DESC LIMIT ?", params,
+            " ORDER BY confidence_final DESC LIMIT ?",
+            params,
         ).fetchall()
         return [self._row_to_candidate(r) for r in rows]
 
     def update_candidate_status(
-        self, cid: str, status: CandidateStatus,
+        self,
+        cid: str,
+        status: CandidateStatus,
         llm_assessment: LLMAssessment | None = None,
     ) -> None:
         aj = llm_assessment.model_dump_json() if llm_assessment else None
@@ -116,23 +133,36 @@ class LearningDatabase:
                 status, presented_at, decided_at, decision,
                 edited_content, session_id)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (p.id, p.candidate_id, p.type, p.title, p.description,
-             p.proposed_content, p.proposed_path, p.confidence,
-             p.status, p.presented_at, p.decided_at, p.decision,
-             p.edited_content, p.session_id),
+            (
+                p.id,
+                p.candidate_id,
+                p.type,
+                p.title,
+                p.description,
+                p.proposed_content,
+                p.proposed_path,
+                p.confidence,
+                p.status,
+                p.presented_at,
+                p.decided_at,
+                p.decision,
+                p.edited_content,
+                p.session_id,
+            ),
         )
         self._conn.commit()
         return p.id
 
     def get_proposal(self, pid: str) -> Proposal | None:
-        row = self._conn.execute(
-            "SELECT * FROM proposals WHERE id = ?", (pid,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM proposals WHERE id = ?", (pid,)).fetchone()
         return self._row_to_proposal(row) if row else None
 
     def list_proposals(
-        self, *, status: ProposalStatus | None = None,
-        min_confidence: float = 0.0, limit: int = 50,
+        self,
+        *,
+        status: ProposalStatus | None = None,
+        min_confidence: float = 0.0,
+        limit: int = 50,
     ) -> list[Proposal]:
         clauses: list[str] = []
         params: list = []
@@ -145,13 +175,15 @@ class LearningDatabase:
         where = " AND ".join(clauses) if clauses else "1=1"
         params.append(limit)
         rows = self._conn.execute(
-            f"SELECT * FROM proposals WHERE {where}"
-            " ORDER BY confidence DESC LIMIT ?", params,
+            f"SELECT * FROM proposals WHERE {where} ORDER BY confidence DESC LIMIT ?",
+            params,
         ).fetchall()
         return [self._row_to_proposal(r) for r in rows]
 
     def decide_proposal(
-        self, pid: str, decision: Decision,
+        self,
+        pid: str,
+        decision: Decision,
         edited_content: str | None = None,
     ) -> None:
         now = datetime.now(UTC).isoformat()
@@ -171,12 +203,12 @@ class LearningDatabase:
         return row[0]
 
     def is_in_cooldown(
-        self, detection_type: DetectionType,
-        description_hash: str, cooldown_days: int,
+        self,
+        detection_type: DetectionType,
+        description_hash: str,
+        cooldown_days: int,
     ) -> bool:
-        cutoff = (
-            datetime.now(UTC) - timedelta(days=cooldown_days)
-        ).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(days=cooldown_days)).isoformat()
         row = self._conn.execute(
             """SELECT COUNT(*) FROM proposals p
                JOIN pattern_candidates c ON p.candidate_id = c.id
@@ -214,12 +246,9 @@ class LearningDatabase:
         return row[0] if row else None
 
     def get_analysis_state(self) -> dict:
-        row = self._conn.execute(
-            "SELECT * FROM analysis_state WHERE id = 1"
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM analysis_state WHERE id = 1").fetchone()
         if row is None:
-            return {"last_commit": None, "last_analyzed_at": None,
-                    "total_commits_analyzed": 0}
+            return {"last_commit": None, "last_analyzed_at": None, "total_commits_analyzed": 0}
         return {
             "last_commit": row["last_commit"],
             "last_analyzed_at": row["last_analyzed_at"],
@@ -242,22 +271,26 @@ class LearningDatabase:
         self._conn.commit()
 
     def stats(self) -> dict:
-        ct = self._conn.execute(
-            "SELECT COUNT(*) FROM pattern_candidates"
-        ).fetchone()[0]
-        pt = self._conn.execute(
-            "SELECT COUNT(*) FROM proposals"
-        ).fetchone()[0]
-        cbs = {r["status"]: r["cnt"] for r in self._conn.execute(
-            "SELECT status, COUNT(*) as cnt FROM pattern_candidates"
-            " GROUP BY status"
-        ).fetchall()}
-        pbs = {r["status"]: r["cnt"] for r in self._conn.execute(
-            "SELECT status, COUNT(*) as cnt FROM proposals"
-            " GROUP BY status"
-        ).fetchall()}
-        return {"candidates_total": ct, "proposals_total": pt,
-                "candidates_by_status": cbs, "proposals_by_status": pbs}
+        ct = self._conn.execute("SELECT COUNT(*) FROM pattern_candidates").fetchone()[0]
+        pt = self._conn.execute("SELECT COUNT(*) FROM proposals").fetchone()[0]
+        cbs = {
+            r["status"]: r["cnt"]
+            for r in self._conn.execute(
+                "SELECT status, COUNT(*) as cnt FROM pattern_candidates GROUP BY status"
+            ).fetchall()
+        }
+        pbs = {
+            r["status"]: r["cnt"]
+            for r in self._conn.execute(
+                "SELECT status, COUNT(*) as cnt FROM proposals GROUP BY status"
+            ).fetchall()
+        }
+        return {
+            "candidates_total": ct,
+            "proposals_total": pt,
+            "candidates_by_status": cbs,
+            "proposals_by_status": pbs,
+        }
 
     @staticmethod
     def _row_to_candidate(row: sqlite3.Row) -> PatternCandidate:
@@ -265,27 +298,35 @@ class LearningDatabase:
         if row["llm_assessment"]:
             llm = LLMAssessment.model_validate_json(row["llm_assessment"])
         return PatternCandidate(
-            id=row["id"], detection_type=row["detection_type"],
-            count=row["count"], confidence_raw=row["confidence_raw"],
+            id=row["id"],
+            detection_type=row["detection_type"],
+            count=row["count"],
+            confidence_raw=row["confidence_raw"],
             confidence_final=row["confidence_final"],
             files=json.loads(row["files"]),
             description=row["description"],
             instances=json.loads(row["instances"]),
-            detected_at=row["detected_at"], status=row["status"],
-            llm_assessment=llm, description_hash=row["description_hash"],
+            detected_at=row["detected_at"],
+            status=row["status"],
+            llm_assessment=llm,
+            description_hash=row["description_hash"],
         )
 
     @staticmethod
     def _row_to_proposal(row: sqlite3.Row) -> Proposal:
         return Proposal(
-            id=row["id"], candidate_id=row["candidate_id"],
-            type=row["type"], title=row["title"],
+            id=row["id"],
+            candidate_id=row["candidate_id"],
+            type=row["type"],
+            title=row["title"],
             description=row["description"],
             proposed_content=row["proposed_content"],
             proposed_path=row["proposed_path"],
-            confidence=row["confidence"], status=row["status"],
+            confidence=row["confidence"],
+            status=row["status"],
             presented_at=row["presented_at"],
-            decided_at=row["decided_at"], decision=row["decision"],
+            decided_at=row["decided_at"],
+            decision=row["decision"],
             edited_content=row["edited_content"],
             session_id=row["session_id"],
         )

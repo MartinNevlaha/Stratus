@@ -84,12 +84,29 @@ _DOC_PATTERNS: list[tuple[str, str]] = [
 ]
 
 # Directories to skip during recursive glob (noise, build artifacts, deps)
-_SKIP_DIRS: frozenset[str] = frozenset({
-    "node_modules", ".git", ".venv", "venv", "__pycache__",
-    "dist", "build", ".next", "out", "target", ".gradle",
-    "vendor", "coverage", ".cache", ".tox", ".mypy_cache",
-    ".pytest_cache", ".ruff_cache", ".worktrees",
-})
+_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        "node_modules",
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "dist",
+        "build",
+        ".next",
+        "out",
+        "target",
+        ".gradle",
+        "vendor",
+        "coverage",
+        ".cache",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".worktrees",
+    }
+)
 
 _H2_SPLIT = re.compile(r"^## ", re.MULTILINE)
 
@@ -144,7 +161,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 
 class GovernanceStore:
     def __init__(self, path: str = ":memory:") -> None:
-        self._conn = sqlite3.connect(path)
+        self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         _run_migrations(self._conn)
 
