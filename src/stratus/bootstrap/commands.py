@@ -101,6 +101,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     retrieval_config = None
     interactive = not scope_explicit and not dry_run
     run_indexing = False
+    enable_devrag = False
 
     if not skip_retrieval:
         backend_status = detect_backends(data_dir=str(data_dir) if not dry_run else None)
@@ -125,6 +126,12 @@ def cmd_init(args: argparse.Namespace) -> None:
             if not dry_run:
                 update_ai_framework_config(git_root, merged)
                 print(f"Config: updated retrieval in {ai_path}")
+                if interactive:
+                    if backend_status.vexor_available:
+                        idx_answer = input("Re-run vexor indexing? [y/N] ").strip().lower()
+                        run_indexing = idx_answer.startswith("y")
+                    gov_answer = input("Re-index governance docs? [y/N] ").strip().lower()
+                    enable_devrag = gov_answer.startswith("y")
             else:
                 print("[dry-run] Would update retrieval in .ai-framework.json")
         else:
@@ -196,6 +203,17 @@ def cmd_init(args: argparse.Namespace) -> None:
                 print("Warning: could not start indexing — vexor binary not found")
         else:
             print("Warning: could not set up local embedding model")
+
+    # Step 6c: Index governance docs if enabled
+    if enable_devrag and not dry_run:
+        from stratus.bootstrap.retrieval_setup import run_governance_index
+        gov_db_path = str(data_dir / "governance.db")
+        print("Indexing governance docs...", flush=True)
+        result = run_governance_index(str(git_root), gov_db_path)
+        if result.get("status") == "ok":
+            print("Governance: docs indexed")
+        else:
+            print(f"Warning: governance indexing failed: {result.get('message', 'unknown')}")
 
     # Step 6: Print summary
     print(f"\nDetected {len(graph.services)} service(s):")

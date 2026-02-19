@@ -682,6 +682,141 @@ class TestCmdInitRetrieval:
         assert "cuda runtime" in captured.out.lower() or "cpu" in captured.out.lower()
 
 
+    def test_init_calls_governance_index_when_devrag_enabled(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When interactive mode enables devrag, run_governance_index is called (Bug 1)."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        status = BackendStatus(vexor_available=False)
+        ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
+        mock_gov_index = MagicMock(return_value={"status": "ok", "docs": 5})
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
+            patch(
+                "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
+                return_value=(False, True, False),
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_governance_index",
+                mock_gov_index,
+            ),
+            patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),
+        ):
+            cmd_init(ns)
+        mock_gov_index.assert_called_once()
+        captured = capsys.readouterr()
+        assert "governance" in captured.out.lower()
+
+    def test_init_governance_index_failure_prints_warning(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When governance indexing fails, a warning is printed (Bug 1)."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        status = BackendStatus(vexor_available=False)
+        ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
+            patch(
+                "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
+                return_value=(False, True, False),
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_governance_index",
+                return_value={"status": "error", "message": "no docs found"},
+            ),
+            patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),
+        ):
+            cmd_init(ns)
+        captured = capsys.readouterr()
+        assert "warning" in captured.out.lower()
+
+    def test_init_reinit_offers_reindex_when_ai_framework_exists(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Re-init (ai-framework.json exists) in interactive mode offers reindexing (Bug 2)."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        existing = {"version": 1, "retrieval": {"vexor": {"enabled": True}}}
+        (tmp_path / ".ai-framework.json").write_text(json.dumps(existing))
+
+        status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
+        ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
+        mock_gov_index = MagicMock(return_value={"status": "ok"})
+        mock_index = MagicMock(return_value=True)
+        mock_setup = MagicMock(return_value=(True, False))
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_governance_index",
+                mock_gov_index,
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
+                mock_index,
+            ),
+            patch("stratus.bootstrap.retrieval_setup.setup_vexor_local", mock_setup),
+            patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=False),
+            patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),
+            # User answers "y" to both reindex prompts
+            patch("builtins.input", side_effect=["y", "y"]),
+        ):
+            cmd_init(ns)
+        mock_index.assert_called_once()
+        mock_gov_index.assert_called_once()
+
+    def test_init_reinit_skips_reindex_on_no_answer(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Re-init in interactive mode skips indexing when user answers N (Bug 2)."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        existing = {"version": 1, "retrieval": {"vexor": {"enabled": True}}}
+        (tmp_path / ".ai-framework.json").write_text(json.dumps(existing))
+
+        status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
+        ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
+        mock_gov_index = MagicMock(return_value={"status": "ok"})
+        mock_index = MagicMock(return_value=True)
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_governance_index",
+                mock_gov_index,
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
+                mock_index,
+            ),
+            patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),
+            # User answers "n" to both
+            patch("builtins.input", side_effect=["n", "n"]),
+        ):
+            cmd_init(ns)
+        mock_index.assert_not_called()
+        mock_gov_index.assert_not_called()
+
+
 class TestInteractiveInit:
     def test_selects_local_scope(self) -> None:
         from stratus.bootstrap.commands import _interactive_init
