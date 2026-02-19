@@ -58,6 +58,7 @@ class TestWriteAiFrameworkConfig:
     def test_writes_file_when_not_exists(self, tmp_path):
         graph = _make_graph(tmp_path)
         out = write_ai_framework_config(tmp_path, graph)
+        assert out is not None
         assert out == tmp_path / ".ai-framework.json"
         assert out.exists()
 
@@ -102,15 +103,17 @@ class TestBuildDefaultConfig:
             "devrag": {"enabled": True},
         }
         config = _build_default_config(tmp_path, graph, retrieval_config=custom_retrieval)
-        assert config["retrieval"]["vexor"]["enabled"] is False
-        assert config["retrieval"]["devrag"]["enabled"] is True
+        retrieval: dict = config["retrieval"]  # type: ignore[assignment]
+        assert retrieval["vexor"]["enabled"] is False
+        assert retrieval["devrag"]["enabled"] is True
 
     def test_retrieval_override_none_uses_default(self, tmp_path):
         """When retrieval_config is None, hardcoded defaults are used."""
         graph = _make_graph(tmp_path)
         config = _build_default_config(tmp_path, graph, retrieval_config=None)
-        assert config["retrieval"]["vexor"]["enabled"] is True
-        assert config["retrieval"]["devrag"]["enabled"] is False
+        retrieval: dict = config["retrieval"]  # type: ignore[assignment]
+        assert retrieval["vexor"]["enabled"] is True
+        assert retrieval["devrag"]["enabled"] is False
 
 
 class TestUpdateAiFrameworkConfig:
@@ -138,6 +141,27 @@ class TestUpdateAiFrameworkConfig:
         data = json.loads(path.read_text())
         assert data["project"]["name"] == "test"
         assert data["version"] == 1
+
+
+class TestUpdateAiFrameworkConfigCorruptFile:
+    def test_handles_invalid_json_and_writes_updates(self, tmp_path):
+        """Falls back to empty dict when existing file contains invalid JSON."""
+        path = tmp_path / ".ai-framework.json"
+        path.write_text('{"version": 1, "learning": {"global_enabled": false},}')  # trailing comma
+        updates = {"retrieval": {"vexor": {"enabled": True}}}
+        result = update_ai_framework_config(tmp_path, updates)
+        assert result == path
+        data = json.loads(path.read_text())
+        assert data["retrieval"]["vexor"]["enabled"] is True
+
+    def test_handles_invalid_json_and_emits_stderr_warning(self, tmp_path, capsys):
+        """Prints a warning to stderr when falling back from corrupt JSON."""
+        path = tmp_path / ".ai-framework.json"
+        path.write_text("{bad json!!}")
+        update_ai_framework_config(tmp_path, {"retrieval": {}})
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+        assert str(path) in captured.err
 
 
 class TestAtomicWrites:

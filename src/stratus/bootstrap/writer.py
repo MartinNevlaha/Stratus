@@ -54,10 +54,16 @@ def update_ai_framework_config(root: Path, updates: dict) -> Path | None:
 
     Returns None if file doesn't exist.
     """
+    import sys
+
     path = root / ".ai-framework.json"
     if not path.exists():
         return None
-    existing = json.loads(path.read_text())
+    try:
+        existing = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        print(f"Warning: {path} contains invalid JSON, falling back to empty dict", file=sys.stderr)
+        existing = {}
     existing.update(updates)
     _atomic_write(path, json.dumps(existing, indent=2))
     return path
