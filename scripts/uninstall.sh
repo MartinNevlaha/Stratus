@@ -116,6 +116,28 @@ print('Cleaned project MCP config')
                 || warn "Could not clear Vexor index"
         fi
 
+        # 5c2. Remove governance DB entries for this project (absolute-path prefix match)
+        gov_db="${HOME}/.ai-framework/data/governance.db"
+        if [ -f "$gov_db" ]; then
+            log "  Removing governance index entries for $git_root..."
+            python3 -c "
+import sqlite3, sys
+db = '$gov_db'
+prefix = '$git_root' + '/'
+try:
+    con = sqlite3.connect(db)
+    cur = con.cursor()
+    cur.execute('DELETE FROM governance_docs WHERE file_path LIKE ?', (prefix + '%',))
+    deleted = cur.rowcount
+    con.commit()
+    con.close()
+    print(f'Removed {deleted} governance entries')
+except Exception as e:
+    print(f'Warning: could not clean governance DB: {e}', file=sys.stderr)
+" 2>/dev/null || warn "Could not clean governance DB"
+            removed=1
+        fi
+
         # 5d. Remove worktrees (.worktrees/spec-*)
         worktrees_dir="$git_root/.worktrees"
         if [ -d "$worktrees_dir" ]; then
@@ -210,6 +232,19 @@ if [ -d "$DATA_DIR" ]; then
         removed=1
     else
         log "Skipped data directory"
+    fi
+fi
+
+# 2b. Clear Vexor index DB (~/.vexor/index.db)
+vexor_index="${HOME}/.vexor/index.db"
+if [ -f "$vexor_index" ]; then
+    log "Found Vexor index: $vexor_index"
+    if confirm "Remove Vexor index DB (all project embeddings)?"; then
+        rm -f "$vexor_index"
+        log "Removed $vexor_index"
+        removed=1
+    else
+        log "Skipped Vexor index"
     fi
 fi
 
