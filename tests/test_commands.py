@@ -600,13 +600,13 @@ class TestCmdInitRetrieval:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """When interactive mode approves indexing, run_initial_index_background is called."""
+        """When interactive mode approves indexing, run_initial_index is called."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         from stratus.bootstrap.retrieval_setup import BackendStatus
 
         status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
         ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
-        mock_index = MagicMock(return_value=True)
+        mock_index = MagicMock(return_value={"status": "ok"})
         mock_setup = MagicMock(return_value=(True, False))
         with (
             patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
@@ -619,7 +619,7 @@ class TestCmdInitRetrieval:
                 return_value=(True, False, True),
             ),
             patch(
-                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
+                "stratus.bootstrap.retrieval_setup.run_initial_index",
                 mock_index,
             ),
             patch(
@@ -663,8 +663,8 @@ class TestCmdInitRetrieval:
                 return_value=(True, False, True),
             ),
             patch(
-                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
-                return_value=True,
+                "stratus.bootstrap.retrieval_setup.run_initial_index",
+                return_value={"status": "ok"},
             ),
             patch("stratus.bootstrap.retrieval_setup.setup_vexor_local", mock_setup),
             patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True),
@@ -758,7 +758,7 @@ class TestCmdInitRetrieval:
         status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
         ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
         mock_gov_index = MagicMock(return_value={"status": "ok"})
-        mock_index = MagicMock(return_value=True)
+        mock_index = MagicMock(return_value={"status": "ok"})
         mock_setup = MagicMock(return_value=(True, False))
         with (
             patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
@@ -768,7 +768,7 @@ class TestCmdInitRetrieval:
                 mock_gov_index,
             ),
             patch(
-                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
+                "stratus.bootstrap.retrieval_setup.run_initial_index",
                 mock_index,
             ),
             patch("stratus.bootstrap.retrieval_setup.setup_vexor_local", mock_setup),
@@ -796,7 +796,7 @@ class TestCmdInitRetrieval:
         status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
         ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
         mock_gov_index = MagicMock(return_value={"status": "ok"})
-        mock_index = MagicMock(return_value=True)
+        mock_index = MagicMock(return_value={"status": "ok"})
         with (
             patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
             patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
@@ -805,7 +805,7 @@ class TestCmdInitRetrieval:
                 mock_gov_index,
             ),
             patch(
-                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
+                "stratus.bootstrap.retrieval_setup.run_initial_index",
                 mock_index,
             ),
             patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),

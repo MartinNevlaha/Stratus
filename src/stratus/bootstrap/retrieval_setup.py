@@ -295,21 +295,21 @@ def run_initial_index(
     project_root: str,
     vexor_binary: str = "vexor",
 ) -> dict:
-    """Run vexor index via subprocess. Returns status dict."""
+    """Run vexor index synchronously. Streams stdout to terminal. Returns status dict."""
     try:
         result = subprocess.run(
             [vexor_binary, "index", "--path", project_root],
-            capture_output=True,
+            stderr=subprocess.PIPE,
             text=True,
             timeout=1200,
         )
     except FileNotFoundError:
         return {"status": "error", "message": "vexor binary not found"}
     except subprocess.TimeoutExpired:
-        return {"status": "error", "message": "indexing timeout"}
+        return {"status": "error", "message": "indexing timed out (>20 min)"}
 
     if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip()
+        detail = result.stderr.strip()
         if "API key" in detail:
             return {
                 "status": "api_key_missing",
@@ -318,4 +318,4 @@ def run_initial_index(
         msg = f"exit code {result.returncode}" + (f": {detail}" if detail else "")
         return {"status": "error", "message": msg}
 
-    return {"status": "ok", "output": result.stdout.strip()}
+    return {"status": "ok"}

@@ -170,7 +170,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         from stratus.bootstrap.retrieval_setup import (
             detect_cuda,
             install_vexor_local_package,
-            run_initial_index_background,
+            run_initial_index,
             setup_vexor_local,
             verify_cuda_runtime,
         )
@@ -196,11 +196,12 @@ def cmd_init(args: argparse.Namespace) -> None:
                     "Note: CUDA runtime not available — running on CPU. "
                     "To enable GPU: uv pip install onnxruntime-gpu"
                 )
-            print("Starting indexing in background...")
-            if run_initial_index_background(str(git_root)):
-                print("Indexing: running in background (run `vexor status` to check progress)")
+            print("Indexing project (this may take several minutes)...", flush=True)
+            index_result = run_initial_index(str(git_root))
+            if index_result["status"] == "ok":
+                print("Vexor: index complete")
             else:
-                print("Warning: could not start indexing — vexor binary not found")
+                print(f"Warning: vexor indexing failed: {index_result.get('message', 'unknown')}")
         else:
             print("Warning: could not set up local embedding model")
 

@@ -264,11 +264,12 @@ class TestPromptRetrievalSetup:
 
 class TestRunInitialIndex:
     def test_success(self) -> None:
-        result_mock = MagicMock(returncode=0, stdout="Indexed 42 files\n", stderr="")
+        result_mock = MagicMock(returncode=0, stderr="")
         with patch(MOCK_TARGET, return_value=result_mock):
             result = run_initial_index("/my/project")
         assert result["status"] == "ok"
-        assert "42" in result["output"]
+        # No "output" key — stdout streams to terminal, not captured
+        assert "output" not in result
 
     def test_binary_not_found(self) -> None:
         with patch(MOCK_TARGET, side_effect=FileNotFoundError):
@@ -280,40 +281,32 @@ class TestRunInitialIndex:
         with patch(MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["vexor"], 30)):
             result = run_initial_index("/my/project")
         assert result["status"] == "error"
-        assert "timeout" in result["message"].lower()
+        assert "timed out" in result["message"].lower()
 
     def test_failure_with_empty_stderr_includes_exit_code(self) -> None:
         """Regression: vexor exits non-zero with empty stderr — message must not be blank."""
-        result_mock = MagicMock(returncode=1, stdout="", stderr="")
+        result_mock = MagicMock(returncode=1, stderr="")
         with patch(MOCK_TARGET, return_value=result_mock):
             result = run_initial_index("/my/project")
         assert result["status"] == "error"
         assert result["message"], "message must not be empty"
         assert "1" in result["message"]  # exit code included
 
-    def test_failure_prefers_stderr_over_stdout(self) -> None:
-        """When both are set, stderr is the primary error message."""
-        result_mock = MagicMock(returncode=2, stdout="some stdout", stderr="real error")
+    def test_failure_uses_stderr_for_error_detail(self) -> None:
+        """When stderr is set, it is used as the error message."""
+        result_mock = MagicMock(returncode=2, stderr="real error")
         with patch(MOCK_TARGET, return_value=result_mock):
             result = run_initial_index("/my/project")
         assert "real error" in result["message"]
 
-    def test_failure_falls_back_to_stdout_when_stderr_empty(self) -> None:
-        """When stderr is empty, stdout is used as the error detail."""
-        result_mock = MagicMock(returncode=1, stdout="vexor: cannot open path\n", stderr="")
-        with patch(MOCK_TARGET, return_value=result_mock):
-            result = run_initial_index("/my/project")
-        assert "cannot open path" in result["message"]
-
     def test_missing_api_key_returns_api_key_status(self) -> None:  # noqa: E301
         """Vexor API key error is detected and returned as a distinct status."""
-        stdout = (
-            "Indexing files under /my/project...\n"
+        stderr = (
             "API key is missing or still set to the placeholder. "
             "Configure it via `vexor config --set-api-key <token>` "
             "or an environment variable."
         )
-        result_mock = MagicMock(returncode=1, stdout=stdout, stderr="")
+        result_mock = MagicMock(returncode=1, stderr=stderr)
         with patch(MOCK_TARGET, return_value=result_mock):
             result = run_initial_index("/my/project")
         assert result["status"] == "api_key_missing"
