@@ -30,8 +30,13 @@ async def session_init(request: Request) -> JSONResponse:
 
 
 async def list_sessions(request: Request) -> JSONResponse:
-    limit = int(request.query_params.get("limit", "50"))
-    offset = int(request.query_params.get("offset", "0"))
+    try:
+        limit = int(request.query_params.get("limit", "50"))
+        offset = int(request.query_params.get("offset", "0"))
+    except ValueError:
+        return JSONResponse({"error": "limit and offset must be integers"}, status_code=400)
+    limit = min(max(limit, 0), 1000)
+    offset = max(offset, 0)
 
     db = request.app.state.db
     sessions = db.list_sessions(limit=limit, offset=offset)

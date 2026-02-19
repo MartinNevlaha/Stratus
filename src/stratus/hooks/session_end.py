@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +18,8 @@ except ImportError:
 
 def save_session_summary(session_dir: Path, session_id: str) -> None:
     """POST session summary to memory API. Best-effort, 2s timeout."""
+    if httpx is None:
+        return
     try:
         from stratus.hooks._common import get_api_url
 
@@ -50,15 +54,16 @@ def cleanup_worktree_stashes(git_root: Path | None) -> None:
         )
         if result.returncode != 0:
             return
-        for i, line in enumerate(reversed(result.stdout.splitlines())):
-            if "ai-framework:" in line:
-                subprocess.run(
-                    ["git", "stash", "drop", f"stash@{{{i}}}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    cwd=git_root,
-                )
+        lines = result.stdout.splitlines()
+        indices = [i for i, line in enumerate(lines) if "ai-framework:" in line]
+        for idx in reversed(indices):
+            subprocess.run(
+                ["git", "stash", "drop", f"stash@{{{idx}}}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=git_root,
+            )
     except Exception:
         pass  # Best-effort
 
@@ -72,7 +77,16 @@ def write_exit_log(session_dir: Path, session_id: str) -> None:
             "exited_at": datetime.now(UTC).isoformat(),
             "summary": "Session ended normally",
         }
-        (session_dir / "exit-log.json").write_text(json.dumps(log, indent=2))
+        path = session_dir / "exit-log.json"
+        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            os.write(fd, json.dumps(log, indent=2).encode())
+            os.close(fd)
+            os.replace(tmp, path)
+        except BaseException:
+            os.close(fd)
+            os.unlink(tmp)
+            raise
     except OSError:
         pass  # Best-effort
 

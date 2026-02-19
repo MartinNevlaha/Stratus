@@ -187,7 +187,7 @@ class TestRetrievalStatusExtended:
 
 class TestRetrievalStatusLiveVexorStats:
     def test_retrieval_status_merges_live_vexor_show_stats(self, client: TestClient):
-        """GET /api/retrieval/status merges live total_files/model/last_indexed_at from vexor show()."""
+        """Merge live vexor stats into /api/retrieval/status response."""
         from unittest.mock import patch
 
         from stratus.retrieval.models import IndexStatus
@@ -250,6 +250,38 @@ class TestRetrievalStatusLiveVexorStats:
             client.get("/api/retrieval/status")
 
         client.app.state.retriever._vexor.show.assert_called_once_with(path="/the/project")
+
+
+class TestTriggerIndexGovernance:
+    def test_trigger_index_also_indexes_governance(self, client: TestClient):
+        """POST /api/retrieval/index calls index_governance on the retriever."""
+        mock_retriever = client.app.state.retriever
+        mock_retriever.index_governance.return_value = {"files_indexed": 3}
+
+        client.post("/api/retrieval/index")
+
+        mock_retriever.index_governance.assert_called_once()
+
+
+class TestRetrievalSearchParamValidation:
+    def test_search_invalid_top_k_returns_400(self, client: TestClient):
+        resp = client.get("/api/retrieval/search?query=test&top_k=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_search_large_top_k_is_capped_at_100(self, client: TestClient):
+        resp = client.get("/api/retrieval/search?query=test&top_k=9999")
+        assert resp.status_code == 200
+        retriever = client.app.state.retriever
+        call_kwargs = retriever.retrieve.call_args
+        assert call_kwargs[1]["top_k"] <= 100
+
+    def test_search_zero_top_k_clamped_to_1(self, client: TestClient):
+        resp = client.get("/api/retrieval/search?query=test&top_k=0")
+        assert resp.status_code == 200
+        retriever = client.app.state.retriever
+        call_kwargs = retriever.retrieve.call_args
+        assert call_kwargs[1]["top_k"] >= 1
 
 
 class TestRegressionExistingRoutes:

@@ -206,6 +206,22 @@ class TestConfigEndpoint:
         assert data["global_enabled"] is True
 
 
+class TestProposalsParamValidation:
+    def test_get_proposals_invalid_max_count_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/proposals?max_count=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_get_proposals_invalid_min_confidence_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/proposals?min_confidence=notafloat")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_get_proposals_large_max_count_capped(self, client: TestClient):
+        resp = client.get("/api/learning/proposals?max_count=99999")
+        assert resp.status_code == 200
+
+
 class TestStatsEndpoint:
     def test_get_stats(self, client: TestClient):
         resp = client.get("/api/learning/stats")

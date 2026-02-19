@@ -376,3 +376,24 @@ class TestParsePorcelain:
         )
         results = VexorClient.parse_porcelain(output)
         assert len(results) == 2
+
+    def test_parse_porcelain_skips_malformed_line(self):
+        """Lines with non-numeric rank/score/chunk/line fields are skipped."""
+        output = "notanint\t0.9\t/foo.py\t0\t1\t5\theading :: excerpt\n"
+        results = VexorClient.parse_porcelain(output)
+        assert results == []
+
+    def test_parse_porcelain_skips_bad_score(self):
+        output = "1\tnotafloat\t/foo.py\t0\t1\t5\theading :: excerpt\n"
+        results = VexorClient.parse_porcelain(output)
+        assert results == []
+
+    def test_parse_porcelain_partial_malformed_skips_bad_keeps_good(self):
+        """Valid lines are kept even when some lines are malformed."""
+        output = (
+            "1\t0.9\t/foo.py\t0\t1\t5\theading :: good excerpt\n"
+            "bad\tline\tformat\n"
+            "2\t0.8\t/bar.py\t0\t2\t8\theading :: another good\n"
+        )
+        results = VexorClient.parse_porcelain(output)
+        assert len(results) == 2

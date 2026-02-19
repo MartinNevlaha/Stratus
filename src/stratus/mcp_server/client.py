@@ -6,7 +6,11 @@ import httpx
 
 
 class MemoryClient:
-    def __init__(self, base_url: str = "http://localhost:41777") -> None:
+    def __init__(self, base_url: str | None = None) -> None:
+        if base_url is None:
+            from stratus.hooks._common import get_api_url
+
+            base_url = get_api_url()
         self._base_url = base_url
         self._client = httpx.AsyncClient(base_url=base_url, timeout=10.0)
 

@@ -82,6 +82,15 @@ class UnifiedRetriever:
             result["governance_stats"] = gov
         return result
 
+    def index_governance(self, project_root: str) -> dict:
+        """Index governance documents from project_root via DevRag.
+
+        Returns {"status": "unavailable"} if devrag is not available.
+        """
+        if not self._devrag.is_available():
+            return {"status": "unavailable"}
+        return self._devrag.index(project_root)
+
     # ------------------------------------------------------------------
     # Private routing helpers
     # ------------------------------------------------------------------

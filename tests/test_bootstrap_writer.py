@@ -138,3 +138,43 @@ class TestUpdateAiFrameworkConfig:
         data = json.loads(path.read_text())
         assert data["project"]["name"] == "test"
         assert data["version"] == 1
+
+
+class TestAtomicWrites:
+    def test_write_project_graph_no_tmp_files_left_behind(self, tmp_path):
+        """Atomic write leaves no .tmp files after write_project_graph success."""
+        graph = _make_graph(tmp_path)
+        write_project_graph(graph, tmp_path)
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == [], f"Unexpected .tmp files: {tmp_files}"
+
+    def test_write_ai_framework_config_no_tmp_files_left_behind(self, tmp_path):
+        """Atomic write leaves no .tmp files after write_ai_framework_config success."""
+        graph = _make_graph(tmp_path)
+        write_ai_framework_config(tmp_path, graph)
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == [], f"Unexpected .tmp files: {tmp_files}"
+
+    def test_update_ai_framework_config_no_tmp_files_left_behind(self, tmp_path):
+        """Atomic write leaves no .tmp files after update_ai_framework_config success."""
+        path = tmp_path / ".ai-framework.json"
+        path.write_text(json.dumps({"version": 1}))
+        update_ai_framework_config(tmp_path, {"learning": {"global_enabled": True}})
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == [], f"Unexpected .tmp files: {tmp_files}"
+
+    def test_write_project_graph_file_readable_after_write(self, tmp_path):
+        """File written atomically is valid JSON."""
+        graph = _make_graph(tmp_path)
+        out = write_project_graph(graph, tmp_path)
+        data = json.loads(out.read_text())
+        assert data["version"] == 1
+
+    def test_write_ai_framework_config_file_readable_after_write(self, tmp_path):
+        """File written atomically is valid JSON."""
+        graph = _make_graph(tmp_path)
+        out = write_ai_framework_config(tmp_path, graph)
+        assert out is not None
+        data = json.loads(out.read_text())
+        assert isinstance(data, dict)
+        assert len(data) > 0

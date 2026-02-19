@@ -23,8 +23,13 @@ async def record_failure(request: Request) -> JSONResponse:
     if not category:
         return JSONResponse({"error": "category required"}, status_code=422)
 
+    try:
+        failure_category = FailureCategory(category)
+    except ValueError:
+        return JSONResponse({"error": f"unknown category: {category!r}"}, status_code=422)
+
     event = FailureEvent(
-        category=FailureCategory(category),
+        category=failure_category,
         file_path=body.get("file_path"),
         detail=body.get("detail", ""),
         session_id=body.get("session_id"),
@@ -36,7 +41,11 @@ async def record_failure(request: Request) -> JSONResponse:
 
 async def failures_summary(request: Request) -> JSONResponse:
     """GET /api/learning/analytics/failures/summary"""
-    days = int(request.query_params.get("days", "30"))
+    try:
+        days = int(request.query_params.get("days", "30"))
+    except ValueError:
+        return JSONResponse({"error": "days must be an integer"}, status_code=400)
+    days = min(max(days, 1), 365)
     db = request.app.state.learning_db
     summary = compute_failure_summary(db.analytics, days=days)
     # FailureCategory enum keys → string values for JSON serialisation
@@ -49,9 +58,20 @@ async def failures_summary(request: Request) -> JSONResponse:
 
 async def failures_trends(request: Request) -> JSONResponse:
     """GET /api/learning/analytics/failures/trends"""
-    days = int(request.query_params.get("days", "30"))
+    try:
+        days = int(request.query_params.get("days", "30"))
+    except ValueError:
+        return JSONResponse({"error": "days must be an integer"}, status_code=400)
+    days = min(max(days, 1), 365)
+
     category_param = request.query_params.get("category")
-    category = FailureCategory(category_param) if category_param else None
+    if category_param:
+        try:
+            category: FailureCategory | None = FailureCategory(category_param)
+        except ValueError:
+            return JSONResponse({"error": f"unknown category: {category_param!r}"}, status_code=400)
+    else:
+        category = None
 
     db = request.app.state.learning_db
     trends = compute_failure_trends(db.analytics, days=days, category=category)
@@ -60,8 +80,13 @@ async def failures_trends(request: Request) -> JSONResponse:
 
 async def failures_hotspots(request: Request) -> JSONResponse:
     """GET /api/learning/analytics/failures/hotspots"""
-    limit = int(request.query_params.get("limit", "10"))
-    days = int(request.query_params.get("days", "30"))
+    try:
+        limit = int(request.query_params.get("limit", "10"))
+        days = int(request.query_params.get("days", "30"))
+    except ValueError:
+        return JSONResponse({"error": "limit and days must be integers"}, status_code=400)
+    limit = min(max(limit, 0), 1000)
+    days = min(max(days, 1), 365)
 
     db = request.app.state.learning_db
     hotspots = compute_file_hotspots(db.analytics, limit=limit, days=days)
@@ -70,8 +95,13 @@ async def failures_hotspots(request: Request) -> JSONResponse:
 
 async def failures_systematic(request: Request) -> JSONResponse:
     """GET /api/learning/analytics/failures/systematic"""
-    days = int(request.query_params.get("days", "30"))
-    min_count = int(request.query_params.get("min_count", "5"))
+    try:
+        days = int(request.query_params.get("days", "30"))
+        min_count = int(request.query_params.get("min_count", "5"))
+    except ValueError:
+        return JSONResponse({"error": "days and min_count must be integers"}, status_code=400)
+    days = min(max(days, 1), 365)
+    min_count = min(max(min_count, 1), 1000)
 
     db = request.app.state.learning_db
     problems = identify_systematic_problems(db.analytics, days=days, min_count=min_count)

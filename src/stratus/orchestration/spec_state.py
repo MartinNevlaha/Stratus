@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from stratus.orchestration.models import SpecPhase, SpecState
@@ -23,15 +25,24 @@ def read_spec_state(session_dir: Path) -> SpecState | None:
     try:
         data = json.loads(path.read_text())
         return SpecState(**data)
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
 
 
 def write_spec_state(session_dir: Path, state: SpecState) -> None:
-    """Write SpecState to spec-state.json, creating parent dirs as needed."""
+    """Write SpecState to spec-state.json atomically, creating parent dirs as needed."""
     path = session_dir / _SPEC_STATE_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state.model_dump(), indent=2))
+    content = json.dumps(state.model_dump(), indent=2)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode())
+        os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)
+        raise
 
 
 def transition_phase(state: SpecState, new_phase: SpecPhase) -> SpecState:

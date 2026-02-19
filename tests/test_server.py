@@ -258,6 +258,69 @@ class TestSaveSearchRoundtrip:
         assert events[0]["text"] == "discovered memory leak in websocket handler"
 
 
+class TestMemoryParamValidation:
+    def test_search_invalid_limit_returns_400(self, client: TestClient):
+        resp = client.get("/api/search?query=test&limit=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_search_invalid_offset_returns_400(self, client: TestClient):
+        resp = client.get("/api/search?query=test&offset=xyz")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_search_large_limit_is_capped(self, client: TestClient):
+        resp = client.get("/api/search?query=test&limit=999999")
+        assert resp.status_code == 200
+
+    def test_timeline_invalid_anchor_id_returns_400(self, client: TestClient):
+        resp = client.get("/api/timeline?anchor_id=notanint")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_timeline_invalid_depth_before_returns_400(self, client: TestClient):
+        # Save an event first so we have a valid anchor
+        r = client.post("/api/memory/save", json={"text": "test"})
+        anchor_id = r.json()["id"]
+        resp = client.get(f"/api/timeline?anchor_id={anchor_id}&depth_before=notanint")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_timeline_invalid_depth_after_returns_400(self, client: TestClient):
+        r = client.post("/api/memory/save", json={"text": "test"})
+        anchor_id = r.json()["id"]
+        resp = client.get(f"/api/timeline?anchor_id={anchor_id}&depth_after=notanint")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_timeline_depth_capped(self, client: TestClient):
+        r = client.post("/api/memory/save", json={"text": "test"})
+        anchor_id = r.json()["id"]
+        resp = client.get(f"/api/timeline?anchor_id={anchor_id}&depth_before=9999&depth_after=9999")
+        assert resp.status_code == 200
+
+    def test_observations_invalid_ids_returns_400(self, client: TestClient):
+        resp = client.get("/api/observations?ids=1,abc,3")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+
+class TestSessionParamValidation:
+    def test_list_sessions_invalid_limit_returns_400(self, client: TestClient):
+        resp = client.get("/api/sessions?limit=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_list_sessions_invalid_offset_returns_400(self, client: TestClient):
+        resp = client.get("/api/sessions?offset=xyz")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_list_sessions_large_limit_capped(self, client: TestClient):
+        resp = client.get("/api/sessions?limit=999999")
+        assert resp.status_code == 200
+
+
 class TestLifespanInitialization:
     def test_learning_db_uses_persistent_path(self, tmp_path, monkeypatch):
         """LearningDatabase must use a file path, not :memory:."""

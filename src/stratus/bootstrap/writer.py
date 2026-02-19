@@ -3,15 +3,30 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from stratus.bootstrap.models import ProjectGraph, ServiceType
 
 
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content to path atomically using tempfile + os.replace."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode())
+        os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)
+        raise
+
+
 def write_project_graph(graph: ProjectGraph, root: Path) -> Path:
-    """Write project-graph.json to repo root. Returns path."""
+    """Write project-graph.json to repo root atomically. Returns path."""
     path = root / "project-graph.json"
-    path.write_text(graph.model_dump_json(indent=2))
+    _atomic_write(path, graph.model_dump_json(indent=2))
     return path
 
 
@@ -22,23 +37,29 @@ def write_ai_framework_config(
     force: bool = False,
     retrieval_config: dict | None = None,
 ) -> Path | None:
-    """Write .ai-framework.json if not exists (or force=True). Returns None if skipped."""
+    """Write .ai-framework.json atomically if not exists (or force=True).
+
+    Returns None if skipped.
+    """
     path = root / ".ai-framework.json"
     if path.exists() and not force:
         return None
     config = _build_default_config(root, graph, retrieval_config=retrieval_config)
-    path.write_text(json.dumps(config, indent=2))
+    _atomic_write(path, json.dumps(config, indent=2))
     return path
 
 
 def update_ai_framework_config(root: Path, updates: dict) -> Path | None:
-    """Merge updates into existing .ai-framework.json. Returns None if file doesn't exist."""
+    """Merge updates into existing .ai-framework.json atomically.
+
+    Returns None if file doesn't exist.
+    """
     path = root / ".ai-framework.json"
     if not path.exists():
         return None
     existing = json.loads(path.read_text())
     existing.update(updates)
-    path.write_text(json.dumps(existing, indent=2))
+    _atomic_write(path, json.dumps(existing, indent=2))
     return path
 
 

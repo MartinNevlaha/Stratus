@@ -42,8 +42,15 @@ async def analyze(request: Request) -> JSONResponse:
 async def get_proposals(request: Request) -> JSONResponse:
     """GET /api/learning/proposals"""
     db = request.app.state.learning_db
-    max_count = int(request.query_params.get("max_count", "50"))
-    min_confidence = float(request.query_params.get("min_confidence", "0.0"))
+    try:
+        max_count = int(request.query_params.get("max_count", "50"))
+        min_confidence = float(request.query_params.get("min_confidence", "0.0"))
+    except ValueError:
+        return JSONResponse(
+            {"error": "max_count must be an integer and min_confidence must be a float"},
+            status_code=400,
+        )
+    max_count = min(max(max_count, 1), 200)
 
     proposals = db.list_proposals(min_confidence=min_confidence, limit=max_count)
     return JSONResponse({

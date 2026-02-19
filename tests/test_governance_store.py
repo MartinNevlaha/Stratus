@@ -578,3 +578,86 @@ class TestStats:
         assert stats_a["by_doc_type"].get("rule") == 1
         assert stats_a["by_doc_type"].get("adr") == 1
         assert "rule" in stats_a["by_doc_type"]
+
+
+class TestSymlinkHandling:
+    def test_index_project_skips_symlinks(self, tmp_path: Path) -> None:
+        """Symlinked .md files are not indexed."""
+        rules_dir = tmp_path / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+
+        # Create a real file outside the project
+        real_file = tmp_path / "real.md"
+        real_file.write_text("## Title\ncontent here")
+
+        # Create a symlink pointing to it in the rules dir
+        symlink = rules_dir / "symlinked.md"
+        symlink.symlink_to(real_file)
+
+        store = GovernanceStore(":memory:")
+        result = store.index_project(str(tmp_path))
+        assert result["files_indexed"] == 0  # symlink skipped
+        store.close()
+
+    def test_index_project_indexes_real_files_but_not_symlinks(self, tmp_path: Path) -> None:
+        """Real .md files are indexed; symlinks are skipped."""
+        rules_dir = tmp_path / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+
+        # A real file
+        real_rule = rules_dir / "real.md"
+        real_rule.write_text("## Real Rule\nsome content")
+
+        # A symlinked file
+        other_file = tmp_path / "other.md"
+        other_file.write_text("## Other\ncontent")
+        symlink = rules_dir / "link.md"
+        symlink.symlink_to(other_file)
+
+        store = GovernanceStore(":memory:")
+        result = store.index_project(str(tmp_path))
+        assert result["files_indexed"] == 1  # only the real file
+        store.close()
+
+
+class TestTransactionHandling:
+    def test_index_project_commits_on_success(self, tmp_path: Path) -> None:
+        """Normal indexing commits and data persists after the call."""
+        rules_dir = tmp_path / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "rule.md").write_text("## Rule\ncontent here")
+
+        store = GovernanceStore(":memory:")
+        result = store.index_project(str(tmp_path))
+        assert result["files_indexed"] == 1
+        assert store.stats()["total_files"] == 1
+        store.close()
+
+    def test_index_project_rolls_back_on_read_error(self, tmp_path: Path) -> None:
+        """If reading a file raises OSError mid-indexing, the transaction rolls back."""
+        from unittest.mock import patch
+
+        rules_dir = tmp_path / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "rule1.md").write_text("## Rule1\ncontent one")
+        (rules_dir / "rule2.md").write_text("## Rule2\ncontent two")
+
+        store = GovernanceStore(":memory:")
+
+        # Patch Path.read_text to fail on the second read
+        call_count = [0]
+        original_read_text = Path.read_text
+
+        def failing_read_text(self: Path, *args, **kwargs) -> str:
+            call_count[0] += 1
+            if call_count[0] >= 2:
+                raise OSError("simulated disk error")
+            return original_read_text(self, *args, **kwargs)
+
+        with patch.object(Path, "read_text", failing_read_text):
+            with pytest.raises(OSError, match="simulated disk error"):
+                store.index_project(str(tmp_path))
+
+        # After rollback, no data should be persisted (transaction rolled back)
+        assert store.stats()["total_files"] == 0
+        store.close()

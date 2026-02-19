@@ -416,7 +416,7 @@ class TestSetupVexorLocal:
         assert any("--cpu" in c for c in calls)
 
     def test_cuda_setup_fails_mode_switch_succeeds(self) -> None:
-        """When --setup --cuda fails but --cuda alone (mode switch) succeeds, return (True, True)."""
+        """Setup fails but mode switch succeeds → return (True, True)."""
         fail_mock = MagicMock(returncode=1, stdout="", stderr="")
         ok_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, side_effect=[fail_mock, ok_mock]) as mock_run:

@@ -345,3 +345,38 @@ class TestStatus:
         retriever.status()
 
         devrag.governance_stats.assert_called_once_with(project_root=None)
+
+
+# ---------------------------------------------------------------------------
+# TestIndexGovernance
+# ---------------------------------------------------------------------------
+
+
+class TestIndexGovernance:
+    def test_index_governance_delegates_to_devrag(self):
+        """index_governance() calls devrag.index() and returns its result."""
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        devrag = _make_devrag_mock(available=True)
+        devrag.index.return_value = {"files_indexed": 5, "chunks_indexed": 12}
+        vexor = _make_vexor_mock(available=True)
+        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+
+        result = retriever.index_governance("/some/project")
+
+        devrag.index.assert_called_once_with("/some/project")
+        assert result == {"files_indexed": 5, "chunks_indexed": 12}
+
+    def test_index_governance_returns_unavailable_when_devrag_not_available(self):
+        """index_governance() returns unavailable dict when devrag not available."""
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        devrag = _make_devrag_mock(available=False)
+        devrag.is_available.return_value = False
+        vexor = _make_vexor_mock(available=True)
+        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+
+        result = retriever.index_governance("/some/project")
+
+        devrag.index.assert_not_called()
+        assert result == {"status": "unavailable"}

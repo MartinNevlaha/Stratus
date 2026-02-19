@@ -163,6 +163,74 @@ class TestReindexSubcommand:
         captured = capsys.readouterr()
         assert "complete" in captured.out.lower() or "reindex" in captured.out.lower()
 
+    def test_cmd_reindex_also_indexes_governance(self, monkeypatch, capsys):
+        """stratus reindex also indexes the governance store."""
+        from stratus.cli import _cmd_reindex
+
+        mock_vexor_client = MagicMock()
+        mock_vexor_client.is_available.return_value = True
+        mock_vexor_client.index.return_value = {"status": "ok", "output": "done"}
+
+        mock_gov_store = MagicMock()
+        mock_gov_store.index_project.return_value = {"files_indexed": 4, "chunks_indexed": 11}
+
+        with (
+            patch("stratus.retrieval.vexor.VexorClient", return_value=mock_vexor_client),
+            patch(
+                "stratus.retrieval.config.load_retrieval_config",
+                return_value=MagicMock(vexor=MagicMock()),
+            ),
+            patch(
+                "stratus.retrieval.governance_store.GovernanceStore",
+                return_value=mock_gov_store,
+            ),
+            patch(
+                "stratus.session.config.get_data_dir",
+                return_value=Path("/tmp/test-data"),
+            ),
+        ):
+            ns = argparse.Namespace(full=False)
+            _cmd_reindex(ns)
+
+        mock_gov_store.index_project.assert_called_once()
+        mock_gov_store.close.assert_called_once()
+        captured = capsys.readouterr()
+        assert "governance" in captured.out.lower()
+
+    def test_cmd_reindex_governance_failure_does_not_abort(self, monkeypatch, capsys):
+        """stratus reindex continues even if governance indexing raises."""
+        from stratus.cli import _cmd_reindex
+
+        mock_vexor_client = MagicMock()
+        mock_vexor_client.is_available.return_value = True
+        mock_vexor_client.index.return_value = {"status": "ok", "output": "done"}
+
+        mock_gov_store = MagicMock()
+        mock_gov_store.index_project.side_effect = RuntimeError("governance store error")
+
+        with (
+            patch("stratus.retrieval.vexor.VexorClient", return_value=mock_vexor_client),
+            patch(
+                "stratus.retrieval.config.load_retrieval_config",
+                return_value=MagicMock(vexor=MagicMock()),
+            ),
+            patch(
+                "stratus.retrieval.governance_store.GovernanceStore",
+                return_value=mock_gov_store,
+            ),
+            patch(
+                "stratus.session.config.get_data_dir",
+                return_value=Path("/tmp/test-data"),
+            ),
+        ):
+            ns = argparse.Namespace(full=False)
+            # Must not raise and must not exit 1
+            _cmd_reindex(ns)
+
+        captured = capsys.readouterr()
+        # Vexor reindex still completed successfully
+        assert "complete" in captured.out.lower() or "reindex" in captured.out.lower()
+
 
 class TestRetrievalStatusSubcommand:
     def test_retrieval_status_subcommand_available(self):
@@ -427,6 +495,48 @@ class TestHookSubcommand:
         ):
             with pytest.raises(ImportError):
                 main()
+
+    def test_hook_rejects_invalid_module_name_with_dot(self, capsys):
+        """M2: module names containing dots must be rejected before import."""
+        with patch("sys.argv", ["stratus", "hook", "../../evil"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "invalid" in captured.err.lower()
+
+    def test_hook_rejects_module_name_with_slash(self, capsys):
+        """M2: module names containing slashes must be rejected."""
+        with patch("sys.argv", ["stratus", "hook", "foo/bar"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "invalid" in captured.err.lower()
+
+    def test_hook_rejects_module_name_starting_with_digit(self, capsys):
+        """M2: module names starting with a digit must be rejected."""
+        with patch("sys.argv", ["stratus", "hook", "1badmod"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "invalid" in captured.err.lower()
+
+    def test_hook_accepts_valid_module_name_with_underscore(self):
+        """M2: valid identifier names with underscores must pass validation."""
+        mock_main = MagicMock()
+        mock_module = MagicMock()
+        mock_module.main = mock_main
+
+        with (
+            patch("sys.argv", ["stratus", "hook", "my_hook_module"]),
+            patch("importlib.import_module", return_value=mock_module) as mock_import,
+        ):
+            main()
+
+        mock_import.assert_called_once_with("stratus.hooks.my_hook_module")
+        mock_main.assert_called_once()
 
 
 class TestInitDeliveryFlags:

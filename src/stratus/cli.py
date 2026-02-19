@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import re
 import sys
 from pathlib import Path
 from typing import cast
@@ -76,7 +77,9 @@ def _cmd_mcp_serve(_args: argparse.Namespace) -> None:
 
 def _cmd_reindex(args: argparse.Namespace) -> None:
     from stratus.retrieval.config import load_retrieval_config
+    from stratus.retrieval.governance_store import GovernanceStore
     from stratus.retrieval.vexor import VexorClient
+    from stratus.session.config import get_data_dir
 
     config = load_retrieval_config()
     client = VexorClient(config.vexor)
@@ -92,6 +95,15 @@ def _cmd_reindex(args: argparse.Namespace) -> None:
     else:
         print(f"Reindex failed: {result.get('message', 'unknown error')}", file=sys.stderr)
         sys.exit(1)
+
+    try:
+        gov_db_path = str(get_data_dir() / "governance.db")
+        store = GovernanceStore(gov_db_path)
+        stats = store.index_project(str(Path.cwd().resolve()))
+        store.close()
+        print(f"Governance indexed: {stats['files_indexed']} files")
+    except Exception as exc:
+        print(f"Warning: governance indexing failed: {exc}", file=sys.stderr)
 
 
 def _cmd_retrieval_status(_args: argparse.Namespace) -> None:
@@ -146,6 +158,9 @@ def _cmd_worktree(args: argparse.Namespace) -> None:
 
 
 def _cmd_hook(args: argparse.Namespace) -> None:
+    if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", args.module):
+        print(f"Invalid hook module: {args.module}", file=sys.stderr)
+        sys.exit(1)
     mod = importlib.import_module(f"stratus.hooks.{args.module}")
     mod.main()
 

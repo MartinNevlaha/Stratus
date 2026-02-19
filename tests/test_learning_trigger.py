@@ -6,6 +6,7 @@ import json
 from unittest.mock import patch
 
 from stratus.hooks.learning_trigger import (
+    _increment_commit_count,
     is_git_commit_command,
     main,
     should_trigger_analysis,
@@ -59,6 +60,37 @@ class TestShouldTriggerAnalysis:
         should_trigger_analysis(state_file, threshold=5)
         data = json.loads(state_file.read_text())
         assert data["commit_count"] == 0
+
+    def test_no_tmp_files_left_after_trigger(self, tmp_path):
+        """Atomic write leaves no .tmp files after should_trigger_analysis resets counter."""
+        state_file = tmp_path / "learning-state.json"
+        state_file.write_text(json.dumps({"commit_count": 4}))
+        should_trigger_analysis(state_file, threshold=5)
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == [], f"Unexpected .tmp files: {tmp_files}"
+
+
+class TestIncrementCommitCount:
+    def test_increments_existing_count(self, tmp_path):
+        state_file = tmp_path / "learning-state.json"
+        state_file.write_text(json.dumps({"commit_count": 3}))
+        _increment_commit_count(state_file)
+        data = json.loads(state_file.read_text())
+        assert data["commit_count"] == 4
+
+    def test_initializes_missing_file(self, tmp_path):
+        state_file = tmp_path / "learning-state.json"
+        _increment_commit_count(state_file)
+        data = json.loads(state_file.read_text())
+        assert data["commit_count"] == 1
+
+    def test_no_tmp_files_left_after_increment(self, tmp_path):
+        """Atomic write leaves no .tmp files after _increment_commit_count."""
+        state_file = tmp_path / "learning-state.json"
+        state_file.write_text(json.dumps({"commit_count": 0}))
+        _increment_commit_count(state_file)
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == [], f"Unexpected .tmp files: {tmp_files}"
 
 
 class TestMain:

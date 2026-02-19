@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from starlette.background import BackgroundTasks
@@ -17,10 +18,14 @@ async def retrieval_search(request: Request) -> JSONResponse:
         return JSONResponse({"error": "query parameter required"}, status_code=400)
 
     corpus = request.query_params.get("corpus")
-    top_k = int(request.query_params.get("top_k", "10"))
+    try:
+        top_k = int(request.query_params.get("top_k", "10"))
+    except ValueError:
+        return JSONResponse({"error": "top_k must be an integer"}, status_code=400)
+    top_k = min(max(top_k, 1), 100)
 
     retriever = request.app.state.retriever
-    response = retriever.retrieve(query, corpus=corpus, top_k=top_k)
+    response = await asyncio.to_thread(retriever.retrieve, query, corpus=corpus, top_k=top_k)
     return JSONResponse(response.model_dump())
 
 
@@ -30,11 +35,11 @@ async def retrieval_status(request: Request) -> JSONResponse:
     from stratus.session.config import get_data_dir
 
     retriever = request.app.state.retriever
-    data = retriever.status()
+    data = await asyncio.to_thread(retriever.status)
     state = read_index_state(get_data_dir())
     state_dict = state.model_dump()
     # Merge live vexor stats (total_files, model, last_indexed_at) into state
-    live = retriever._vexor.show(path=retriever._config.project_root)
+    live = await asyncio.to_thread(retriever._vexor.show, path=retriever._config.project_root)
     state_dict.update({k: v for k, v in live.items() if v is not None})
     data["index_state"] = state_dict
     return JSONResponse(data)
@@ -49,6 +54,11 @@ def _do_index(retriever: object, data_dir: Path) -> None:
         retriever._vexor.index()  # type: ignore[union-attr]
         commit = get_current_commit(Path.cwd())
         write_index_state(data_dir, IndexStatus(stale=False, last_indexed_commit=commit))
+    except Exception:
+        pass
+
+    try:
+        retriever.index_governance(str(Path.cwd()))  # type: ignore[union-attr]
     except Exception:
         pass
 

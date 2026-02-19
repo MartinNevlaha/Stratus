@@ -30,8 +30,6 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
-        from pathlib import Path
-
         from stratus.learning.config import load_learning_config
         from stratus.learning.database import LearningDatabase
         from stratus.learning.watcher import ProjectWatcher
@@ -66,7 +64,7 @@ def create_app(
 
         try:
             app.state.governance_store.index_project(str(Path.cwd().resolve()))
-        except Exception:
+        except (OSError, ValueError, RuntimeError):
             pass
 
         # Orchestration subsystem — delivery or spec based on config

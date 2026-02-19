@@ -163,7 +163,7 @@ class GovernanceStore:
         found_files: dict[str, str] = {}  # abs_path_str -> doc_type
         for pattern, doc_type in _DOC_PATTERNS:
             for fp in root.glob(pattern):
-                if fp.is_file() and fp.suffix == ".md":
+                if fp.is_file() and fp.suffix == ".md" and not fp.is_symlink():
                     rel_parts = fp.relative_to(root).parts
                     if any(part in _SKIP_DIRS for part in rel_parts):
                         continue
@@ -177,42 +177,47 @@ class GovernanceStore:
         ).fetchall():
             existing[row["file_path"]] = row["file_hash"]
 
-        # Index new/changed files
-        for abs_path_str, doc_type in found_files.items():
-            content = Path(abs_path_str).read_text()
-            new_hash = _file_hash(content)
+        try:
+            # Index new/changed files
+            for abs_path_str, doc_type in found_files.items():
+                content = Path(abs_path_str).read_text()
+                new_hash = _file_hash(content)
 
-            if abs_path_str in existing and existing[abs_path_str] == new_hash:
-                files_skipped += 1
-                continue
+                if abs_path_str in existing and existing[abs_path_str] == new_hash:
+                    files_skipped += 1
+                    continue
 
-            # Delete old chunks for this file
-            self._conn.execute(
-                "DELETE FROM governance_docs WHERE file_path = ?", (abs_path_str,)
-            )
-
-            # Chunk and insert
-            fallback_title = Path(abs_path_str).name
-            file_chunks = _chunk_markdown(content, fallback_title=fallback_title)
-            for idx, chunk in enumerate(file_chunks):
-                self._conn.execute(
-                    """INSERT INTO governance_docs
-                       (file_path, chunk_index, title, content, doc_type, file_hash)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (abs_path_str, idx, chunk["title"], chunk["content"], doc_type, new_hash),
-                )
-                chunks_indexed += 1
-            files_indexed += 1
-
-        # Remove stale entries (files no longer on disk)
-        for abs_path_str in existing:
-            if abs_path_str not in found_files:
+                # Delete old chunks for this file
                 self._conn.execute(
                     "DELETE FROM governance_docs WHERE file_path = ?", (abs_path_str,)
                 )
-                files_removed += 1
 
-        self._conn.commit()
+                # Chunk and insert
+                fallback_title = Path(abs_path_str).name
+                file_chunks = _chunk_markdown(content, fallback_title=fallback_title)
+                for idx, chunk in enumerate(file_chunks):
+                    self._conn.execute(
+                        """INSERT INTO governance_docs
+                           (file_path, chunk_index, title, content, doc_type, file_hash)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (abs_path_str, idx, chunk["title"], chunk["content"], doc_type, new_hash),
+                    )
+                    chunks_indexed += 1
+                files_indexed += 1
+
+            # Remove stale entries (files no longer on disk)
+            for abs_path_str in existing:
+                if abs_path_str not in found_files:
+                    self._conn.execute(
+                        "DELETE FROM governance_docs WHERE file_path = ?", (abs_path_str,)
+                    )
+                    files_removed += 1
+
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            raise
+
         return {
             "files_indexed": files_indexed,
             "files_skipped": files_skipped,

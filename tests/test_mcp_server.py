@@ -9,6 +9,23 @@ from stratus.mcp_server.server import create_mcp_server
 
 
 class TestMemoryClient:
+    def test_memory_client_uses_env_port(self, monkeypatch):
+        """MemoryClient respects AI_FRAMEWORK_PORT env var."""
+        monkeypatch.setenv("AI_FRAMEWORK_PORT", "9999")
+        from unittest.mock import patch
+
+        with patch("stratus.hooks._common.get_api_url", return_value="http://localhost:9999"):
+            import importlib
+
+            import stratus.mcp_server.client as client_module
+
+            importlib.reload(client_module)
+            client = client_module.MemoryClient()
+            assert "9999" in client._base_url
+            import asyncio
+
+            asyncio.run(client.close())
+
     @pytest.mark.asyncio
     async def test_search_builds_correct_url(self):
         mock_response = MagicMock()

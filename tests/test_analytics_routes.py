@@ -176,6 +176,55 @@ class TestRulesEffectivenessEndpoint:
         assert "effectiveness_score" in rule
 
 
+class TestAnalyticsParamValidation:
+    def test_failures_summary_invalid_days_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/summary?days=abc")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_failures_summary_days_capped_at_365(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/summary?days=99999")
+        assert resp.status_code == 200
+
+    def test_failures_trends_invalid_days_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/trends?days=nope")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_failures_trends_invalid_category_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/trends?category=not_a_real_cat")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_failures_hotspots_invalid_limit_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/hotspots?limit=bad")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_failures_hotspots_invalid_days_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/hotspots?days=bad")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_failures_systematic_invalid_days_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/systematic?days=bad")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_failures_systematic_invalid_min_count_returns_400(self, client: TestClient):
+        resp = client.get("/api/learning/analytics/failures/systematic?min_count=bad")
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_record_failure_invalid_category_returns_422(self, client: TestClient):
+        resp = client.post(
+            "/api/learning/analytics/record-failure",
+            json={"category": "totally_invalid_category"},
+        )
+        assert resp.status_code == 422
+        assert "error" in resp.json()
+
+
 class TestRulesLowImpactEndpoint:
     def test_get_low_impact_filters_effective_rules(self, client: TestClient):
         db: LearningDatabase = client.app.state.learning_db

@@ -170,16 +170,19 @@ class VexorClient:
             else:
                 excerpt = heading_excerpt
 
-            results.append(
-                SearchResult(
-                    rank=int(rank_s),
-                    score=float(score_s),
-                    file_path=file_path,
-                    chunk_index=int(chunk_s),
-                    line_start=int(line_start_s),
-                    line_end=int(line_end_s),
-                    excerpt=excerpt,
-                    corpus=CorpusType.CODE,
+            try:
+                results.append(
+                    SearchResult(
+                        rank=int(rank_s),
+                        score=float(score_s),
+                        file_path=file_path,
+                        chunk_index=int(chunk_s),
+                        line_start=int(line_start_s),
+                        line_end=int(line_end_s),
+                        excerpt=excerpt,
+                        corpus=CorpusType.CODE,
+                    )
                 )
-            )
+            except (ValueError, TypeError):
+                continue
         return results

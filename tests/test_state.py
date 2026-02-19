@@ -52,3 +52,19 @@ class TestWriteAndReadState:
         _ = state_file.write_text("not valid json {{{")
         result = read_state(state_file)
         assert result == {}
+
+    def test_write_no_tmp_files_left_behind(self, tmp_path: Path) -> None:
+        """Atomic write leaves no .tmp files after successful write_state."""
+        state_file = tmp_path / "state.json"
+        write_state(state_file, {"key": "value"})
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == [], f"Unexpected .tmp files: {tmp_files}"
+
+    def test_write_atomic_content_correct(self, tmp_path: Path) -> None:
+        """Content written atomically matches the input data."""
+        state_file = tmp_path / "state.json"
+        data = {"session": "abc", "count": 42}
+        write_state(state_file, data)
+        import json
+        result = json.loads(state_file.read_text())
+        assert result == data

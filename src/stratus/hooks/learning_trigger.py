@@ -3,9 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
+
+
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Write JSON data to path atomically using tempfile + os.replace."""
+    content = json.dumps(data)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode())
+        os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)
+        raise
+
 
 _GIT_COMMIT_RE = re.compile(r"git\s+(commit|merge|pull)\b")
 
@@ -28,20 +45,20 @@ def should_trigger_analysis(state_file: Path, threshold: int = 5) -> bool:
     count = data.get("commit_count", 0)
     if count + 1 >= threshold:
         data["commit_count"] = 0
-        state_file.write_text(json.dumps(data))
+        _atomic_write_json(state_file, data)
         return True
     return False
 
 
 def _increment_commit_count(state_file: Path) -> None:
-    """Increment the commit counter in the state file."""
+    """Increment the commit counter in the state file atomically."""
     try:
         data = json.loads(state_file.read_text())
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         data = {}
     data["commit_count"] = data.get("commit_count", 0) + 1
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(data))
+    _atomic_write_json(state_file, data)
 
 
 def main() -> None:
