@@ -51,6 +51,7 @@ def create_app(
         devrag_client = DevRagClient(
             config=DevRagConfig(enabled=True),
             store=app.state.governance_store,
+            project_root=str(Path.cwd().resolve()),
         )
         ai_framework_path = Path.cwd() / ".ai-framework.json"
         retrieval_config = load_retrieval_config(ai_framework_path)

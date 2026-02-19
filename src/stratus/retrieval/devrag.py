@@ -14,9 +14,11 @@ class DevRagClient:
         self,
         config: DevRagConfig | None = None,
         store: GovernanceStore | None = None,
+        project_root: str | None = None,
     ) -> None:
         self._config = config or DevRagConfig()
         self._store = store
+        self._project_root = project_root
 
     def is_available(self) -> bool:
         """True if enabled and a GovernanceStore is attached."""
@@ -29,7 +31,9 @@ class DevRagClient:
 
         start = time.monotonic()
         doc_type = scope  # scope maps to doc_type filter
-        raw = self._store.search(query, top_k=top_k, doc_type=doc_type)
+        raw = self._store.search(
+            query, top_k=top_k, doc_type=doc_type, project_root=self._project_root
+        )
         elapsed_ms = (time.monotonic() - start) * 1000
         results = self._parse_search_results(raw)
         return RetrievalResponse(

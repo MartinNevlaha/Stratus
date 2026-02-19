@@ -77,7 +77,7 @@ class TestGovernanceStoreSchema:
     def test_schema_version_recorded(self) -> None:
         store = GovernanceStore()
         row = store._conn.execute("SELECT MAX(version) FROM schema_versions").fetchone()
-        assert row[0] == 1
+        assert row[0] == 2
 
     def test_close(self) -> None:
         store = GovernanceStore()
@@ -406,6 +406,72 @@ class TestRecursiveIndexing:
         store = GovernanceStore()
         stats = store.index_project(str(root))
         assert stats["files_indexed"] == 1
+
+
+class TestMultiProjectIsolation:
+    """Tests for multi-project data isolation using absolute file paths."""
+
+    def test_indexes_store_absolute_paths(self, tmp_path: Path) -> None:
+        root = tmp_path / "project"
+        root.mkdir()
+        rules = root / ".claude" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "a.md").write_text("## A\nContent A")
+        store = GovernanceStore()
+        store.index_project(str(root))
+        docs = store.list_documents()
+        assert len(docs) == 1
+        stored_path = docs[0]["file_path"]
+        assert stored_path == str((rules / "a.md").resolve())
+
+    def test_two_projects_same_relative_path_both_stored(self, tmp_path: Path) -> None:
+        """Two projects with identical relative paths must coexist in the store."""
+        project_a = tmp_path / "project_a"
+        project_b = tmp_path / "project_b"
+        for proj in (project_a, project_b):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "01-style.md").write_text("## Style\nContent for " + proj.name)
+        store = GovernanceStore()
+        store.index_project(str(project_a))
+        store.index_project(str(project_b))
+        docs = store.list_documents()
+        paths = {d["file_path"] for d in docs}
+        assert len(paths) == 2  # both entries coexist, no collision
+
+    def test_search_project_root_filter_isolates_results(self, tmp_path: Path) -> None:
+        """search() with project_root only returns docs from that project."""
+        project_a = tmp_path / "project_a"
+        project_b = tmp_path / "project_b"
+        for proj in (project_a, project_b):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rules.md").write_text("## Style\nFormatting rules content")
+        store = GovernanceStore()
+        store.index_project(str(project_a))
+        store.index_project(str(project_b))
+        # Filter to project_a only
+        results_a = store.search("formatting rules", project_root=str(project_a))
+        for r in results_a:
+            assert str(project_a.resolve()) in r["file_path"]
+            assert str(project_b.resolve()) not in r["file_path"]
+
+    def test_search_without_project_root_returns_all(self, tmp_path: Path) -> None:
+        """search() without project_root returns docs from all projects."""
+        project_a = tmp_path / "project_a"
+        project_b = tmp_path / "project_b"
+        for proj in (project_a, project_b):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rules.md").write_text("## Style\nFormatting rules content")
+        store = GovernanceStore()
+        store.index_project(str(project_a))
+        store.index_project(str(project_b))
+        results = store.search("formatting rules")
+        paths = {r["file_path"] for r in results}
+        has_a = any(str(project_a.resolve()) in p for p in paths)
+        has_b = any(str(project_b.resolve()) in p for p in paths)
+        assert has_a and has_b
 
 
 class TestStats:

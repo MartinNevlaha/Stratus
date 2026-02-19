@@ -212,12 +212,15 @@ def create_mcp_server() -> Server:
             elif name == "retrieve":
                 from stratus.hooks._common import get_git_root
                 from stratus.retrieval.config import load_retrieval_config
+                from stratus.retrieval.devrag import DevRagClient
                 from stratus.retrieval.unified import UnifiedRetriever
 
                 git_root = get_git_root()
                 ai_path = (git_root / ".ai-framework.json") if git_root else None
                 config = load_retrieval_config(ai_path)
-                retriever = UnifiedRetriever(config=config)
+                project_root_str = str(git_root.resolve()) if git_root else None
+                devrag = DevRagClient(project_root=project_root_str)
+                retriever = UnifiedRetriever(config=config, devrag=devrag)
                 resp = retriever.retrieve(
                     args["query"],
                     corpus=args.get("corpus"),

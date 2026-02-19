@@ -65,6 +65,10 @@ MIGRATIONS: dict[int, list[str]] = {
         GOVERNANCE_FTS_DDL,
         *FTS_TRIGGERS,
     ],
+    2: [
+        # Clear old relative-path records — they are ambiguous across projects.
+        "DELETE FROM governance_docs;",
+    ],
 }
 
 # Governance doc patterns: (glob_pattern, doc_type)
@@ -84,7 +88,7 @@ _SKIP_DIRS: frozenset[str] = frozenset({
     "node_modules", ".git", ".venv", "venv", "__pycache__",
     "dist", "build", ".next", "out", "target", ".gradle",
     "vendor", "coverage", ".cache", ".tox", ".mypy_cache",
-    ".pytest_cache", ".ruff_cache",
+    ".pytest_cache", ".ruff_cache", ".worktrees",
 })
 
 _H2_SPLIT = re.compile(r"^## ", re.MULTILINE)
@@ -155,57 +159,56 @@ class GovernanceStore:
         files_removed = 0
         chunks_indexed = 0
 
-        # Collect all governance files with their doc_type
-        found_files: dict[str, str] = {}  # relative_path -> doc_type
+        # Collect all governance files with their doc_type, keyed by absolute path
+        found_files: dict[str, str] = {}  # abs_path_str -> doc_type
         for pattern, doc_type in _DOC_PATTERNS:
             for fp in root.glob(pattern):
                 if fp.is_file() and fp.suffix == ".md":
                     rel_parts = fp.relative_to(root).parts
                     if any(part in _SKIP_DIRS for part in rel_parts):
                         continue
-                    rel = str(fp.relative_to(root))
-                    found_files[rel] = doc_type
+                    found_files[str(fp.resolve())] = doc_type
 
-        # Get existing file hashes from DB
+        # Get existing file hashes for this project root only
         existing = {}
         for row in self._conn.execute(
-            "SELECT DISTINCT file_path, file_hash FROM governance_docs"
+            "SELECT DISTINCT file_path, file_hash FROM governance_docs WHERE file_path LIKE ?",
+            (str(root.resolve()) + "%",),
         ).fetchall():
             existing[row["file_path"]] = row["file_hash"]
 
         # Index new/changed files
-        for rel_path, doc_type in found_files.items():
-            abs_path = root / rel_path
-            content = abs_path.read_text()
+        for abs_path_str, doc_type in found_files.items():
+            content = Path(abs_path_str).read_text()
             new_hash = _file_hash(content)
 
-            if rel_path in existing and existing[rel_path] == new_hash:
+            if abs_path_str in existing and existing[abs_path_str] == new_hash:
                 files_skipped += 1
                 continue
 
             # Delete old chunks for this file
             self._conn.execute(
-                "DELETE FROM governance_docs WHERE file_path = ?", (rel_path,)
+                "DELETE FROM governance_docs WHERE file_path = ?", (abs_path_str,)
             )
 
             # Chunk and insert
-            fallback_title = Path(rel_path).name
+            fallback_title = Path(abs_path_str).name
             file_chunks = _chunk_markdown(content, fallback_title=fallback_title)
             for idx, chunk in enumerate(file_chunks):
                 self._conn.execute(
                     """INSERT INTO governance_docs
                        (file_path, chunk_index, title, content, doc_type, file_hash)
                        VALUES (?, ?, ?, ?, ?, ?)""",
-                    (rel_path, idx, chunk["title"], chunk["content"], doc_type, new_hash),
+                    (abs_path_str, idx, chunk["title"], chunk["content"], doc_type, new_hash),
                 )
                 chunks_indexed += 1
             files_indexed += 1
 
         # Remove stale entries (files no longer on disk)
-        for rel_path in existing:
-            if rel_path not in found_files:
+        for abs_path_str in existing:
+            if abs_path_str not in found_files:
                 self._conn.execute(
-                    "DELETE FROM governance_docs WHERE file_path = ?", (rel_path,)
+                    "DELETE FROM governance_docs WHERE file_path = ?", (abs_path_str,)
                 )
                 files_removed += 1
 
@@ -218,25 +221,34 @@ class GovernanceStore:
         }
 
     def search(
-        self, query: str, *, top_k: int = 10, doc_type: str | None = None
+        self,
+        query: str,
+        *,
+        top_k: int = 10,
+        doc_type: str | None = None,
+        project_root: str | None = None,
     ) -> list[dict]:
-        """FTS5 search with bm25 scoring. Optional doc_type filter."""
+        """FTS5 search with bm25 scoring. Optional doc_type and project_root filters."""
         if not query.strip():
             return []
 
         params: list = [query]
-        where_extra = ""
+        where_clauses = ["governance_fts MATCH ?"]
         if doc_type:
-            where_extra = " AND g.doc_type = ?"
+            where_clauses.append("g.doc_type = ?")
             params.append(doc_type)
+        if project_root:
+            where_clauses.append("g.file_path LIKE ?")
+            params.append(str(Path(project_root).resolve()) + "%")
         params.append(top_k)
 
+        where_str = " AND ".join(where_clauses)
         rows = self._conn.execute(
             f"""SELECT g.file_path, g.title, g.content, g.doc_type, g.chunk_index,
                        bm25(governance_fts) AS score
                 FROM governance_docs g
                 JOIN governance_fts ON governance_fts.rowid = g.id
-                WHERE governance_fts MATCH ?{where_extra}
+                WHERE {where_str}
                 ORDER BY score
                 LIMIT ?""",
             params,

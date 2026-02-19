@@ -101,6 +101,20 @@ class TestDevRagClient:
         result = client.index("/nonexistent")
         assert result["status"] == "error"
 
+    def test_project_root_passed_to_store_search(self, tmp_path: Path) -> None:
+        """project_root is forwarded to store.search for multi-project isolation."""
+        store = _make_store_with_docs(tmp_path)
+        client = DevRagClient(
+            config=DevRagConfig(enabled=True),
+            store=store,
+            project_root=str(tmp_path / "project"),
+        )
+        result = client.search("testing")
+        # All results must belong to the given project_root
+        project_abs = str((tmp_path / "project").resolve())
+        for sr in result.results:
+            assert sr.file_path.startswith(project_abs)
+
 
 class TestGovernanceStats:
     def test_governance_stats_returns_store_stats(self, tmp_path: Path) -> None:
