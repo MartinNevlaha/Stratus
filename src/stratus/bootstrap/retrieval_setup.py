@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -167,7 +168,25 @@ def verify_cuda_runtime() -> bool:
         return False
 
 
-def _ensure_gpu_onnxruntime() -> None:
+def _get_vexor_python(vexor_binary: str) -> str | None:
+    """Return the Python interpreter used by the vexor binary, or None.
+
+    Vexor installed via `uv tool install` has its own isolated Python env.
+    We detect it by reading the shebang line of the vexor script.
+    """
+    try:
+        binary_path = shutil.which(vexor_binary) or vexor_binary
+        first_line = Path(binary_path).read_text(encoding="utf-8").splitlines()[0]
+        if first_line.startswith("#!"):
+            candidate = first_line[2:].strip()
+            if Path(candidate).is_file() and candidate != sys.executable:
+                return candidate
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _ensure_gpu_onnxruntime(python_executable: str = sys.executable) -> None:
     """Remove CPU-only onnxruntime when onnxruntime-gpu is also installed.
 
     Having both packages causes the CPU-only one to shadow onnxruntime-gpu,
@@ -182,7 +201,7 @@ def _ensure_gpu_onnxruntime() -> None:
     )
     try:
         probe_result = subprocess.run(
-            [sys.executable, "-c", _probe],
+            [python_executable, "-c", _probe],
             capture_output=True,
             text=True,
             timeout=10,
@@ -191,10 +210,10 @@ def _ensure_gpu_onnxruntime() -> None:
             return
 
         # Both present — uninstall CPU-only then reinstall GPU variant
-        _uninstall = ["uv", "pip", "uninstall", "--python", sys.executable, "onnxruntime"]
+        _uninstall = ["uv", "pip", "uninstall", "--python", python_executable, "onnxruntime"]
         _reinstall = [
             "uv", "pip", "install", "--reinstall",
-            "--python", sys.executable, "onnxruntime-gpu",
+            "--python", python_executable, "onnxruntime-gpu",
         ]
         try:
             subprocess.run(_uninstall, capture_output=True, timeout=120)
@@ -202,12 +221,12 @@ def _ensure_gpu_onnxruntime() -> None:
         except FileNotFoundError:
             # uv not available — fall back to pip
             subprocess.run(
-                [sys.executable, "-m", "pip", "uninstall", "-y", "onnxruntime"],
+                [python_executable, "-m", "pip", "uninstall", "-y", "onnxruntime"],
                 capture_output=True,
                 timeout=120,
             )
             subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--force-reinstall", "onnxruntime-gpu"],
+                [python_executable, "-m", "pip", "install", "--force-reinstall", "onnxruntime-gpu"],
                 capture_output=True,
                 timeout=300,
             )
@@ -215,11 +234,14 @@ def _ensure_gpu_onnxruntime() -> None:
         pass
 
 
-def install_vexor_local_package(cuda: bool) -> bool:
+def install_vexor_local_package(cuda: bool, vexor_binary: str = "vexor") -> bool:
     """Install vexor[local-cuda] or vexor[local] into the current Python environment.
 
     Uses uv pip install with explicit --python so the package lands in whichever
     venv stratus runs from (pipx isolated venv or user venv). Returns True on success.
+
+    When cuda=True, also deduplicates onnxruntime in both stratus's venv and
+    vexor's own isolated Python env (uv tool install gives vexor its own Python).
     """
     package = "vexor[local-cuda]" if cuda else "vexor[local]"
     try:
@@ -230,6 +252,9 @@ def install_vexor_local_package(cuda: bool) -> bool:
         )
         if result.returncode == 0 and cuda:
             _ensure_gpu_onnxruntime()
+            vexor_python = _get_vexor_python(vexor_binary)
+            if vexor_python:
+                _ensure_gpu_onnxruntime(vexor_python)
         return result.returncode == 0
     except FileNotFoundError:
         # uv not available — fall back to pip
