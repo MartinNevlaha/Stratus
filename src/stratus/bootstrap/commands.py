@@ -140,9 +140,6 @@ def cmd_init(args: argparse.Namespace) -> None:
             else:
                 retrieval_config = build_retrieval_config(backend_status, str(git_root))
 
-            # Offer desktop app (experimental) after retrieval prompts
-            if interactive and not dry_run:
-                _prompt_install_vexor_desktop()
 
     # Step 6: Write .ai-framework.json
     ai_path = git_root / ".ai-framework.json"
@@ -183,7 +180,8 @@ def cmd_init(args: argparse.Namespace) -> None:
                 "  → Falling back to CPU mode."
             )
             cuda = False
-        print(f"Downloading local embedding model on {'GPU (CUDA)' if cuda else 'CPU'}...", flush=True)
+        device_label = "GPU (CUDA)" if cuda else "CPU"
+        print(f"Downloading local embedding model on {device_label}...", flush=True)
         ok, used_cuda = setup_vexor_local(cuda=cuda)
         if ok:
             if cuda and not used_cuda:
@@ -287,24 +285,6 @@ def _interactive_init() -> tuple[str, bool]:
     print()
     return scope, enable_delivery
 
-
-def _prompt_install_vexor_desktop() -> None:
-    """Interactively offer Vexor desktop app installation (experimental)."""
-    from stratus.bootstrap.desktop_setup import install_vexor_desktop
-
-    print()
-    answer = input(
-        "Install Vexor desktop app (experimental GUI, may be unstable)? [y/N] "
-    ).strip().lower()
-    if not answer.startswith("y"):
-        return
-
-    print("Downloading Vexor desktop app...")
-    result = install_vexor_desktop()
-    if result["status"] == "ok":
-        print(f"Desktop app installed and launched: {result['path']}")
-    else:
-        print(f"Warning: Vexor desktop app install failed — {result['message']}")
 
 
 def _ensure_server() -> None:

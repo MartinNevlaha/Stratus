@@ -438,7 +438,6 @@ class TestCmdInit:
                 "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
                 return_value=(False, False, False),
             ),
-            patch("stratus.bootstrap.commands._prompt_install_vexor_desktop"),
         ):
             cmd_init(ns)
         mock_interactive.assert_called_once()
@@ -635,7 +634,6 @@ class TestCmdInitRetrieval:
                 "stratus.bootstrap.commands._interactive_init",
                 return_value=("local", False),
             ),
-            patch("stratus.bootstrap.commands._prompt_install_vexor_desktop"),
         ):
             cmd_init(ns)
         mock_setup.assert_called_once_with(cuda=False)
@@ -660,14 +658,22 @@ class TestCmdInitRetrieval:
         with (
             patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
             patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
-            patch("stratus.bootstrap.retrieval_setup.prompt_retrieval_setup", return_value=(True, False, True)),
-            patch("stratus.bootstrap.retrieval_setup.run_initial_index_background", return_value=True),
+            patch(
+                "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
+                return_value=(True, False, True),
+            ),
+            patch(
+                "stratus.bootstrap.retrieval_setup.run_initial_index_background",
+                return_value=True,
+            ),
             patch("stratus.bootstrap.retrieval_setup.setup_vexor_local", mock_setup),
             patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True),
             patch("stratus.bootstrap.retrieval_setup.verify_cuda_runtime", return_value=False),
-            patch("stratus.bootstrap.retrieval_setup.install_vexor_local_package", return_value=True),
+            patch(
+                "stratus.bootstrap.retrieval_setup.install_vexor_local_package",
+                return_value=True,
+            ),
             patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),
-            patch("stratus.bootstrap.commands._prompt_install_vexor_desktop"),
         ):
             cmd_init(ns)
         # setup_vexor_local must be called with cuda=False (fallen back to CPU)
