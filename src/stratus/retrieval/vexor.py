@@ -39,7 +39,8 @@ class VexorClient:
         cmd = [
             self._config.binary_path,
             "search",
-            "--porcelain",
+            "--format",
+            "porcelain",
             "--top",
             str(top),
             "--mode",

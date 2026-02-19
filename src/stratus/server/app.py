@@ -55,12 +55,19 @@ def create_app(
         )
         ai_framework_path = Path.cwd() / ".ai-framework.json"
         retrieval_config = load_retrieval_config(ai_framework_path)
+        if retrieval_config.project_root is None:
+            retrieval_config.project_root = str(Path.cwd().resolve())
         vexor_client = VexorClient(config=retrieval_config.vexor)
         app.state.retriever = UnifiedRetriever(
             vexor=vexor_client,
             devrag=devrag_client,
             config=retrieval_config,
         )
+
+        try:
+            app.state.governance_store.index_project(str(Path.cwd().resolve()))
+        except Exception:
+            pass
 
         # Orchestration subsystem — delivery or spec based on config
         session_dir = (

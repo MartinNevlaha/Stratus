@@ -45,8 +45,8 @@ HOOK_SPECS: list[tuple[str, str, str]] = [
     ("TaskCompleted", ".*", "task_completed"),
 ]
 
-_CMD_PREFIX = "uv run python -m stratus.hooks."
-_CMD_PREFIXES: tuple[str, ...] = (_CMD_PREFIX, "stratus hook ")
+_CMD_PREFIX = "stratus hook "
+_CMD_PREFIXES: tuple[str, ...] = (_CMD_PREFIX, "uv run python -m stratus.hooks.")
 _MANAGED_MARKER = "<!-- managed-by: stratus"
 
 
@@ -136,7 +136,7 @@ def register_hooks(git_root: Path | None, *, dry_run: bool = False, scope: str =
 
 def build_statusline_config() -> dict[str, object]:
     """Return the statusLine config block for Claude Code settings."""
-    return {"statusLine": {"type": "command", "command": "uv run python -m stratus statusline"}}
+    return {"statusLine": {"type": "command", "command": "stratus statusline"}}
 
 
 def register_statusline(
@@ -175,8 +175,8 @@ def build_mcp_config(*, scope: str = "local") -> dict[str, object]:
     """Return the MCP server config block for stratus-memory."""
     entry: dict[str, object] = {
         "type": "stdio",
-        "command": "uv",
-        "args": ["run", "stratus", "mcp-serve"],
+        "command": "stratus",
+        "args": ["mcp-serve"],
     }
     if scope == "local":
         entry["cwd"] = "."

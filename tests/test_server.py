@@ -294,3 +294,27 @@ class TestLifespanInitialization:
             config = app.state.learning_config
             assert config.global_enabled is True
             assert config.sensitivity.value == "aggressive"
+
+    def test_governance_store_index_project_called_at_startup(self, tmp_path, monkeypatch):
+        """index_project must be called on startup so governance docs are searchable."""
+        from unittest.mock import patch
+
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+
+        with patch(
+            "stratus.retrieval.governance_store.GovernanceStore.index_project"
+        ) as mock_index:
+            app = create_app(db_path=":memory:", learning_db_path=":memory:")
+            with TestClient(app):
+                mock_index.assert_called_once()
+
+    def test_retrieval_config_project_root_set_from_cwd(self, tmp_path, monkeypatch):
+        """project_root must be set from cwd so vexor always has a valid path."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+
+        app = create_app(db_path=":memory:", learning_db_path=":memory:")
+        with TestClient(app):
+            assert app.state.retriever._config.project_root is not None
+            assert app.state.retriever._config.project_root == str(tmp_path.resolve())

@@ -56,12 +56,41 @@ class TestVexorClient:
             cmd = args[0]
             assert cmd[0] == "vexor"
             assert "search" in cmd
-            assert "--porcelain" in cmd
+            assert "--format" in cmd
+            assert "porcelain" in cmd
+            assert "--porcelain" not in cmd
             assert "--top" in cmd
             assert "5" in cmd
             assert "--mode" in cmd
             assert "semantic" in cmd
             assert "my query" in cmd
+
+    def test_search_default_mode_is_auto(self):
+        """Default mode must be 'auto', not 'hybrid' (hybrid is no longer valid)."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.search("query")
+            args, _ = mock_run.call_args
+            cmd = args[0]
+            mode_idx = cmd.index("--mode")
+            assert cmd[mode_idx + 1] == "auto"
+
+    def test_search_command_uses_format_porcelain_as_separate_args(self):
+        """--format and porcelain must be separate args, not --porcelain."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.search("query")
+            args, _ = mock_run.call_args
+            cmd = args[0]
+            assert "--porcelain" not in cmd
+            fmt_idx = cmd.index("--format")
+            assert cmd[fmt_idx + 1] == "porcelain"
 
     def test_search_with_path_and_ext(self):
         mock_result = MagicMock()

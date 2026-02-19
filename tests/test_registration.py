@@ -66,7 +66,7 @@ class TestBuildHooksConfig:
         assert isinstance(hook_entries, list)
         assert len(hook_entries) == 1
         cmd = hook_entries[0]["command"]
-        assert cmd == "uv run python -m stratus.hooks.tool_redirect"
+        assert cmd == "stratus hook tool_redirect"
         assert hook_entries[0]["type"] == "command"
 
     def test_stop_hook_correct(self) -> None:
@@ -79,7 +79,7 @@ class TestBuildHooksConfig:
         assert group["matcher"] == ".*"
         hook_entries = group["hooks"]
         assert isinstance(hook_entries, list)
-        assert hook_entries[0]["command"] == "uv run python -m stratus.hooks.spec_stop_guard"
+        assert hook_entries[0]["command"] == "stratus hook spec_stop_guard"
 
     def test_session_start_matcher_is_compact(self) -> None:
         hooks = build_hooks_config()["hooks"]
@@ -97,7 +97,7 @@ class TestBuildHooksConfig:
         assert len(bash_groups) == 1
         hook_entries = bash_groups[0]["hooks"]
         assert isinstance(hook_entries, list)
-        assert hook_entries[0]["command"] == "uv run python -m stratus.hooks.learning_trigger"
+        assert hook_entries[0]["command"] == "stratus hook learning_trigger"
 
 
 class TestIsStratusHook:
@@ -146,7 +146,7 @@ class TestMergeHooks:
         }
         new_stratus_hook = {
             "type": "command",
-            "command": "uv run python -m stratus.hooks.file_checker",
+            "command": "stratus hook file_checker",
         }
         existing = {
             "PostToolUse": [
@@ -201,7 +201,7 @@ class TestMergeHooks:
         old_plugin_hook = {"type": "command", "command": "stratus hook old_module"}
         new_stratus_hook = {
             "type": "command",
-            "command": "uv run python -m stratus.hooks.context_monitor",
+            "command": "stratus hook context_monitor",
         }
         existing = {
             "PostToolUse": [
@@ -428,8 +428,8 @@ class TestBuildMcpConfig:
         entry = servers["stratus-memory"]
         assert isinstance(entry, dict)
         assert entry["type"] == "stdio"
-        assert entry["command"] == "uv"
-        assert entry["args"] == ["run", "stratus", "mcp-serve"]
+        assert entry["command"] == "stratus"
+        assert entry["args"] == ["mcp-serve"]
         assert entry["cwd"] == "."
 
 
@@ -724,7 +724,7 @@ class TestBuildStatuslineConfig:
         result = build_statusline_config()
         sl = result["statusLine"]
         assert isinstance(sl, dict)
-        assert sl["command"] == "uv run python -m stratus statusline"
+        assert sl["command"] == "stratus statusline"
 
 
 class TestRegisterStatusline:
