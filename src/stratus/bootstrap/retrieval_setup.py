@@ -284,11 +284,14 @@ def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) 
         exit_ok, provider_ok = _run_setup("--cuda")
         if exit_ok and provider_ok:
             return True, True
-        if not exit_ok:
-            # Setup failed entirely — model may already be downloaded, try mode switch
+        if not exit_ok and provider_ok:
+            # Setup failed for non-CUDA reasons — model may already be downloaded,
+            # try mode switch. Only when provider_ok=True (no CUDA unavailable
+            # warning), otherwise the mode switch would also enable broken CUDA.
             if _run_mode("--cuda"):
                 return True, True
-        # CUDA setup failed or provider unavailable — fall back to CPU
+        # CUDA provider unavailable (exit 1 or "CUDA provider not available"
+        # warning) — skip mode switch and fall back to CPU
 
     ok, _ = _run_setup("--cpu")
     return ok, False
