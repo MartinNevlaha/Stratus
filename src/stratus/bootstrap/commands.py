@@ -168,13 +168,22 @@ def cmd_init(args: argparse.Namespace) -> None:
             install_vexor_local_package,
             run_initial_index_background,
             setup_vexor_local,
+            verify_cuda_runtime,
         )
         cuda = detect_cuda()
         device = "GPU (CUDA)" if cuda else "CPU"
         print(f"Installing vexor local extras for {device}...")
         if not install_vexor_local_package(cuda=cuda):
             print("Warning: could not install vexor local package — proceeding anyway")
-        print(f"Downloading local embedding model on {device}...")
+        if cuda and not verify_cuda_runtime():
+            print(
+                "Warning: GPU detected but CUDA runtime is not available.\n"
+                "  onnxruntime-gpu is installed but CUDAExecutionProvider is missing.\n"
+                "  Ensure the CUDA Toolkit is installed (libcudart.so / cudart64_*.dll).\n"
+                "  → Falling back to CPU mode."
+            )
+            cuda = False
+        print(f"Downloading local embedding model on {'GPU (CUDA)' if cuda else 'CPU'}...")
         ok, used_cuda = setup_vexor_local(cuda=cuda)
         if ok:
             if cuda and not used_cuda:

@@ -118,6 +118,21 @@ class TestParseSearchResults:
         assert results[0].corpus == CorpusType.GOVERNANCE
         assert results[1].rank == 2
 
+    def test_parse_search_results_includes_title_and_doc_type(self) -> None:
+        raw = [
+            {
+                "file_path": ".claude/rules/testing.md",
+                "title": "Testing",
+                "content": "Always write tests first",
+                "doc_type": "rule",
+                "score": -0.85,
+                "chunk_index": 0,
+            }
+        ]
+        results = DevRagClient._parse_search_results(raw)
+        assert results[0].title == "Testing"
+        assert results[0].doc_type == "rule"
+
     def test_parse_search_results_empty(self) -> None:
         results = DevRagClient._parse_search_results([])
         assert results == []

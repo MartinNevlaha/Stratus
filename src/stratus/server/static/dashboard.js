@@ -357,10 +357,8 @@
       .then(function(data) {
         var el = document.getElementById('vexor-status');
         if (!el || !data) return;
-        var vexor = data.vexor || {};
-        var gov = data.governance || {};
-        el.textContent = 'Vexor: ' + (vexor.available ? 'available' : 'unavailable') +
-          '  |  Governance: ' + (gov.docs_indexed !== undefined ? gov.docs_indexed + ' docs indexed' : 'unavailable');
+        el.textContent = 'Vexor: ' + (data.vexor_available ? 'available' : 'unavailable') +
+          '  |  Governance: ' + (data.devrag_available ? 'available' : 'unavailable');
       })
       .catch(function() {});
 
@@ -407,8 +405,10 @@
     el.innerHTML = results.map(function(r) {
       var score = r.score !== undefined ? (r.score * 100).toFixed(0) + '%' : '';
       var title = escHtml(r.title || r.file_path || 'Result');
-      var path = r.file_path ? '<div class="result-path">' + escHtml(r.file_path) + '</div>' : '';
-      var snippet = escHtml((r.content || r.snippet || '').substring(0, 200));
+      var pathText = r.file_path || '';
+      if (r.line_start) pathText += ':' + r.line_start + (r.line_end ? '-' + r.line_end : '');
+      var path = pathText ? '<div class="result-path">' + escHtml(pathText) + '</div>' : '';
+      var snippet = escHtml((r.excerpt || r.content || r.snippet || '').substring(0, 200));
       var docType = r.doc_type ? '<span class="tag ' + r.doc_type + '">' + r.doc_type + '</span>' : '';
       return '<div class="result-card">' +
         '<div class="result-header"><span class="result-title">' + title + '</span><span class="result-score">' + score + '</span></div>' +

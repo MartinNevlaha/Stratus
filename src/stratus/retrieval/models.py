@@ -22,6 +22,8 @@ class SearchResult(BaseModel):
     line_end: int | None = None
     corpus: CorpusType | None = None
     chunk_index: int | None = None
+    title: str | None = None
+    doc_type: str | None = None
 
 
 class RetrievalResponse(BaseModel):

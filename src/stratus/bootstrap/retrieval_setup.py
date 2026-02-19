@@ -144,6 +144,29 @@ def configure_vexor_api_key(api_key: str, vexor_binary: str = "vexor") -> bool:
         return False
 
 
+def verify_cuda_runtime() -> bool:
+    """Return True if onnxruntime has CUDAExecutionProvider available.
+
+    Run this AFTER installing vexor[local-cuda] to confirm the CUDA runtime
+    (libcudart.so, cuDNN) is present, not just the onnxruntime-gpu package.
+    Returns False when CUDA Toolkit is missing even if onnxruntime-gpu is installed.
+    """
+    _probe = (
+        "import onnxruntime; "
+        "print('CUDA' if 'CUDAExecutionProvider' in onnxruntime.get_available_providers() else '')"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", _probe],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode == 0 and "CUDA" in result.stdout
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def install_vexor_local_package(cuda: bool) -> bool:
     """Install vexor[local-cuda] or vexor[local] into the current Python environment.
 

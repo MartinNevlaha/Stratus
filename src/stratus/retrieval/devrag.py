@@ -66,6 +66,8 @@ class DevRagClient:
                     line_end=None,
                     corpus=CorpusType.GOVERNANCE,
                     chunk_index=item.get("chunk_index"),
+                    title=item.get("title") or None,
+                    doc_type=item.get("doc_type") or None,
                 )
             )
         return results

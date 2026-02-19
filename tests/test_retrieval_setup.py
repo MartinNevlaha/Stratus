@@ -521,6 +521,48 @@ class TestDetectCuda:
             assert detect_cuda() is False
 
 
+class TestVerifyCudaRuntime:
+    """verify_cuda_runtime checks onnxruntime AFTER vexor[local-cuda] is installed."""
+
+    MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
+
+    def test_returns_true_when_cuda_provider_available(self) -> None:
+        ort_result = MagicMock(returncode=0, stdout="CUDA\n")
+        with patch(self.MOCK_TARGET, return_value=ort_result):
+            from stratus.bootstrap.retrieval_setup import verify_cuda_runtime
+            assert verify_cuda_runtime() is True
+
+    def test_returns_false_when_no_cuda_provider(self) -> None:
+        """CUDAExecutionProvider not in available providers (CUDA runtime missing)."""
+        ort_result = MagicMock(returncode=0, stdout="\n")
+        with patch(self.MOCK_TARGET, return_value=ort_result):
+            from stratus.bootstrap.retrieval_setup import verify_cuda_runtime
+            assert verify_cuda_runtime() is False
+
+    def test_returns_false_when_onnxruntime_not_installed(self) -> None:
+        with patch(self.MOCK_TARGET, return_value=MagicMock(returncode=1, stdout="")):
+            from stratus.bootstrap.retrieval_setup import verify_cuda_runtime
+            assert verify_cuda_runtime() is False
+
+    def test_returns_false_on_timeout(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["python"], 10)):
+            from stratus.bootstrap.retrieval_setup import verify_cuda_runtime
+            assert verify_cuda_runtime() is False
+
+    def test_probes_current_python_executable(self) -> None:
+        """Uses sys.executable so it checks the same env where vexor[local-cuda] was installed."""
+        import sys
+
+        ort_result = MagicMock(returncode=0, stdout="CUDA\n")
+        with patch(self.MOCK_TARGET, return_value=ort_result) as mock_run:
+            from stratus.bootstrap.retrieval_setup import verify_cuda_runtime
+            verify_cuda_runtime()
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == sys.executable
+        assert "onnxruntime" in " ".join(cmd)
+        assert "CUDAExecutionProvider" in " ".join(cmd)
+
+
 class TestInstallVexorLocalPackage:
     MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
 

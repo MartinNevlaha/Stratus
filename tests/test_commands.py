@@ -644,6 +644,38 @@ class TestCmdInitRetrieval:
         assert "index" in captured.out.lower()
 
 
+    def test_init_falls_back_to_cpu_when_cuda_runtime_unavailable(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When GPU detected but CUDA runtime verification fails, falls back to CPU with message."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
+        from stratus.bootstrap.retrieval_setup import BackendStatus
+
+        status = BackendStatus(vexor_available=True, vexor_version="vexor 1.0")
+        ns = argparse.Namespace(dry_run=False, force=False, scope=None, skip_retrieval=False)
+        mock_setup = MagicMock(return_value=(True, False))
+        with (
+            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
+            patch("stratus.bootstrap.retrieval_setup.detect_backends", return_value=status),
+            patch("stratus.bootstrap.retrieval_setup.prompt_retrieval_setup", return_value=(True, False, True)),
+            patch("stratus.bootstrap.retrieval_setup.run_initial_index_background", return_value=True),
+            patch("stratus.bootstrap.retrieval_setup.setup_vexor_local", mock_setup),
+            patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True),
+            patch("stratus.bootstrap.retrieval_setup.verify_cuda_runtime", return_value=False),
+            patch("stratus.bootstrap.retrieval_setup.install_vexor_local_package", return_value=True),
+            patch("stratus.bootstrap.commands._interactive_init", return_value=("local", False)),
+            patch("stratus.bootstrap.commands._prompt_install_vexor_desktop"),
+        ):
+            cmd_init(ns)
+        # setup_vexor_local must be called with cuda=False (fallen back to CPU)
+        mock_setup.assert_called_once_with(cuda=False)
+        captured = capsys.readouterr()
+        assert "cuda runtime" in captured.out.lower() or "cpu" in captured.out.lower()
+
+
 class TestInteractiveInit:
     def test_selects_local_scope(self) -> None:
         from stratus.bootstrap.commands import _interactive_init
