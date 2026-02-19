@@ -210,9 +210,14 @@ def create_mcp_server() -> Server:
             elif name == "save_memory":
                 result = await client.save_memory(**args)
             elif name == "retrieve":
+                from stratus.hooks._common import get_git_root
+                from stratus.retrieval.config import load_retrieval_config
                 from stratus.retrieval.unified import UnifiedRetriever
 
-                retriever = UnifiedRetriever()
+                git_root = get_git_root()
+                ai_path = (git_root / ".ai-framework.json") if git_root else None
+                config = load_retrieval_config(ai_path)
+                retriever = UnifiedRetriever(config=config)
                 resp = retriever.retrieve(
                     args["query"],
                     corpus=args.get("corpus"),
@@ -220,9 +225,14 @@ def create_mcp_server() -> Server:
                 )
                 result = resp.model_dump()
             elif name == "index_status":
+                from stratus.hooks._common import get_git_root
+                from stratus.retrieval.config import load_retrieval_config
                 from stratus.retrieval.unified import UnifiedRetriever
 
-                retriever = UnifiedRetriever()
+                git_root = get_git_root()
+                ai_path = (git_root / ".ai-framework.json") if git_root else None
+                config = load_retrieval_config(ai_path)
+                retriever = UnifiedRetriever(config=config)
                 result = retriever.status()
             elif name == "delivery_dispatch":
                 import httpx as _httpx

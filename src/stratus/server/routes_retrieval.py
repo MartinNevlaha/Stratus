@@ -26,8 +26,14 @@ async def retrieval_search(request: Request) -> JSONResponse:
 
 async def retrieval_status(request: Request) -> JSONResponse:
     """GET /api/retrieval/status"""
+    from stratus.retrieval.index_state import read_index_state
+    from stratus.session.config import get_data_dir
+
     retriever = request.app.state.retriever
-    return JSONResponse(retriever.status())
+    data = retriever.status()
+    state = read_index_state(get_data_dir())
+    data["index_state"] = state.model_dump()
+    return JSONResponse(data)
 
 
 def _do_index(retriever: object, data_dir: Path) -> None:

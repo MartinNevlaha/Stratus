@@ -386,6 +386,55 @@ tr:hover td { background: rgba(255,255,255,0.025); }
 }
 .panel-body { font-size: 13px; }
 
+/* ===== Index stats block ===== */
+.index-stats-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.82em;
+  color: var(--text-secondary, #aaa);
+}
+.index-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.index-stat-label {
+  color: var(--text-muted, #888);
+}
+.index-stat-value {
+  color: var(--text-primary, #e0e0e0);
+  font-weight: 500;
+}
+.badge-stale {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ffa726;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  font-size: 0.8em;
+}
+.badge-fresh {
+  background: rgba(102, 187, 106, 0.2);
+  color: #66bb6a;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  font-size: 0.8em;
+}
+.doc-type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+  width: 100%;
+}
+.doc-type-pill {
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8em;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
   .retrieve-grid, .learning-grid { grid-template-columns: 1fr; }

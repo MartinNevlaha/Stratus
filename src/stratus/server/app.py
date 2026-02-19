@@ -36,9 +36,10 @@ def create_app(
         from stratus.learning.database import LearningDatabase
         from stratus.learning.watcher import ProjectWatcher
         from stratus.orchestration.delivery_config import load_delivery_config
-        from stratus.retrieval.config import DevRagConfig
+        from stratus.retrieval.config import DevRagConfig, load_retrieval_config
         from stratus.retrieval.devrag import DevRagClient
         from stratus.retrieval.governance_store import GovernanceStore
+        from stratus.retrieval.vexor import VexorClient
         from stratus.session.config import get_data_dir
 
         app.state.db = Database(db_path)
@@ -51,7 +52,14 @@ def create_app(
             config=DevRagConfig(enabled=True),
             store=app.state.governance_store,
         )
-        app.state.retriever = UnifiedRetriever(devrag=devrag_client)
+        ai_framework_path = Path.cwd() / ".ai-framework.json"
+        retrieval_config = load_retrieval_config(ai_framework_path)
+        vexor_client = VexorClient(config=retrieval_config.vexor)
+        app.state.retriever = UnifiedRetriever(
+            vexor=vexor_client,
+            devrag=devrag_client,
+            config=retrieval_config,
+        )
 
         # Orchestration subsystem — delivery or spec based on config
         session_dir = (

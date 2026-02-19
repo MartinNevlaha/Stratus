@@ -64,7 +64,7 @@ class TestRetrieve:
 
         response = retriever.retrieve("find the main function", corpus="code", top_k=5)
 
-        vexor.search.assert_called_once_with("find the main function", top=5)
+        vexor.search.assert_called_once_with("find the main function", top=5, path=None)
         devrag.search.assert_not_called()
         assert response.corpus == CorpusType.CODE
         assert len(response.results) == 1
@@ -287,3 +287,31 @@ class TestStatus:
 
         assert result["vexor_available"] is False
         assert result["devrag_available"] is True
+
+    def test_status_includes_governance_stats_when_store_attached(self):
+        """status() includes governance_stats when devrag.governance_stats() returns a dict."""
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        vexor = _make_vexor_mock(available=True)
+        devrag = _make_devrag_mock(available=True)
+        gov_stats = {"total_files": 5, "total_chunks": 12, "by_doc_type": {"rule": 3, "adr": 2}}
+        devrag.governance_stats.return_value = gov_stats
+        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+
+        result = retriever.status()
+
+        assert "governance_stats" in result
+        assert result["governance_stats"] == gov_stats
+
+    def test_status_omits_governance_stats_when_none(self):
+        """status() omits governance_stats key when devrag.governance_stats() returns None."""
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        vexor = _make_vexor_mock(available=True)
+        devrag = _make_devrag_mock(available=True)
+        devrag.governance_stats.return_value = None
+        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+
+        result = retriever.status()
+
+        assert "governance_stats" not in result

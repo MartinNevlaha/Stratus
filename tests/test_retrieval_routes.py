@@ -136,6 +136,55 @@ class TestEmbedCacheStatsRoute:
         assert "models" in data
 
 
+class TestRetrievalStatusExtended:
+    def test_retrieval_status_includes_index_state(self, client: TestClient):
+        """GET /api/retrieval/status includes index_state inline."""
+        from unittest.mock import patch
+
+        from stratus.retrieval.models import IndexStatus
+
+        known_state = IndexStatus(
+            stale=True,
+            last_indexed_commit="abc12345",
+            total_files=42,
+            model="text-embedding-3-small",
+        )
+        with patch(
+            "stratus.retrieval.index_state.read_index_state", return_value=known_state
+        ), patch("stratus.session.config.get_data_dir", return_value="/tmp"):
+            resp = client.get("/api/retrieval/status")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "index_state" in data
+        assert data["index_state"]["stale"] is True
+        assert data["index_state"]["last_indexed_commit"] == "abc12345"
+        assert data["index_state"]["total_files"] == 42
+
+    def test_retrieval_status_includes_governance_stats(self, client: TestClient):
+        """GET /api/retrieval/status includes governance_stats when retriever provides them."""
+        from unittest.mock import patch
+
+        from stratus.retrieval.models import IndexStatus
+
+        gov_stats = {"total_files": 7, "total_chunks": 20, "by_doc_type": {"rule": 5, "adr": 2}}
+        client.app.state.retriever.status.return_value = {
+            "vexor_available": True,
+            "devrag_available": True,
+            "governance_stats": gov_stats,
+        }
+        with patch(
+            "stratus.retrieval.index_state.read_index_state",
+            return_value=IndexStatus(stale=False),
+        ), patch("stratus.session.config.get_data_dir", return_value="/tmp"):
+            resp = client.get("/api/retrieval/status")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "governance_stats" in data
+        assert data["governance_stats"]["total_files"] == 7
+
+
 class TestRegressionExistingRoutes:
     def test_health_still_returns_200(self, client: TestClient):
         resp = client.get("/health")

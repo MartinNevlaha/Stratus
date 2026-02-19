@@ -102,6 +102,22 @@ class TestDevRagClient:
         assert result["status"] == "error"
 
 
+class TestGovernanceStats:
+    def test_governance_stats_returns_store_stats(self, tmp_path: Path) -> None:
+        store = _make_store_with_docs(tmp_path)
+        client = DevRagClient(config=DevRagConfig(enabled=True), store=store)
+        result = client.governance_stats()
+        assert result is not None
+        assert "total_files" in result
+        assert "total_chunks" in result
+        assert "by_doc_type" in result
+
+    def test_governance_stats_returns_none_when_no_store(self) -> None:
+        client = DevRagClient(config=DevRagConfig(enabled=True), store=None)
+        result = client.governance_stats()
+        assert result is None
+
+
 class TestParseSearchResults:
     def test_parse_search_results_basic(self) -> None:
         raw = [

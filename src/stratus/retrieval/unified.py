@@ -53,7 +53,7 @@ class UnifiedRetriever:
         devrag_results: list[SearchResult] = []
 
         try:
-            response = self._vexor.search(query, top=top_k)
+            response = self._vexor.search(query, top=top_k, path=self._config.project_root)
             vexor_results = response.results
         except Exception:
             pass
@@ -72,11 +72,15 @@ class UnifiedRetriever:
         )
 
     def status(self) -> dict:
-        """Return backend availability."""
-        return {
+        """Return backend availability and optional governance stats."""
+        result: dict = {
             "vexor_available": self._vexor.is_available(),
             "devrag_available": self._devrag.is_available(),
         }
+        gov = self._devrag.governance_stats()
+        if gov is not None:
+            result["governance_stats"] = gov
+        return result
 
     # ------------------------------------------------------------------
     # Private routing helpers
@@ -91,7 +95,7 @@ class UnifiedRetriever:
 
     def _try_vexor_then_devrag(self, query: str, *, top_k: int) -> RetrievalResponse:
         try:
-            return self._vexor.search(query, top=top_k)
+            return self._vexor.search(query, top=top_k, path=self._config.project_root)
         except Exception:
             pass
         try:
@@ -106,7 +110,7 @@ class UnifiedRetriever:
         except Exception:
             pass
         try:
-            return self._vexor.search(query, top=top_k)
+            return self._vexor.search(query, top=top_k, path=self._config.project_root)
         except Exception:
             pass
         return _empty_response()

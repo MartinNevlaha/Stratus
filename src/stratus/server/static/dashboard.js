@@ -355,10 +355,9 @@
     fetch('/api/retrieval/status')
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(data) {
-        var el = document.getElementById('vexor-status');
-        if (!el || !data) return;
-        el.textContent = 'Vexor: ' + (data.vexor_available ? 'available' : 'unavailable') +
-          '  |  Governance: ' + (data.devrag_available ? 'available' : 'unavailable');
+        if (!data) return;
+        renderVexorStats(data);
+        renderGovStats(data);
       })
       .catch(function() {});
 
@@ -370,6 +369,88 @@
     document.getElementById('gov-query').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') doGovSearch();
     });
+  }
+
+  function renderVexorStats(data) {
+    var el = document.getElementById('vexor-stats');
+    if (!el) return;
+    var avail = data.vexor_available;
+    var is = data.index_state || {};
+    var statusBadge = avail
+      ? '<span class="badge-fresh">available</span>'
+      : '<span class="badge-stale">unavailable</span>';
+    var staleBadge = is.stale !== undefined
+      ? (is.stale ? '<span class="badge-stale">stale</span>' : '<span class="badge-fresh">fresh</span>')
+      : '';
+    var commit = is.last_indexed_commit ? is.last_indexed_commit.substring(0, 8) : '—';
+    var files = is.total_files !== undefined ? is.total_files : '—';
+    var model = is.model || '—';
+    var ts = is.last_indexed_at ? new Date(is.last_indexed_at).toLocaleString() : '—';
+
+    el.innerHTML =
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Status</span>' +
+        '<span class="index-stat-value">' + statusBadge + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Index</span>' +
+        '<span class="index-stat-value">' + staleBadge + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Files</span>' +
+        '<span class="index-stat-value">' + escHtml(String(files)) + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Commit</span>' +
+        '<span class="index-stat-value">' + escHtml(commit) + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Model</span>' +
+        '<span class="index-stat-value">' + escHtml(model) + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Last indexed</span>' +
+        '<span class="index-stat-value">' + escHtml(ts) + '</span>' +
+      '</div>';
+  }
+
+  function renderGovStats(data) {
+    var el = document.getElementById('gov-stats');
+    if (!el) return;
+    var avail = data.devrag_available;
+    var gs = data.governance_stats || {};
+    var statusBadge = avail
+      ? '<span class="badge-fresh">available</span>'
+      : '<span class="badge-stale">unavailable</span>';
+    var files = gs.total_files !== undefined ? gs.total_files : '—';
+    var chunks = gs.total_chunks !== undefined ? gs.total_chunks : '—';
+    var byType = gs.by_doc_type || {};
+    var typeOrder = ['rule', 'adr', 'template', 'skill', 'agent', 'architecture', 'project'];
+    var pills = typeOrder
+      .filter(function(t) { return byType[t] > 0; })
+      .map(function(t) {
+        return '<span class="doc-type-pill tag ' + t + '">' + t + ' <strong>' + byType[t] + '</strong></span>';
+      }).join('');
+    Object.keys(byType).forEach(function(t) {
+      if (typeOrder.indexOf(t) === -1 && byType[t] > 0) {
+        pills += '<span class="doc-type-pill">' + escHtml(t) + ' <strong>' + byType[t] + '</strong></span>';
+      }
+    });
+
+    el.innerHTML =
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Status</span>' +
+        '<span class="index-stat-value">' + statusBadge + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Files</span>' +
+        '<span class="index-stat-value">' + escHtml(String(files)) + '</span>' +
+      '</div>' +
+      '<div class="index-stat">' +
+        '<span class="index-stat-label">Chunks</span>' +
+        '<span class="index-stat-value">' + escHtml(String(chunks)) + '</span>' +
+      '</div>' +
+      (pills ? '<div class="doc-type-pills">' + pills + '</div>' : '');
   }
 
   function doVexorSearch() {

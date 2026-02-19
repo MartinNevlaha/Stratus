@@ -44,6 +44,12 @@ class DevRagClient:
             return []
         return self._store.list_documents()
 
+    def governance_stats(self) -> dict | None:
+        """Return store stats or None if no store is attached."""
+        if self._store is None:
+            return None
+        return self._store.stats()
+
     def index(self, project_root: str) -> dict:
         """Index governance documents from the project root."""
         if self._store is None:
