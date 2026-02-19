@@ -181,6 +181,17 @@ class TestVexorClient:
             assert result["status"] == "error"
             assert "message" in result
 
+    def test_index_uses_timeout_300(self):
+        """index() must use 300-second timeout to handle large codebases."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Indexed 1000 files."
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.index()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("timeout") == 300
+
 
 # ---------------------------------------------------------------------------
 # TestParsePorcelain

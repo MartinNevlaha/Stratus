@@ -95,7 +95,7 @@ class VexorClient:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=300,
             )
         except FileNotFoundError:
             return {"status": "error", "message": "vexor binary not found"}

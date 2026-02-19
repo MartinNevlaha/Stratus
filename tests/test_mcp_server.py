@@ -446,3 +446,301 @@ class TestMCPServer:
         content = result.root.content
         assert len(content) == 1
         assert "vexor_available" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_retrieve_creates_governance_store_and_passes_to_devrag(self):
+        """retrieve handler must construct GovernanceStore and pass it to DevRagClient."""
+        from unittest.mock import MagicMock, call, patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_gov_store = MagicMock()
+        mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
+
+        mock_devrag = MagicMock()
+        mock_devrag_cls = MagicMock(return_value=mock_devrag)
+
+        mock_response = MagicMock()
+        mock_response.model_dump.return_value = {
+            "results": [],
+            "corpus": "governance",
+            "query_time_ms": 1.0,
+        }
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve = MagicMock(return_value=mock_response)
+        mock_retriever_cls = MagicMock(return_value=mock_retriever)
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()
+
+        with (
+            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
+            patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
+            patch("stratus.retrieval.devrag.DevRagClient", mock_devrag_cls),
+            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
+        ):
+            result = await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="retrieve",
+                        arguments={"query": "error handling pattern"},
+                    ),
+                )
+            )
+
+        # GovernanceStore must have been constructed
+        mock_gov_store_cls.assert_called_once()
+        # DevRagClient must have received the store keyword argument
+        _, devrag_kwargs = mock_devrag_cls.call_args
+        assert devrag_kwargs.get("store") is mock_gov_store
+        # GovernanceStore.close() must be called after retrieval
+        mock_gov_store.close.assert_called_once()
+
+        content = result.root.content
+        assert len(content) == 1
+        assert "corpus" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_index_status_creates_governance_store_and_passes_to_devrag(self):
+        """index_status handler must construct GovernanceStore and pass it to DevRagClient."""
+        from unittest.mock import MagicMock, patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_gov_store = MagicMock()
+        mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
+
+        mock_devrag = MagicMock()
+        mock_devrag_cls = MagicMock(return_value=mock_devrag)
+
+        mock_retriever = MagicMock()
+        mock_retriever.status = MagicMock(
+            return_value={"vexor_available": False, "devrag_available": True}
+        )
+        mock_retriever_cls = MagicMock(return_value=mock_retriever)
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()
+
+        with (
+            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
+            patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
+            patch("stratus.retrieval.devrag.DevRagClient", mock_devrag_cls),
+            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
+        ):
+            result = await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="index_status",
+                        arguments={},
+                    ),
+                )
+            )
+
+        # GovernanceStore must have been constructed
+        mock_gov_store_cls.assert_called_once()
+        # DevRagClient must have received the store keyword argument
+        _, devrag_kwargs = mock_devrag_cls.call_args
+        assert devrag_kwargs.get("store") is mock_gov_store
+        # GovernanceStore.close() must be called after status check
+        mock_gov_store.close.assert_called_once()
+
+        content = result.root.content
+        assert len(content) == 1
+        assert "devrag_available" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_retrieve_calls_devrag_index_when_project_root_known(self):
+        """retrieve handler must call devrag.index(project_root) before retrieval."""
+        from pathlib import Path
+        from unittest.mock import MagicMock, patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_gov_store = MagicMock()
+        mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
+
+        mock_devrag = MagicMock()
+        mock_devrag_cls = MagicMock(return_value=mock_devrag)
+
+        mock_response = MagicMock()
+        mock_response.model_dump.return_value = {
+            "results": [],
+            "corpus": "governance",
+            "query_time_ms": 1.0,
+        }
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve = MagicMock(return_value=mock_response)
+        mock_retriever_cls = MagicMock(return_value=mock_retriever)
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()
+
+        fake_git_root = Path("/tmp/fake-project")
+
+        with (
+            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
+            patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
+            patch("stratus.retrieval.devrag.DevRagClient", mock_devrag_cls),
+            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
+            patch(
+                "stratus.hooks._common.get_git_root",
+                return_value=fake_git_root,
+            ),
+        ):
+            await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="retrieve",
+                        arguments={"query": "error handling pattern"},
+                    ),
+                )
+            )
+
+        # devrag.index() must have been called with the resolved project root
+        mock_devrag.index.assert_called_once_with(str(fake_git_root.resolve()))
+
+    @pytest.mark.asyncio
+    async def test_retrieve_skips_devrag_index_when_no_git_root(self):
+        """retrieve handler must NOT call devrag.index() when project root is None."""
+        from unittest.mock import MagicMock, patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_gov_store = MagicMock()
+        mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
+
+        mock_devrag = MagicMock()
+        mock_devrag_cls = MagicMock(return_value=mock_devrag)
+
+        mock_response = MagicMock()
+        mock_response.model_dump.return_value = {
+            "results": [],
+            "corpus": "governance",
+            "query_time_ms": 1.0,
+        }
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve = MagicMock(return_value=mock_response)
+        mock_retriever_cls = MagicMock(return_value=mock_retriever)
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()
+
+        with (
+            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
+            patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
+            patch("stratus.retrieval.devrag.DevRagClient", mock_devrag_cls),
+            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
+            patch("stratus.hooks._common.get_git_root", return_value=None),
+        ):
+            await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="retrieve",
+                        arguments={"query": "error handling pattern"},
+                    ),
+                )
+            )
+
+        # devrag.index() must NOT have been called when git root is None
+        mock_devrag.index.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_index_status_calls_devrag_index_when_project_root_known(self):
+        """index_status handler must call devrag.index(project_root) before status check."""
+        from pathlib import Path
+        from unittest.mock import MagicMock, patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_gov_store = MagicMock()
+        mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
+
+        mock_devrag = MagicMock()
+        mock_devrag_cls = MagicMock(return_value=mock_devrag)
+
+        mock_retriever = MagicMock()
+        mock_retriever.status = MagicMock(
+            return_value={"vexor_available": False, "devrag_available": True}
+        )
+        mock_retriever_cls = MagicMock(return_value=mock_retriever)
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()
+
+        fake_git_root = Path("/tmp/fake-project")
+
+        with (
+            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
+            patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
+            patch("stratus.retrieval.devrag.DevRagClient", mock_devrag_cls),
+            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
+            patch(
+                "stratus.hooks._common.get_git_root",
+                return_value=fake_git_root,
+            ),
+        ):
+            await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="index_status",
+                        arguments={},
+                    ),
+                )
+            )
+
+        # devrag.index() must have been called with the resolved project root
+        mock_devrag.index.assert_called_once_with(str(fake_git_root.resolve()))
+
+    @pytest.mark.asyncio
+    async def test_index_status_skips_devrag_index_when_no_git_root(self):
+        """index_status handler must NOT call devrag.index() when project root is None."""
+        from unittest.mock import MagicMock, patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_gov_store = MagicMock()
+        mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
+
+        mock_devrag = MagicMock()
+        mock_devrag_cls = MagicMock(return_value=mock_devrag)
+
+        mock_retriever = MagicMock()
+        mock_retriever.status = MagicMock(
+            return_value={"vexor_available": False, "devrag_available": True}
+        )
+        mock_retriever_cls = MagicMock(return_value=mock_retriever)
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()
+
+        with (
+            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
+            patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
+            patch("stratus.retrieval.devrag.DevRagClient", mock_devrag_cls),
+            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
+            patch("stratus.hooks._common.get_git_root", return_value=None),
+        ):
+            await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="index_status",
+                        arguments={},
+                    ),
+                )
+            )
+
+        # devrag.index() must NOT have been called when git root is None
+        mock_devrag.index.assert_not_called()
