@@ -29,7 +29,9 @@ def db():
 @pytest.fixture
 def config():
     return LearningConfig(
-        global_enabled=True, sensitivity=Sensitivity.MODERATE, min_age_hours=0,
+        global_enabled=True,
+        sensitivity=Sensitivity.MODERATE,
+        min_age_hours=0,
     )
 
 
@@ -38,17 +40,24 @@ def watcher(config, db):
     return ProjectWatcher(config=config, db=db, project_root=Path("/fake/repo"))
 
 
-def _make_detection(**overrides) -> Detection:
-    defaults = dict(
-        type=DetectionType.CODE_PATTERN,
-        count=5,
-        confidence_raw=0.7,
-        files=["src/a.py", "src/b.py", "src/c.py"],
-        description="Repeated error handling",
-        instances=[{"file": "src/a.py"}, {"file": "src/b.py"}],
+def _make_detection(
+    type: DetectionType = DetectionType.CODE_PATTERN,  # noqa: A002
+    count: int = 5,
+    confidence_raw: float = 0.7,
+    files: list[str] | None = None,
+    description: str = "Repeated error handling",
+    instances: list[dict] | None = None,
+) -> Detection:
+    return Detection(
+        type=type,
+        count=count,
+        confidence_raw=confidence_raw,
+        files=files if files is not None else ["src/a.py", "src/b.py", "src/c.py"],
+        description=description,
+        instances=instances
+        if instances is not None
+        else [{"file": "src/a.py"}, {"file": "src/b.py"}],
     )
-    defaults.update(overrides)
-    return Detection(**defaults)
 
 
 GIT_ANALYZER_PATH = "stratus.learning.watcher.GitAnalyzer"
@@ -62,8 +71,7 @@ class TestAnalyzeChanges:
         mock_git.analyze_changes.return_value = [_make_detection()]
         mock_git._get_commits_since.return_value = 5
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             result = watcher.analyze_changes(since_commit="abc123")
 
@@ -76,8 +84,7 @@ class TestAnalyzeChanges:
         mock_git.analyze_changes.return_value = []
         mock_git._get_commits_since.return_value = 3
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             result = watcher.analyze_changes()
 
@@ -89,8 +96,7 @@ class TestAnalyzeChanges:
         mock_git.analyze_changes.return_value = [_make_detection()]
         mock_git._get_commits_since.return_value = 5
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             watcher.analyze_changes()
 
@@ -110,8 +116,7 @@ class TestAnalyzeChanges:
         mock_git.analyze_changes.return_value = detections
         mock_git._get_commits_since.return_value = 10
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             watcher.analyze_changes()
 
@@ -123,8 +128,7 @@ class TestAnalyzeChanges:
         mock_git.analyze_changes.return_value = []
         mock_git._get_commits_since.return_value = 7
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             watcher.analyze_changes(since_commit="abc123")
 
@@ -135,44 +139,65 @@ class TestAnalyzeChanges:
 class TestGetProposals:
     def test_returns_pending_proposals(self, watcher: ProjectWatcher, db: LearningDatabase):
         from stratus.learning.models import Proposal, ProposalType
-        db.save_proposal(Proposal(
-            id="p1",
-            candidate_id="c1",
-            type=ProposalType.RULE,
-            title="Test rule",
-            description="desc",
-            proposed_content="content",
-            confidence=0.8,
-            status=ProposalStatus.PENDING,
-        ))
+
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test rule",
+                description="desc",
+                proposed_content="content",
+                confidence=0.8,
+                status=ProposalStatus.PENDING,
+            )
+        )
         proposals = watcher.get_proposals()
         assert len(proposals) == 1
 
     def test_respects_max_count(self, watcher: ProjectWatcher, db: LearningDatabase):
         from stratus.learning.models import Proposal, ProposalType
+
         for i in range(5):
-            db.save_proposal(Proposal(
-                id=f"p{i}",
-                candidate_id=f"c{i}",
-                type=ProposalType.RULE,
-                title=f"Rule {i}",
-                description="desc",
-                proposed_content="content",
-                confidence=0.8,
-            ))
+            db.save_proposal(
+                Proposal(
+                    id=f"p{i}",
+                    candidate_id=f"c{i}",
+                    type=ProposalType.RULE,
+                    title=f"Rule {i}",
+                    description="desc",
+                    proposed_content="content",
+                    confidence=0.8,
+                )
+            )
         proposals = watcher.get_proposals(max_count=2)
         assert len(proposals) == 2
 
     def test_respects_min_confidence(self, watcher: ProjectWatcher, db: LearningDatabase):
         from stratus.learning.models import Proposal, ProposalType
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="High", description="d", proposed_content="c", confidence=0.9,
-        ))
-        db.save_proposal(Proposal(
-            id="p2", candidate_id="c2", type=ProposalType.RULE,
-            title="Low", description="d", proposed_content="c", confidence=0.3,
-        ))
+
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="High",
+                description="d",
+                proposed_content="c",
+                confidence=0.9,
+            )
+        )
+        db.save_proposal(
+            Proposal(
+                id="p2",
+                candidate_id="c2",
+                type=ProposalType.RULE,
+                title="Low",
+                description="d",
+                proposed_content="c",
+                confidence=0.3,
+            )
+        )
         proposals = watcher.get_proposals(min_confidence=0.5)
         assert len(proposals) == 1
         assert proposals[0].id == "p1"
@@ -182,7 +207,9 @@ class TestMinAgeGuard:
     def test_skips_when_db_too_young(self, db: LearningDatabase):
         """Analysis returns empty result when DB is younger than min_age_hours."""
         config = LearningConfig(
-            global_enabled=True, sensitivity=Sensitivity.MODERATE, min_age_hours=24,
+            global_enabled=True,
+            sensitivity=Sensitivity.MODERATE,
+            min_age_hours=24,
         )
         w = ProjectWatcher(config=config, db=db, project_root=Path("/fake/repo"))
         # DB was just created, so it's definitely < 24h old
@@ -194,8 +221,11 @@ class TestMinAgeGuard:
     def test_runs_when_db_old_enough(self, db: LearningDatabase):
         """Analysis runs normally when DB age exceeds min_age_hours."""
         from datetime import UTC, datetime, timedelta
+
         config = LearningConfig(
-            global_enabled=True, sensitivity=Sensitivity.MODERATE, min_age_hours=24,
+            global_enabled=True,
+            sensitivity=Sensitivity.MODERATE,
+            min_age_hours=24,
         )
         w = ProjectWatcher(config=config, db=db, project_root=Path("/fake/repo"))
         # Backdate the schema_versions timestamp to 48 hours ago
@@ -207,8 +237,7 @@ class TestMinAgeGuard:
         mock_git.analyze_changes.return_value = []
         mock_git._get_commits_since.return_value = 0
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             w.analyze_changes()
 
@@ -218,7 +247,9 @@ class TestMinAgeGuard:
     def test_runs_when_min_age_zero(self, db: LearningDatabase):
         """No guard when min_age_hours is 0."""
         config = LearningConfig(
-            global_enabled=True, sensitivity=Sensitivity.MODERATE, min_age_hours=0,
+            global_enabled=True,
+            sensitivity=Sensitivity.MODERATE,
+            min_age_hours=0,
         )
         w = ProjectWatcher(config=config, db=db, project_root=Path("/fake/repo"))
 
@@ -226,8 +257,7 @@ class TestMinAgeGuard:
         mock_git.analyze_changes.return_value = []
         mock_git._get_commits_since.return_value = 0
 
-        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, \
-             patch(AST_ANALYZER_PATH, return_value=[]):
+        with patch(GIT_ANALYZER_PATH) as MockAnalyzer, patch(AST_ANALYZER_PATH, return_value=[]):
             MockAnalyzer.return_value = mock_git
             w.analyze_changes()
 
@@ -237,10 +267,18 @@ class TestMinAgeGuard:
 class TestDecideProposal:
     def test_accept_proposal(self, watcher: ProjectWatcher, db: LearningDatabase):
         from stratus.learning.models import Decision, Proposal, ProposalType
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = watcher.decide_proposal("p1", Decision.ACCEPT)
@@ -250,10 +288,18 @@ class TestDecideProposal:
 
     def test_reject_proposal(self, watcher: ProjectWatcher, db: LearningDatabase):
         from stratus.learning.models import Decision, Proposal, ProposalType
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = watcher.decide_proposal("p1", Decision.REJECT)
@@ -262,10 +308,18 @@ class TestDecideProposal:
 
     def test_accept_with_edited_content(self, watcher: ProjectWatcher, db: LearningDatabase):
         from stratus.learning.models import Decision, Proposal, ProposalType
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = watcher.decide_proposal("p1", Decision.ACCEPT, edited_content="Modified")
@@ -278,10 +332,18 @@ class TestDecideProposal:
     def test_memory_event_failure_non_blocking(self, watcher: ProjectWatcher, db: LearningDatabase):
         """Memory event save failures should not block the decision."""
         from stratus.learning.models import Decision, Proposal, ProposalType
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.side_effect = Exception("connection refused")
             result = watcher.decide_proposal("p1", Decision.ACCEPT)
@@ -291,12 +353,20 @@ class TestDecideProposal:
 
     def test_accept_creates_artifact(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="content", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="content",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = w.decide_proposal("p1", Decision.ACCEPT)
@@ -306,12 +376,20 @@ class TestDecideProposal:
 
     def test_accept_returns_artifact_path(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="content", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="content",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = w.decide_proposal("p1", Decision.ACCEPT)
@@ -321,12 +399,20 @@ class TestDecideProposal:
 
     def test_reject_no_artifact(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="content", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="content",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = w.decide_proposal("p1", Decision.REJECT)
@@ -335,12 +421,20 @@ class TestDecideProposal:
 
     def test_accept_with_edited_content_uses_edit(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="content", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="content",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = w.decide_proposal("p1", Decision.ACCEPT, edited_content="Custom rule")
@@ -350,12 +444,20 @@ class TestDecideProposal:
 
     def test_memory_event_includes_title(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling rule", description="d", proposed_content="c", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling rule",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             w.decide_proposal("p1", Decision.ACCEPT)
@@ -366,12 +468,20 @@ class TestDecideProposal:
 
     def test_memory_event_includes_refs(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="c", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             w.decide_proposal("p1", Decision.ACCEPT)
@@ -382,12 +492,20 @@ class TestDecideProposal:
 
     def test_memory_event_includes_type_tag(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             w.decide_proposal("p1", Decision.ACCEPT)
@@ -398,12 +516,20 @@ class TestDecideProposal:
 
     def test_memory_event_accept_higher_importance(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             w.decide_proposal("p1", Decision.ACCEPT)
@@ -414,29 +540,45 @@ class TestDecideProposal:
 
     def test_memory_event_includes_proposal_id(self, db: LearningDatabase, tmp_path):
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Test", description="d", proposed_content="c", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Test",
+                description="d",
+                proposed_content="c",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             w.decide_proposal("p1", Decision.ACCEPT)
 
         call_kwargs = mock_httpx.post.call_args
         payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert payload["proposal_id"] == "p1"
+        assert payload["refs"]["proposal_id"] == "p1"
 
     def test_accept_snapshots_baseline_in_db(self, db: LearningDatabase, tmp_path):
         """Accepting a proposal creates a RuleBaseline record in the analytics DB."""
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="content", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="content",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             result = w.decide_proposal("p1", Decision.ACCEPT)
@@ -450,12 +592,20 @@ class TestDecideProposal:
     def test_reject_does_not_snapshot_baseline(self, db: LearningDatabase, tmp_path):
         """Rejecting a proposal does NOT create a RuleBaseline."""
         from stratus.learning.models import Decision, Proposal, ProposalType
+
         config = LearningConfig(global_enabled=True, sensitivity=Sensitivity.MODERATE)
         w = ProjectWatcher(config=config, db=db, project_root=tmp_path)
-        db.save_proposal(Proposal(
-            id="p1", candidate_id="c1", type=ProposalType.RULE,
-            title="Error handling", description="d", proposed_content="content", confidence=0.8,
-        ))
+        db.save_proposal(
+            Proposal(
+                id="p1",
+                candidate_id="c1",
+                type=ProposalType.RULE,
+                title="Error handling",
+                description="d",
+                proposed_content="content",
+                confidence=0.8,
+            )
+        )
         with patch("stratus.learning.watcher.httpx") as mock_httpx:
             mock_httpx.post.return_value = MagicMock(status_code=200)
             w.decide_proposal("p1", Decision.REJECT)

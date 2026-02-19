@@ -73,9 +73,7 @@ class SpecCoordinator:
         if self.get_state() is not None:
             existing = self.get_state()
             if existing and existing.phase != SpecPhase.LEARN:
-                raise ValueError(
-                    f"Spec '{existing.slug}' already active in {existing.phase} phase"
-                )
+                raise ValueError(f"Spec '{existing.slug}' already active in {existing.phase} phase")
 
         state = SpecState(
             phase=SpecPhase.PLAN,
@@ -146,8 +144,7 @@ class SpecCoordinator:
             for v in verdicts:
                 if v.verdict.value == "fail":
                     details = "; ".join(
-                        f"[{f.severity}] {f.description}"[:100]
-                        for f in v.findings
+                        f"[{f.severity}] {f.description}"[:100] for f in v.findings
                     )[:500]
                     httpx.post(
                         f"{self._api_url}/api/learning/analytics/record-failure",
@@ -173,9 +170,7 @@ class SpecCoordinator:
         state = self._require_state()
         state = advance_review_iteration(state)
         state = transition_phase(state, SpecPhase.IMPLEMENT)
-        state = state.model_copy(
-            update={"plan_status": PlanStatus.IMPLEMENTING}
-        )
+        state = state.model_copy(update={"plan_status": PlanStatus.IMPLEMENTING})
         self._save(state)
         return state
 
@@ -205,9 +200,9 @@ class SpecCoordinator:
             base_branch=base_branch,
         )
         info = WorktreeInfo(
-            path=result["path"],
-            branch=result["branch"],
-            base_branch=result["base_branch"],
+            path=str(result["path"]),
+            branch=str(result["branch"]),
+            base_branch=str(result["base_branch"]),
             slug=state.slug,
         )
         state = state.model_copy(update={"worktree": info})
@@ -238,9 +233,10 @@ class SpecCoordinator:
                 client.post(
                     f"{self._api_url}/api/memory/save",
                     json={
-                        "event_type": event_type,
-                        "content": str(data),
-                        "metadata": data,
+                        "type": event_type,
+                        "text": str(data),
+                        "actor": "system",
+                        "refs": data,
                     },
                 )
         except Exception:

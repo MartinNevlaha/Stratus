@@ -55,6 +55,12 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
+[tool.basedpyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+reportAny = false
+reportUnusedCallResult = false
+
 [tool.coverage.run]
 source = ["stratus"]
 

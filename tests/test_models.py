@@ -94,12 +94,12 @@ class TestMemoryEvent:
             "rejected_pattern",
         ]
         for t in valid_types:
-            event = MemoryEvent(text="test", type=t)
+            event = MemoryEvent(text="test", type=EventType(t))
             assert event.type == EventType(t)
 
     def test_event_invalid_type_raises(self):
         with pytest.raises(ValueError):
-            MemoryEvent(text="test", type="invalid_type")
+            MemoryEvent(text="test", type=EventType("invalid_type"))  # type: ignore[arg-type]
 
     def test_event_importance_bounds(self):
         event_low = MemoryEvent(text="t", importance=0.0)
@@ -183,4 +183,6 @@ class TestEnums:
         assert ScopeType.USER == "user"
 
     def test_event_types_complete(self):
-        assert len(EventType) == 11
+        assert len(EventType) == 13
+        assert EventType.SPEC_STARTED == "spec_started"
+        assert EventType.SPEC_COMPLETED == "spec_completed"

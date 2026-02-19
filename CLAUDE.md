@@ -7,7 +7,7 @@ Open-source framework for Claude Code sessions. Python 3.12+.
 ```
 src/stratus/
   transcript.py       # JSONL transcript parser (TokenUsage, CompactionEvent, TranscriptStats)
-  cli.py              # CLI entry point (subcommands: analyze, init, doctor, serve, mcp-serve, reindex, retrieval-status, worktree, hook, learning, statusline)
+  cli.py              # CLI entry point (subcommands: analyze, init, doctor, serve, mcp-serve, reindex, retrieval-status, worktree, hook, learning, statusline, self-debug)
   statusline.py       # Statusline output for Claude Code (format_statusline, fetch_stratus_state, run)
   __main__.py         # Module runner: python -m stratus
 
@@ -99,6 +99,15 @@ src/stratus/
     coordinator.py    # SpecCoordinator: plan→implement→verify→learn control loop
     teams.py          # TeamManager: Agent Teams config, prompts, validation
 
+  self_debug/
+    __init__.py       # Public exports for self-debug sandbox
+    models.py         # Pydantic models + StrEnum enums: Issue, PatchProposal, DebugReport, IssueType, RiskLevel, GovernanceImpact
+    config.py         # SelfDebugConfig dataclass, .ai-framework.json loader, env override
+    analyzer.py       # Static analysis via stdlib ast: bare excepts, unused imports, missing return types
+    patcher.py        # Unified diff generation via stdlib difflib, fix strategies, safety guards
+    report.py         # Markdown report formatter
+    sandbox.py        # SelfDebugSandbox facade: branch validation, path constraints, full pipeline
+
   session/
     config.py         # Constants, config loading, env var overrides
     state.py          # Session state JSON read/write, session ID resolution
@@ -170,6 +179,13 @@ tests/
   test_delegation_guard.py # Delegation guard hook tests
   test_phase_guard.py      # Phase guard hook tests
   test_spec_skill.py       # Spec skill file structure tests
+  test_self_debug_models.py   # Self-debug Pydantic model tests
+  test_self_debug_config.py   # Self-debug config loading tests
+  test_self_debug_analyzer.py # Self-debug AST analyzer tests
+  test_self_debug_patcher.py  # Self-debug patcher + safety guard tests
+  test_self_debug_report.py   # Self-debug markdown report tests
+  test_self_debug_sandbox.py  # Self-debug sandbox facade tests
+  test_self_debug_cli.py      # Self-debug CLI subcommand tests
 
 .claude/
   agents/
@@ -241,6 +257,8 @@ uv run stratus learning proposals        # List pending proposals
 uv run stratus learning decide ID accept # Decide on a proposal
 uv run stratus learning config           # Show learning config
 
+uv run stratus self-debug                # Run self-debug analysis (stdout)
+uv run stratus self-debug -o report.md   # Write report to file
 uv run stratus hook <module>             # Run a hook module (plugin entry point)
 uv run stratus statusline               # Output status line for Claude Code (reads JSON from stdin)
 
@@ -399,3 +417,20 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - Other invariants (`inv-process-no-code`, `inv-reviewers-readonly`, etc.) are documented-only
 - `POST /api/rules/validate-invariants` endpoint + TaskCompleted hook (best-effort)
 - `/spec` skill uses `context: fork` without `agent:` field — acts as multi-agent coordinator
+
+### Self-Debug Sandbox
+
+- Stateless, CLI-only analysis tool — no database, no HTTP routes, no hooks
+- No new dependencies — uses stdlib `ast`, `difflib`, `subprocess`, `pathlib` + existing `pydantic`
+- Config disabled by default (`enabled: false`), loaded from `.ai-framework.json["self_debug"]`
+- Env override: `AI_FRAMEWORK_SELF_DEBUG_ENABLED`
+- Split prefix strategy: analyze broadly (`src/stratus/`), patch narrowly (deny hooks/orchestration/registry/self_debug)
+- Only `BARE_EXCEPT` and `UNUSED_IMPORT` are auto-patchable; `MISSING_TYPE_HINT`, `DEAD_CODE`, `ERROR_HANDLING` are report-only
+- `UNUSED_IMPORT` safety: skip `__init__.py`, skip `TYPE_CHECKING` blocks, skip hook/registry/plugin paths
+- Branch check: analysis fails-open (warn if git unavailable), patch generation fails-closed (no patches if branch unknown)
+- On `main`/`master` branch: refuses to run entirely (`ValueError`)
+- Recursion guard: `self_debug/` in patch deny prefixes (can be analyzed but not patched)
+- Max issues cap: `config.max_issues` (default 50)
+- Max patch size: `config.max_patch_lines` (default 200)
+- Governance denylist: `.claude/`, `.ai-framework.json`, `plugin/hooks/`, `.github/` — CRITICAL impact → no patch generated
+- Report is markdown with summary, per-issue blocks, unified diffs in fenced code blocks

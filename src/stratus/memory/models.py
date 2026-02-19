@@ -34,6 +34,8 @@ class EventType(StrEnum):
     RULE_PROPOSAL = "rule_proposal"
     LEARNING_DECISION = "learning_decision"
     REJECTED_PATTERN = "rejected_pattern"
+    SPEC_STARTED = "spec_started"
+    SPEC_COMPLETED = "spec_completed"
 
 
 def _now_iso() -> str:

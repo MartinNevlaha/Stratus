@@ -51,7 +51,9 @@ class ProjectWatcher:
                 age = datetime.now(UTC) - datetime.fromisoformat(created)
                 if age.total_seconds() < self._config.min_age_hours * 3600:
                     return AnalysisResult(
-                        detections=[], analyzed_commits=0, analysis_time_ms=0,
+                        detections=[],
+                        analyzed_commits=0,
+                        analysis_time_ms=0,
                     )
 
         start_ms = time.monotonic_ns() // 1_000_000
@@ -60,7 +62,8 @@ class ProjectWatcher:
 
         # Step 1: Git analysis → raw detections
         git_detections = git_analyzer.analyze_changes(
-            since_commit=since_commit, scope=scope,
+            since_commit=since_commit,
+            scope=scope,
         )
         commit_count = git_analyzer._get_commits_since(since_commit)
 
@@ -72,7 +75,8 @@ class ProjectWatcher:
 
         # Step 3: Heuristics → scored candidates
         candidates = run_heuristics(
-            all_detections, self._db,
+            all_detections,
+            self._db,
             cooldown_days=self._config.cooldown_days,
         )
 
@@ -153,7 +157,9 @@ class ProjectWatcher:
                 from stratus.learning.artifacts import create_artifact
 
                 artifact_path = create_artifact(
-                    proposal, self._root, edited_content,
+                    proposal,
+                    self._root,
+                    edited_content,
                 )
                 self._snapshot_rule_baseline(proposal, artifact_path)
 
@@ -203,12 +209,11 @@ class ProjectWatcher:
         proposal = self._db.get_proposal(proposal_id)
         title = proposal.title if proposal else f"proposal {proposal_id}"
         proposal_type = proposal.type if proposal else "unknown"
-        refs = [str(artifact_path)] if artifact_path else []
+        refs: dict = {"proposal_id": proposal_id}
+        if artifact_path:
+            refs["artifacts"] = [str(artifact_path)]
 
-        event_type = (
-            "learning_decision" if decision == Decision.ACCEPT
-            else "rejected_pattern"
-        )
+        event_type = "learning_decision" if decision == Decision.ACCEPT else "rejected_pattern"
 
         try:
             api_url = get_api_url()
@@ -221,7 +226,6 @@ class ProjectWatcher:
                     "tags": ["learning", decision.value, proposal_type],
                     "importance": 0.7 if decision == Decision.ACCEPT else 0.5,
                     "refs": refs,
-                    "proposal_id": proposal_id,
                 },
                 timeout=2.0,
             )

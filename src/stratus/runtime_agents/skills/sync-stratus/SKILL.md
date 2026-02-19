@@ -1,6 +1,6 @@
 ---
 name: sync-stratus
-description: "Post-install reconciliation audit. Scans agents, skills, rules, and commands for conflicts with Stratus delegation model. Plan-only — does not modify files."
+description: "Post-install reconciliation audit. Scans agents, skills, rules, and commands for conflicts with Stratus delegation model. Use --apply to execute the consolidation plan."
 context: fork
 ---
 
@@ -8,9 +8,10 @@ context: fork
 
 You are the **reconciliation coordinator**. Your job is to audit the current project environment after Stratus installation and produce a structured conflict report with a safe integration plan.
 
-**CRITICAL: Do NOT modify any files. This is analysis and planning only.**
-
-Use `$ARGUMENTS` to scope the audit (e.g. `--apply` flag for future apply mode — currently a no-op).
+Check `$ARGUMENTS` for flags:
+- **No flags** — audit and report only. Do NOT modify any files.
+- **`--apply`** — audit, report, then execute the consolidation plan after user approval.
+- **`--dry-run`** — audit, report, and show what `--apply` would change — but do NOT modify files.
 
 ---
 
@@ -114,9 +115,9 @@ For each issue include: file path, exact description, why it matters.
 
 ---
 
-## Step 3: Consolidation Strategy (Plan Only)
+## Step 3: Consolidation Strategy
 
-Propose a safe integration plan. Do NOT execute — describe what should change.
+Propose a safe integration plan. In report-only mode (no `--apply`), describe what should change. In `--apply` mode, these proposals become the execution plan for Step 6.
 
 ### Agent Layer
 - Rename conflicting agents (proposal)
@@ -189,16 +190,130 @@ Produce a structured report with these sections:
 ### 5. Recommended Migration Steps
 [ordered list, lowest risk first]
 
-### Bonus: /sync-stratus --apply (future)
-[what apply mode would do — currently disabled]
+### 6. Apply Summary
+[if --apply: what will be applied; if --dry-run: what would be applied; if neither: omit]
+```
+
+If `$ARGUMENTS` does NOT contain `--apply`, stop here. The report is the final deliverable.
+
+---
+
+## Step 6: Apply (requires `--apply` flag)
+
+**Skip this step entirely unless `$ARGUMENTS` contains `--apply`.**
+
+This step takes the proposals from Steps 3-4 and executes them. The apply phase only modifies documentation and configuration files (`.md`, `.json`, `.yaml`, `.toml`) — never production source code.
+
+### 6.1 — Pre-Apply Confirmation
+
+Before modifying anything, present a numbered summary of all proposed changes:
+
+```
+## Apply Plan
+
+The following changes will be made (CRITICAL first, then MAJOR, then MINOR):
+
+1. [CRITICAL] Fix: <description> → <file path>
+2. [CRITICAL] Fix: <description> → <file path>
+3. [MAJOR] Fix: <description> → <file path>
+...
+
+Files that will be modified: [list]
+Files that will be created: [list]
+Items requiring manual review (not auto-applied): [list]
+
+To revert all changes: git checkout -- .
+```
+
+Use **AskUserQuestion** to get explicit approval. Do NOT proceed without a "yes" / approval response.
+
+### 6.2 — Apply Actions
+
+Execute fixes in severity order (CRITICAL → MAJOR → MINOR). For each action, use the appropriate tool:
+
+#### Auto-Applicable Fixes
+
+| Issue Type | Fix Action | Tool |
+|------------|-----------|------|
+| **Reviewer/QA agent has Write/Edit tools** | Remove Write/Edit/NotebookEdit from `tools:` frontmatter | Edit on `.md` |
+| **Skill missing `context: fork`** | Add `context: fork` to frontmatter | Edit on `SKILL.md` |
+| **Skill instructs coordinator to write code** | Add delegation warning comment at top of skill body | Edit on `SKILL.md` |
+| **Rule stub (under 10 words)** | Append `<!-- STUB: needs content -->` marker | Edit on `.md` |
+| **Missing `.ai-framework.json`** | Run `stratus init --skip-hooks --skip-mcp` | Bash |
+| **Missing hooks in settings.json** | Run `stratus init --skip-mcp` | Bash |
+| **Missing MCP server config** | Run `stratus init --skip-hooks` | Bash |
+| **CLAUDE.md missing delegation clause** | Append governance precedence note at end of file | Edit on `.md` |
+
+#### Manual-Review-Only (Never Auto-Applied)
+
+These are reported but NOT automatically fixed — they require human judgment:
+
+| Issue Type | Why Manual |
+|------------|-----------|
+| **Agent naming conflicts** | Renaming agents breaks Task tool references across skills and commands |
+| **Agent responsibility overlap** | Merging/splitting agents is an architectural decision |
+| **Command bypass patterns** | Rewriting commands requires understanding intent |
+| **Rule conflicts with delegation** | User rules may be intentional overrides |
+| **Global `~/.claude/` modifications** | Never modify global user config without explicit per-item approval |
+| **Skill bypass via `agent:` field** | Removing delegation may break workflows |
+
+### 6.3 — Apply Execution
+
+For each auto-applicable fix:
+1. Read the target file
+2. Apply the specific Edit (smallest possible change)
+3. Verify the file is still valid (frontmatter intact, no syntax errors)
+4. Log the change: `[APPLIED] <severity> — <file path> — <description>`
+
+For each manual-review item:
+1. Log: `[SKIPPED — MANUAL REVIEW] <severity> — <file path> — <description>`
+
+### 6.4 — Post-Apply Verification
+
+After all fixes are applied:
+1. Re-read every modified file to confirm changes took effect
+2. Run `stratus doctor` (if available) to verify system health
+3. Run a quick re-audit of the modified files to ensure no new conflicts were introduced
+
+### 6.5 — Apply Report
+
+Produce a final summary:
+
+```
+## Apply Results
+
+### Applied
+- [CRITICAL] <file path>: <what changed>
+- [MAJOR] <file path>: <what changed>
+...
+
+### Skipped (Manual Review Required)
+- [CRITICAL] <file path>: <why it needs manual review>
+- [MAJOR] <file path>: <why it needs manual review>
+...
+
+### Verification
+- Files modified: N
+- Doctor check: PASS/FAIL
+- New conflicts introduced: 0 / [list if any]
+
+### Rollback
+To revert all changes:
+  git checkout -- .
 ```
 
 ---
 
 ## Rules
 
-- **Do NOT modify any files** — this is plan-only
-- All changes go into the report as proposals
-- If `$ARGUMENTS` contains `--apply`: acknowledge it but note the flag is not yet implemented
+- **Without `--apply`**: Do NOT modify any files — this is plan-only
+- **With `--apply`**: Only modify `.md`, `.json`, `.yaml`, `.toml` files — NEVER production source code (`.py`, `.ts`, `.js`, `.go`, etc.)
+- **With `--dry-run`**: Show what `--apply` would change but do NOT modify files
+- All changes require explicit user approval via AskUserQuestion before execution
+- **Never delete user content** — only append, modify frontmatter metadata, or create new files
+- **Never modify `~/.claude/` global files** without per-item user approval
+- **Never auto-apply agent renames or responsibility changes** — these are manual-review-only
 - Treat stub rules (body under 10 meaningful words) as MAJOR issues
 - Missing `.claude/settings.json` or `.ai-framework.json` = CRITICAL (hooks and config not active)
+- Apply is idempotent — re-running `--apply` on an already-fixed project produces no new changes
+- Each fix is independent — a failure in one fix does not block others

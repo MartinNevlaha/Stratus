@@ -11,6 +11,9 @@ from typing import cast
 
 from stratus import __version__
 from stratus.mcp_server.server import main as mcp_main
+from stratus.self_debug.config import load_self_debug_config
+from stratus.self_debug.report import format_report
+from stratus.self_debug.sandbox import SelfDebugSandbox
 from stratus.server.runner import run_server
 from stratus.transcript import (
     estimate_context_pct,
@@ -177,6 +180,27 @@ def _cmd_learning(args: argparse.Namespace) -> None:
     cmd_learning(args)
 
 
+def _cmd_self_debug(args: argparse.Namespace) -> None:
+    config_path = Path(".ai-framework.json")
+    config = load_self_debug_config(config_path if config_path.exists() else None)
+    sandbox = SelfDebugSandbox(config, Path.cwd())
+
+    try:
+        report = sandbox.run()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    output = format_report(report)
+
+    if args.output:
+        out_path = Path(args.output)
+        out_path.write_text(output)
+        print(f"Report written to {out_path}")
+    else:
+        print(output)
+
+
 def _is_jsonl_path(arg: str) -> bool:
     return arg.endswith(".jsonl")
 
@@ -186,9 +210,7 @@ def main() -> None:
         prog="stratus",
         description="Open-source framework for Claude Code sessions",
     )
-    _ = parser.add_argument(
-        "-V", "--version", action="version", version=f"stratus {__version__}"
-    )
+    _ = parser.add_argument("-V", "--version", action="version", version=f"stratus {__version__}")
     subparsers = parser.add_subparsers(dest="command")
 
     # analyze subcommand
@@ -287,6 +309,15 @@ def main() -> None:
     hook_parser = subparsers.add_parser("hook", help="Run a hook module")
     _ = hook_parser.add_argument("module", help="Hook module name (e.g. context_monitor)")
 
+    # self-debug subcommand
+    self_debug_parser = subparsers.add_parser("self-debug", help="Run self-debug analysis")
+    _ = self_debug_parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Write report to file instead of stdout",
+    )
+
     # learning subcommand
     learn_p = subparsers.add_parser("learning", help="Learning engine operations")
     learn_sub = learn_p.add_subparsers(dest="learning_action")
@@ -319,6 +350,7 @@ def main() -> None:
         "worktree": _cmd_worktree,
         "statusline": _cmd_statusline,
         "hook": _cmd_hook,
+        "self-debug": _cmd_self_debug,
         "learning": _cmd_learning,
     }
     command = cast(str | None, args.command)
