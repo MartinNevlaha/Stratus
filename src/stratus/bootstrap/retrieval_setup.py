@@ -238,20 +238,36 @@ def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) 
     2. `vexor local --cuda`        — mode switch (model already downloaded)
     3. Falls back to `vexor local --setup --cpu`
 
+    Also falls back to CPU when vexor exits 0 but reports "CUDA provider not
+    available" in its output (GPU present but CUDA runtime not installed).
+
     Returns (success, used_cuda).
     """
     if cuda is None:
         cuda = detect_cuda()
 
-    def _run_setup(flag: str) -> bool:
+    def _run_setup(flag: str) -> tuple[bool, bool]:
+        """Run vexor local --setup <flag>. Returns (exit_ok, provider_ok).
+
+        Captures output to detect runtime availability mismatches (e.g. vexor
+        exits 0 but reports 'CUDA provider not available'). Relays all output
+        to the terminal so the user sees progress messages.
+        """
         try:
             result = subprocess.run(
                 [vexor_binary, "local", "--setup", flag],
+                capture_output=True,
+                text=True,
                 timeout=180,
             )
-            return result.returncode == 0
+            if result.stdout:
+                print(result.stdout, end="", flush=True)
+            if result.stderr:
+                print(result.stderr, end="", flush=True, file=sys.stderr)
+            cuda_unavail = "CUDA provider not available" in (result.stdout + result.stderr)
+            return result.returncode == 0, not cuda_unavail
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            return False
+            return False, False
 
     def _run_mode(flag: str) -> bool:
         """Switch execution mode only — model already downloaded."""
@@ -265,13 +281,17 @@ def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) 
             return False
 
     if cuda:
-        if _run_setup("--cuda"):
+        exit_ok, provider_ok = _run_setup("--cuda")
+        if exit_ok and provider_ok:
             return True, True
-        # Model may already be downloaded — try mode switch only
-        if _run_mode("--cuda"):
-            return True, True
+        if not exit_ok:
+            # Setup failed entirely — model may already be downloaded, try mode switch
+            if _run_mode("--cuda"):
+                return True, True
+        # CUDA setup failed or provider unavailable — fall back to CPU
 
-    return _run_setup("--cpu"), False
+    ok, _ = _run_setup("--cpu")
+    return ok, False
 
 
 def run_initial_index_background(

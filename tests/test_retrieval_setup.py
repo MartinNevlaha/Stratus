@@ -375,14 +375,14 @@ class TestSetupVexorLocal:
     MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
 
     def test_success_returns_true(self) -> None:
-        result_mock = MagicMock(returncode=0)
+        result_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, return_value=result_mock):
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
             ok, _ = setup_vexor_local()
             assert ok is True
 
     def test_failure_returns_false(self) -> None:
-        result_mock = MagicMock(returncode=1)
+        result_mock = MagicMock(returncode=1, stdout="", stderr="")
         with patch(self.MOCK_TARGET, return_value=result_mock):
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
             ok, _ = setup_vexor_local()
@@ -402,8 +402,8 @@ class TestSetupVexorLocal:
 
     def test_cuda_fallback_to_cpu(self) -> None:
         """When --setup --cuda AND --cuda (mode switch) both fail, falls back to --setup --cpu."""
-        fail_mock = MagicMock(returncode=1)
-        ok_mock = MagicMock(returncode=0)
+        fail_mock = MagicMock(returncode=1, stdout="", stderr="")
+        ok_mock = MagicMock(returncode=0, stdout="", stderr="")
         # Three attempts: --setup --cuda, --cuda (mode switch), --setup --cpu
         with patch(self.MOCK_TARGET, side_effect=[fail_mock, fail_mock, ok_mock]) as mock_run:
             with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
@@ -417,8 +417,8 @@ class TestSetupVexorLocal:
 
     def test_cuda_setup_fails_mode_switch_succeeds(self) -> None:
         """When --setup --cuda fails but --cuda alone (mode switch) succeeds, return (True, True)."""
-        fail_mock = MagicMock(returncode=1)
-        ok_mock = MagicMock(returncode=0)
+        fail_mock = MagicMock(returncode=1, stdout="", stderr="")
+        ok_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, side_effect=[fail_mock, ok_mock]) as mock_run:
             with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
                 from stratus.bootstrap.retrieval_setup import setup_vexor_local
@@ -431,8 +431,23 @@ class TestSetupVexorLocal:
         # Second call: mode switch only — no --setup
         assert "--setup" not in calls[1] and "--cuda" in calls[1]
 
+    def test_cuda_provider_unavailable_falls_back_to_cpu(self) -> None:
+        """When vexor exits 0 but reports CUDA provider unavailable, falls back to CPU."""
+        cuda_warn = "CUDA provider not available for local embeddings\n"
+        cuda_mock = MagicMock(returncode=0, stdout=cuda_warn, stderr="")
+        cpu_mock = MagicMock(returncode=0, stdout="", stderr="")
+        with patch(self.MOCK_TARGET, side_effect=[cuda_mock, cpu_mock]) as mock_run:
+            with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
+                from stratus.bootstrap.retrieval_setup import setup_vexor_local
+                ok, used_cuda = setup_vexor_local()
+        assert ok is True
+        assert used_cuda is False
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        assert any("--cuda" in c for c in calls)
+        assert any("--cpu" in c for c in calls)
+
     def test_passes_correct_command(self) -> None:
-        result_mock = MagicMock(returncode=0)
+        result_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
             setup_vexor_local()
@@ -441,7 +456,7 @@ class TestSetupVexorLocal:
             assert "--setup" in cmd
 
     def test_custom_binary(self) -> None:
-        result_mock = MagicMock(returncode=0)
+        result_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
             from stratus.bootstrap.retrieval_setup import setup_vexor_local
             setup_vexor_local("/opt/vexor")
@@ -449,7 +464,7 @@ class TestSetupVexorLocal:
             assert "/opt/vexor" in str(cmd)
 
     def test_passes_cuda_flag_when_gpu_available(self) -> None:
-        result_mock = MagicMock(returncode=0)
+        result_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
             with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
                 from stratus.bootstrap.retrieval_setup import setup_vexor_local
@@ -458,7 +473,7 @@ class TestSetupVexorLocal:
             assert "--cuda" in cmd
 
     def test_passes_cpu_flag_when_no_gpu(self) -> None:
-        result_mock = MagicMock(returncode=0)
+        result_mock = MagicMock(returncode=0, stdout="", stderr="")
         with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
             with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=False):
                 from stratus.bootstrap.retrieval_setup import setup_vexor_local
