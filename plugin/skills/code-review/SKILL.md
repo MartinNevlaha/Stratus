@@ -22,7 +22,7 @@ Systematic review focused on correctness, maintainability, and project standards
 - Type hints on all public functions
 - No unused imports
 - Naming follows language conventions
-- Run: `uv run ruff check src/ tests/` (Python) or `eslint` (TS)
+- Run the project's linter: `ruff check src/ tests/` (Python), `eslint` (TS), `golangci-lint` (Go), `cargo clippy` (Rust)
 
 ### 3. Tests
 - Every new function has a test

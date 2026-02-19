@@ -7,7 +7,7 @@ context: fork
 
 Run a governance audit for: "$ARGUMENTS"
 
-1. Run `uv run pytest --cov=stratus --cov-report=term-missing -q` to capture current test coverage and identify untested modules.
+1. Detect the project's test runner and coverage tool, then run with coverage to capture current test coverage and identify untested modules (e.g. `pytest --cov=src --cov-report=term-missing -q`, `npm test -- --coverage`, `cargo tarpaulin`).
 2. Use `Glob` to list all source files and verify each has a corresponding test file in `tests/`.
 3. Check `docs/` completeness: confirm architecture doc, ADRs, and API reference are present and recently updated.
 4. Review `pyproject.toml` for pinned dependency versions and flag any unpinned or overly broad version specifiers.

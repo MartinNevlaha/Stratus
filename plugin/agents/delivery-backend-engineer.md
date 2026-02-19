@@ -56,7 +56,7 @@ After completing each task:
 - tests/test_file.py: <description of tests added>
 
 ### Tests
-- Run: `uv run pytest tests/test_file.py -q`
+- Run: `<project test command> tests/test_file.py -q`
 - Result: X passed, 0 failed, coverage: Y%
 
 ### Notes

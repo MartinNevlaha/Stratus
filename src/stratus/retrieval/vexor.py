@@ -32,7 +32,7 @@ class VexorClient:
         *,
         path: str | None = None,
         top: int = 10,
-        mode: str = "hybrid",
+        mode: str = "auto",
         ext: str | None = None,
     ) -> RetrievalResponse:
         """Search indexed codebase via vexor CLI."""
