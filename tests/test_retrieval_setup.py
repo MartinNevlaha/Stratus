@@ -592,14 +592,41 @@ class TestVerifyCudaRuntime:
 class TestInstallVexorLocalPackage:
     MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
 
+    def test_removes_cpu_onnxruntime_when_both_installed(self) -> None:
+        """When cuda=True and install succeeds, _ensure_gpu_onnxruntime is called once."""
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            with patch(
+                "stratus.bootstrap.retrieval_setup._ensure_gpu_onnxruntime"
+            ) as mock_ensure:
+                from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+
+                ok = install_vexor_local_package(cuda=True)
+        assert ok is True
+        mock_ensure.assert_called_once()
+
+    def test_skips_deduplication_when_cuda_false(self) -> None:
+        """When cuda=False and install succeeds, _ensure_gpu_onnxruntime is NOT called."""
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            with patch(
+                "stratus.bootstrap.retrieval_setup._ensure_gpu_onnxruntime"
+            ) as mock_ensure:
+                from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+
+                ok = install_vexor_local_package(cuda=False)
+        assert ok is True
+        mock_ensure.assert_not_called()
+
     def test_installs_cuda_package_when_gpu(self) -> None:
         """Installs vexor[local-cuda] when cuda=True."""
         result_mock = MagicMock(returncode=0)
         with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
-            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
-            ok = install_vexor_local_package(cuda=True)
+            with patch("stratus.bootstrap.retrieval_setup._ensure_gpu_onnxruntime"):
+                from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+                ok = install_vexor_local_package(cuda=True)
         assert ok is True
-        cmd = mock_run.call_args[0][0]
+        cmd = mock_run.call_args_list[0][0][0]
         assert "vexor[local-cuda]" in cmd
 
     def test_installs_cpu_package_when_no_gpu(self) -> None:

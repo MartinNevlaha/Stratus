@@ -167,6 +167,54 @@ def verify_cuda_runtime() -> bool:
         return False
 
 
+def _ensure_gpu_onnxruntime() -> None:
+    """Remove CPU-only onnxruntime when onnxruntime-gpu is also installed.
+
+    Having both packages causes the CPU-only one to shadow onnxruntime-gpu,
+    making CUDAExecutionProvider invisible. This function is best-effort:
+    all exceptions are swallowed and never propagated.
+    """
+    _probe = (
+        "import importlib.util; "
+        "cpu=importlib.util.find_spec('onnxruntime') is not None; "
+        "gpu=importlib.util.find_spec('onnxruntime_gpu') is not None; "
+        "print('BOTH' if cpu and gpu else '')"
+    )
+    try:
+        probe_result = subprocess.run(
+            [sys.executable, "-c", _probe],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if probe_result.returncode != 0 or "BOTH" not in probe_result.stdout:
+            return
+
+        # Both present — uninstall CPU-only then reinstall GPU variant
+        _uninstall = ["uv", "pip", "uninstall", "--python", sys.executable, "onnxruntime"]
+        _reinstall = [
+            "uv", "pip", "install", "--reinstall",
+            "--python", sys.executable, "onnxruntime-gpu",
+        ]
+        try:
+            subprocess.run(_uninstall, capture_output=True, timeout=120)
+            subprocess.run(_reinstall, capture_output=True, timeout=300)
+        except FileNotFoundError:
+            # uv not available — fall back to pip
+            subprocess.run(
+                [sys.executable, "-m", "pip", "uninstall", "-y", "onnxruntime"],
+                capture_output=True,
+                timeout=120,
+            )
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--force-reinstall", "onnxruntime-gpu"],
+                capture_output=True,
+                timeout=300,
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def install_vexor_local_package(cuda: bool) -> bool:
     """Install vexor[local-cuda] or vexor[local] into the current Python environment.
 
@@ -180,6 +228,8 @@ def install_vexor_local_package(cuda: bool) -> bool:
             capture_output=True,
             timeout=300,
         )
+        if result.returncode == 0 and cuda:
+            _ensure_gpu_onnxruntime()
         return result.returncode == 0
     except FileNotFoundError:
         # uv not available — fall back to pip
@@ -230,7 +280,9 @@ def detect_cuda() -> bool:
     return False
 
 
-def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) -> tuple[bool, bool]:
+def setup_vexor_local(
+    vexor_binary: str = "vexor", *, cuda: bool | None = None
+) -> tuple[bool, bool]:
     """Download local embedding model and configure CPU/CUDA execution mode.
 
     For CUDA, tries in order per docs:
