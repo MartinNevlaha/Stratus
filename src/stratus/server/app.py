@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -34,23 +35,18 @@ def create_app(
         from stratus.learning.database import LearningDatabase
         from stratus.learning.watcher import ProjectWatcher
         from stratus.orchestration.delivery_config import load_delivery_config
-        from stratus.retrieval.config import DevRagConfig, load_retrieval_config
-        from stratus.retrieval.devrag import DevRagClient
+        from stratus.retrieval.config import load_retrieval_config
         from stratus.retrieval.governance_store import GovernanceStore
         from stratus.retrieval.vexor import VexorClient
         from stratus.session.config import get_data_dir
 
         app.state.db = Database(db_path)
         app.state.embed_cache = EmbedCache()
+        app.state.index_lock = threading.Lock()
 
-        # Governance store for DevRag
+        # Governance store passed directly to UnifiedRetriever
         gov_db_path = str(get_data_dir() / "governance.db")
         app.state.governance_store = GovernanceStore(gov_db_path)
-        devrag_client = DevRagClient(
-            config=DevRagConfig(enabled=True),
-            store=app.state.governance_store,
-            project_root=str(Path.cwd().resolve()),
-        )
         ai_framework_path = Path.cwd() / ".ai-framework.json"
         retrieval_config = load_retrieval_config(ai_framework_path)
         if retrieval_config.project_root is None:
@@ -58,14 +54,15 @@ def create_app(
         vexor_client = VexorClient(config=retrieval_config.vexor)
         app.state.retriever = UnifiedRetriever(
             vexor=vexor_client,
-            devrag=devrag_client,
+            governance=app.state.governance_store,
             config=retrieval_config,
         )
 
-        try:
-            app.state.governance_store.index_project(str(Path.cwd().resolve()))
-        except (OSError, ValueError, RuntimeError):
-            pass
+        if ai_framework_path.exists():
+            try:
+                app.state.governance_store.index_project(str(Path.cwd().resolve()))
+            except (OSError, ValueError, RuntimeError):
+                pass
 
         # Orchestration subsystem — delivery or spec based on config
         session_dir = (

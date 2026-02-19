@@ -718,13 +718,14 @@ class TestBuildStatuslineConfig:
         assert isinstance(sl, dict)
         assert sl["type"] == "command"
 
-    def test_statusline_command_is_stratus(self) -> None:
+    def test_statusline_command_uses_bash_wrapper(self) -> None:
         from stratus.bootstrap.registration import build_statusline_config
 
         result = build_statusline_config()
         sl = result["statusLine"]
         assert isinstance(sl, dict)
-        assert sl["command"] == "stratus statusline"
+        assert "stratus statusline" in sl["command"]
+        assert sl["command"].startswith("bash -c")
 
 
 class TestRegisterStatusline:

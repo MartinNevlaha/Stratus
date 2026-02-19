@@ -364,6 +364,8 @@ class TestLifespanInitialization:
 
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
         monkeypatch.chdir(tmp_path)
+        # index_project is gated on .ai-framework.json presence
+        (tmp_path / ".ai-framework.json").write_text("{}")
 
         with patch(
             "stratus.retrieval.governance_store.GovernanceStore.index_project"
@@ -381,3 +383,38 @@ class TestLifespanInitialization:
         with TestClient(app):
             assert app.state.retriever._config.project_root is not None
             assert app.state.retriever._config.project_root == str(tmp_path.resolve())
+
+    def test_app_skips_governance_indexing_if_no_ai_framework_json(
+        self, tmp_path, monkeypatch
+    ):
+        """When .ai-framework.json is absent, index_project must NOT be called."""
+        from unittest.mock import patch
+
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+        # Ensure .ai-framework.json does NOT exist
+        assert not (tmp_path / ".ai-framework.json").exists()
+
+        with patch(
+            "stratus.retrieval.governance_store.GovernanceStore.index_project"
+        ) as mock_index:
+            app = create_app(db_path=":memory:", learning_db_path=":memory:")
+            with TestClient(app):
+                mock_index.assert_not_called()
+
+    def test_app_indexes_governance_if_ai_framework_json_exists(
+        self, tmp_path, monkeypatch
+    ):
+        """When .ai-framework.json is present, index_project must be called once."""
+        from unittest.mock import patch
+
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".ai-framework.json").write_text("{}")
+
+        with patch(
+            "stratus.retrieval.governance_store.GovernanceStore.index_project"
+        ) as mock_index:
+            app = create_app(db_path=":memory:", learning_db_path=":memory:")
+            with TestClient(app):
+                mock_index.assert_called_once()

@@ -23,7 +23,7 @@ def client():
         )
         mock_retriever.status.return_value = {
             "vexor_available": True,
-            "devrag_available": False,
+            "governance_available": False,
         }
         mock_retriever._vexor.index.return_value = {"status": "ok", "output": "done"}
         c.app.state.retriever = mock_retriever
@@ -91,7 +91,7 @@ class TestRetrievalStatusRoute:
         data = resp.json()
         assert "vexor_available" in data
         assert data["vexor_available"] is True
-        assert data["devrag_available"] is False
+        assert data["governance_available"] is False
 
 
 class TestTriggerIndexRoute:
@@ -170,7 +170,7 @@ class TestRetrievalStatusExtended:
         gov_stats = {"total_files": 7, "total_chunks": 20, "by_doc_type": {"rule": 5, "adr": 2}}
         client.app.state.retriever.status.return_value = {
             "vexor_available": True,
-            "devrag_available": True,
+            "governance_available": True,
             "governance_stats": gov_stats,
         }
         with patch(
@@ -289,3 +289,97 @@ class TestRegressionExistingRoutes:
         resp = client.get("/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+
+
+class TestDoIndexLock:
+    """Fix 1: _do_index must serialize via threading.Lock."""
+
+    def test_do_index_skips_when_lock_acquired(self, tmp_path):
+        """When lock is already held, _do_index returns without calling vexor."""
+        import threading
+        from unittest.mock import MagicMock
+
+        from stratus.server.routes_retrieval import _do_index
+
+        mock_retriever = MagicMock()
+        lock = threading.Lock()
+        lock.acquire()  # Simulate another goroutine holding the lock
+        try:
+            _do_index(mock_retriever, tmp_path, lock)
+        finally:
+            lock.release()
+
+        mock_retriever._vexor.index.assert_not_called()
+
+    def test_do_index_releases_lock_on_success(self, tmp_path):
+        """After _do_index completes normally, the lock must not be held."""
+        import threading
+        from unittest.mock import MagicMock
+
+        from stratus.server.routes_retrieval import _do_index
+
+        mock_retriever = MagicMock()
+        lock = threading.Lock()
+        _do_index(mock_retriever, tmp_path, lock)
+
+        # Lock should be released — acquire(blocking=False) must succeed
+        acquired = lock.acquire(blocking=False)
+        assert acquired, "Lock was not released after _do_index completed"
+        lock.release()
+
+    def test_do_index_releases_lock_on_exception(self, tmp_path):
+        """Even when vexor raises, the lock must be released."""
+        import threading
+        from unittest.mock import MagicMock
+
+        from stratus.server.routes_retrieval import _do_index
+
+        mock_retriever = MagicMock()
+        mock_retriever._vexor.index.side_effect = RuntimeError("vexor exploded")
+        lock = threading.Lock()
+        _do_index(mock_retriever, tmp_path, lock)
+
+        acquired = lock.acquire(blocking=False)
+        assert acquired, "Lock was not released after _do_index raised"
+        lock.release()
+
+    def test_trigger_index_returns_202_with_lock_available(self, client: TestClient):
+        """POST /api/retrieval/index returns 202 when lock is free."""
+        resp = client.post("/api/retrieval/index")
+        assert resp.status_code == 202
+
+
+class TestTriggerIndexProjectRoot:
+    """Fix 3: project_root validation in trigger_index."""
+
+    def test_trigger_index_skips_if_project_root_mismatch(
+        self, client: TestClient, tmp_path
+    ):
+        """POST with a project_root that does not match server root returns 200 skipped."""
+        # Set a known project_root on the retriever config
+        client.app.state.retriever._config.project_root = str(tmp_path / "project-a")
+        resp = client.post(
+            "/api/retrieval/index",
+            json={"project_root": str(tmp_path / "project-b")},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "skipped"
+        assert "mismatch" in data.get("reason", "")
+
+    def test_trigger_index_indexes_if_project_root_matches(
+        self, client: TestClient, tmp_path
+    ):
+        """POST with matching project_root returns 202."""
+        project = tmp_path / "my-project"
+        client.app.state.retriever._config.project_root = str(project)
+        resp = client.post(
+            "/api/retrieval/index",
+            json={"project_root": str(project)},
+        )
+        assert resp.status_code == 202
+
+    def test_trigger_index_indexes_if_no_project_root_in_body(self, client: TestClient):
+        """POST with empty body still schedules indexing (backward compat)."""
+        resp = client.post("/api/retrieval/index", json={})
+        assert resp.status_code == 202

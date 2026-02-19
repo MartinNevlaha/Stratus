@@ -9,6 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from stratus.hooks._common import get_git_root
+
 
 def _atomic_write_json(path: Path, data: dict) -> None:
     """Write JSON data to path atomically using tempfile + os.replace."""
@@ -79,6 +81,11 @@ def main() -> None:
     if not is_git_commit_command(command):
         sys.exit(0)
 
+    # Only trigger reindex if stratus is initialized in this project
+    git_root = get_git_root()
+    if git_root is None or not (git_root / ".ai-framework.json").exists():
+        return
+
     # Fire reindex unconditionally on every commit (fire-and-forget)
     try:
         import httpx
@@ -86,7 +93,11 @@ def main() -> None:
         from stratus.hooks._common import get_api_url
 
         api_url = get_api_url()
-        httpx.post(f"{api_url}/api/retrieval/index", json={}, timeout=2.0)
+        httpx.post(
+            f"{api_url}/api/retrieval/index",
+            json={"project_root": str(git_root)},
+            timeout=2.0,
+        )
     except Exception:
         pass  # Never block the tool
 

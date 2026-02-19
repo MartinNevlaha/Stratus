@@ -390,7 +390,8 @@ class TestCmdInit:
         assert settings.exists()
         data = json.loads(settings.read_text())
         assert "statusLine" in data
-        assert data["statusLine"]["command"] == "stratus statusline"
+        assert "stratus statusline" in data["statusLine"]["command"]
+        assert data["statusLine"]["command"].startswith("bash -c")
 
     def test_init_dry_run_skips_statusline(
         self,

@@ -1,4 +1,4 @@
-"""Configuration for Vexor, DevRag, and the unified retrieval layer."""
+"""Configuration for Vexor and the unified retrieval layer."""
 
 from __future__ import annotations
 
@@ -17,15 +17,8 @@ class VexorConfig:
 
 
 @dataclass
-class DevRagConfig:
-    enabled: bool = False
-    db_path: str | None = None
-
-
-@dataclass
 class RetrievalConfig:
     vexor: VexorConfig = field(default_factory=VexorConfig)
-    devrag: DevRagConfig = field(default_factory=DevRagConfig)
     project_root: str | None = None
 
 
@@ -40,7 +33,6 @@ def load_retrieval_config(path: Path | None = None) -> RetrievalConfig:
                 data = json.loads(text)
                 retrieval = data.get("retrieval", {})
                 _apply_vexor(config.vexor, retrieval.get("vexor", {}))
-                _apply_devrag(config.devrag, retrieval.get("devrag", {}))
                 if "project_root" in retrieval:
                     config.project_root = retrieval["project_root"]
         except (json.JSONDecodeError, OSError):
@@ -50,10 +42,6 @@ def load_retrieval_config(path: Path | None = None) -> RetrievalConfig:
     vexor_path = os.environ.get("AI_FRAMEWORK_VEXOR_PATH")
     if vexor_path:
         config.vexor.binary_path = vexor_path
-
-    devrag_db_path = os.environ.get("AI_FRAMEWORK_DEVRAG_DB_PATH")
-    if devrag_db_path:
-        config.devrag.db_path = devrag_db_path
 
     return config
 
@@ -67,10 +55,3 @@ def _apply_vexor(cfg: VexorConfig, data: dict) -> None:
         cfg.model = data["model"]
     if "exclude_patterns" in data:
         cfg.exclude_patterns = data["exclude_patterns"]
-
-
-def _apply_devrag(cfg: DevRagConfig, data: dict) -> None:
-    if "enabled" in data:
-        cfg.enabled = data["enabled"]
-    if "db_path" in data:
-        cfg.db_path = data["db_path"]

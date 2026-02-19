@@ -40,12 +40,13 @@ def _make_vexor_mock(
     return mock
 
 
-def _make_devrag_mock(
-    results: list[SearchResult] | None = None, available: bool = True
-) -> MagicMock:
+def _make_governance_mock(available: bool = True) -> MagicMock:
+    """Mock for GovernanceStore used directly by UnifiedRetriever."""
     mock = MagicMock()
-    mock.is_available.return_value = available
-    mock.search.return_value = _make_response(results=results, corpus=CorpusType.GOVERNANCE)
+    # is_available is determined by whether governance is not None in UnifiedRetriever
+    # but we also need a way to simulate "no store" — pass None instead of mock
+    mock.search.return_value = []
+    mock.stats.return_value = None
     return mock
 
 
@@ -59,27 +60,32 @@ class TestRetrieve:
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock([_make_result("src/main.py", score=0.95)])
-        devrag = _make_devrag_mock()
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("find the main function", corpus="code", top_k=5)
 
         vexor.search.assert_called_once_with("find the main function", top=5, path=None)
-        devrag.search.assert_not_called()
+        governance.search.assert_not_called()
         assert response.corpus == CorpusType.CODE
         assert len(response.results) == 1
 
     def test_retrieve_explicit_governance_corpus(self):
-        """corpus='governance' routes to DevRagClient.search."""
+        """corpus='governance' routes to GovernanceStore.search."""
         from stratus.retrieval.unified import UnifiedRetriever
 
+        gov_raw = [
+            {"file_path": "policy.md", "score": 0.88, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+        ]
         vexor = _make_vexor_mock()
-        devrag = _make_devrag_mock([_make_result("policy.md", score=0.88)])
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("naming convention", corpus="governance", top_k=3)
 
-        devrag.search.assert_called_once_with("naming convention", top_k=3)
+        governance.search.assert_called_once_with("naming convention", top_k=3, project_root=None)
         vexor.search.assert_not_called()
         assert response.corpus == CorpusType.GOVERNANCE
         assert len(response.results) == 1
@@ -89,26 +95,31 @@ class TestRetrieve:
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock([_make_result()])
-        devrag = _make_devrag_mock()
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("where is the function defined")
 
         vexor.search.assert_called_once()
-        devrag.search.assert_not_called()
+        governance.search.assert_not_called()
         assert response.corpus == CorpusType.CODE
 
     def test_retrieve_auto_classifies_rule_query(self):
-        """'what is the naming convention' → classify_query → 'rule' → DevRag."""
+        """'what is the naming convention' → classify_query → 'rule' → GovernanceStore."""
         from stratus.retrieval.unified import UnifiedRetriever
 
+        gov_raw = [
+            {"file_path": "rules.md", "score": 0.7, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+        ]
         vexor = _make_vexor_mock()
-        devrag = _make_devrag_mock([_make_result("rules.md", score=0.7)])
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("what is the naming convention")
 
-        devrag.search.assert_called_once()
+        governance.search.assert_called_once()
         vexor.search.assert_not_called()
         assert response.corpus == CorpusType.GOVERNANCE
 
@@ -117,37 +128,42 @@ class TestRetrieve:
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock([_make_result()])
-        devrag = _make_devrag_mock()
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         retriever.retrieve("python 3.12")
 
         vexor.search.assert_called_once()
-        devrag.search.assert_not_called()
+        governance.search.assert_not_called()
 
     def test_retrieve_fallback_when_vexor_fails(self):
-        """If Vexor raises, falls back to DevRag."""
+        """If Vexor raises, falls back to GovernanceStore."""
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock()
         vexor.search.side_effect = RuntimeError("vexor unavailable")
-        devrag = _make_devrag_mock([_make_result("fallback.py", score=0.5)])
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        gov_raw = [
+            {"file_path": "fallback.py", "score": 0.5, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+        ]
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("find the main function", corpus="code")
 
-        devrag.search.assert_called_once()
+        governance.search.assert_called_once()
         assert len(response.results) == 1
         assert response.results[0].file_path == "fallback.py"
 
-    def test_retrieve_fallback_when_devrag_fails(self):
-        """If DevRag raises, falls back to Vexor."""
+    def test_retrieve_fallback_when_governance_fails(self):
+        """If GovernanceStore raises, falls back to Vexor."""
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock([_make_result("vexor_result.py", score=0.8)])
-        devrag = _make_devrag_mock()
-        devrag.search.side_effect = RuntimeError("devrag unavailable")
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.side_effect = RuntimeError("governance unavailable")
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("naming convention", corpus="governance")
 
@@ -161,9 +177,9 @@ class TestRetrieve:
 
         vexor = _make_vexor_mock()
         vexor.search.side_effect = RuntimeError("vexor unavailable")
-        devrag = _make_devrag_mock()
-        devrag.search.side_effect = RuntimeError("devrag unavailable")
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.side_effect = RuntimeError("governance unavailable")
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve("find the main function", corpus="code")
 
@@ -176,19 +192,23 @@ class TestRetrieve:
 
 class TestRetrieveHybrid:
     def test_hybrid_merges_both_backends(self):
-        """retrieve_hybrid queries both Vexor and DevRag and combines results."""
+        """retrieve_hybrid queries both Vexor and GovernanceStore and combines results."""
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor_results = [_make_result("a.py", score=0.9, rank=1)]
-        devrag_results = [_make_result("b.md", score=0.8, rank=1)]
+        gov_raw = [
+            {"file_path": "b.md", "score": 0.8, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+        ]
         vexor = _make_vexor_mock(vexor_results)
-        devrag = _make_devrag_mock(devrag_results)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve_hybrid("some query")
 
         vexor.search.assert_called_once()
-        devrag.search.assert_called_once()
+        governance.search.assert_called_once()
         assert len(response.results) == 2
 
     def test_hybrid_deduplicates_by_file_path(self):
@@ -196,10 +216,14 @@ class TestRetrieveHybrid:
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor_results = [_make_result("shared.py", score=0.9, rank=1)]
-        devrag_results = [_make_result("shared.py", score=0.7, rank=1)]
+        gov_raw = [
+            {"file_path": "shared.py", "score": 0.7, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+        ]
         vexor = _make_vexor_mock(vexor_results)
-        devrag = _make_devrag_mock(devrag_results)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve_hybrid("some query")
 
@@ -214,12 +238,14 @@ class TestRetrieveHybrid:
             _make_result("low.py", score=0.4, rank=1),
             _make_result("high.py", score=0.95, rank=2),
         ]
-        devrag_results = [
-            _make_result("mid.md", score=0.7, rank=1),
+        gov_raw = [
+            {"file_path": "mid.md", "score": 0.7, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
         ]
         vexor = _make_vexor_mock(vexor_results)
-        devrag = _make_devrag_mock(devrag_results)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve_hybrid("some query")
 
@@ -232,10 +258,15 @@ class TestRetrieveHybrid:
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor_results = [_make_result(f"v{i}.py", score=0.9 - i * 0.1, rank=i) for i in range(5)]
-        devrag_results = [_make_result(f"d{i}.md", score=0.85 - i * 0.1, rank=i) for i in range(5)]
+        gov_raw = [
+            {"file_path": f"d{i}.md", "score": 0.85 - i * 0.1, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+            for i in range(5)
+        ]
         vexor = _make_vexor_mock(vexor_results)
-        devrag = _make_devrag_mock(devrag_results)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve_hybrid("some query", top_k=3)
 
@@ -247,9 +278,13 @@ class TestRetrieveHybrid:
 
         vexor = _make_vexor_mock()
         vexor.search.side_effect = RuntimeError("vexor down")
-        devrag_results = [_make_result("rule.md", score=0.8, rank=1)]
-        devrag = _make_devrag_mock(devrag_results)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        gov_raw = [
+            {"file_path": "rule.md", "score": 0.8, "content": "text",
+             "chunk_index": 0, "title": None, "doc_type": None}
+        ]
+        governance = _make_governance_mock()
+        governance.search.return_value = gov_raw
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         response = retriever.retrieve_hybrid("some query")
 
@@ -263,40 +298,39 @@ class TestRetrieveHybrid:
 
 class TestStatus:
     def test_status_both_available(self):
-        """status() reports both backends available when both report True."""
+        """status() reports vexor and governance available when both present."""
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock(available=True)
-        devrag = _make_devrag_mock(available=True)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         result = retriever.status()
 
         assert result["vexor_available"] is True
-        assert result["devrag_available"] is True
+        assert result["governance_available"] is True
 
-    def test_status_one_unavailable(self):
-        """status() reports False for the backend that is unavailable."""
-        from stratus.retrieval.unified import UnifiedRetriever
-
-        vexor = _make_vexor_mock(available=False)
-        devrag = _make_devrag_mock(available=True)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
-
-        result = retriever.status()
-
-        assert result["vexor_available"] is False
-        assert result["devrag_available"] is True
-
-    def test_status_includes_governance_stats_when_store_attached(self):
-        """status() includes governance_stats when devrag.governance_stats() returns a dict."""
+    def test_status_governance_unavailable_when_none(self):
+        """status() reports governance_available=False when governance is None."""
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock(available=True)
-        devrag = _make_devrag_mock(available=True)
+        retriever = UnifiedRetriever(vexor=vexor, governance=None)
+
+        result = retriever.status()
+
+        assert result["vexor_available"] is True
+        assert result["governance_available"] is False
+
+    def test_status_includes_governance_stats_when_store_attached(self):
+        """status() includes governance_stats when governance.stats() returns a dict."""
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        vexor = _make_vexor_mock(available=True)
+        governance = _make_governance_mock()
         gov_stats = {"total_files": 5, "total_chunks": 12, "by_doc_type": {"rule": 3, "adr": 2}}
-        devrag.governance_stats.return_value = gov_stats
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance.stats.return_value = gov_stats
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         result = retriever.status()
 
@@ -304,47 +338,47 @@ class TestStatus:
         assert result["governance_stats"] == gov_stats
 
     def test_status_omits_governance_stats_when_none(self):
-        """status() omits governance_stats key when devrag.governance_stats() returns None."""
+        """status() omits governance_stats key when governance.stats() returns None."""
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock(available=True)
-        devrag = _make_devrag_mock(available=True)
-        devrag.governance_stats.return_value = None
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        governance = _make_governance_mock()
+        governance.stats.return_value = None
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         result = retriever.status()
 
         assert "governance_stats" not in result
 
     def test_status_passes_project_root_to_governance_stats(self):
-        """status() calls devrag.governance_stats(project_root=config.project_root)."""
+        """status() calls governance.stats(project_root=config.project_root)."""
         from stratus.retrieval.config import RetrievalConfig
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock(available=True)
-        devrag = _make_devrag_mock(available=True)
-        devrag.governance_stats.return_value = None
+        governance = _make_governance_mock()
+        governance.stats.return_value = None
         config = RetrievalConfig(project_root="/my/project")
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag, config=config)
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance, config=config)
 
         retriever.status()
 
-        devrag.governance_stats.assert_called_once_with(project_root="/my/project")
+        governance.stats.assert_called_once_with(project_root="/my/project")
 
     def test_status_passes_none_project_root_when_config_has_none(self):
-        """status() calls devrag.governance_stats(project_root=None) when config has no root."""
+        """status() calls governance.stats(project_root=None) when config has no root."""
         from stratus.retrieval.config import RetrievalConfig
         from stratus.retrieval.unified import UnifiedRetriever
 
         vexor = _make_vexor_mock(available=True)
-        devrag = _make_devrag_mock(available=True)
-        devrag.governance_stats.return_value = None
+        governance = _make_governance_mock()
+        governance.stats.return_value = None
         config = RetrievalConfig(project_root=None)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag, config=config)
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance, config=config)
 
         retriever.status()
 
-        devrag.governance_stats.assert_called_once_with(project_root=None)
+        governance.stats.assert_called_once_with(project_root=None)
 
 
 # ---------------------------------------------------------------------------
@@ -353,30 +387,74 @@ class TestStatus:
 
 
 class TestIndexGovernance:
-    def test_index_governance_delegates_to_devrag(self):
-        """index_governance() calls devrag.index() and returns its result."""
+    def test_index_governance_delegates_to_governance_store(self):
+        """index_governance() calls governance.index_project() and returns its result."""
         from stratus.retrieval.unified import UnifiedRetriever
 
-        devrag = _make_devrag_mock(available=True)
-        devrag.index.return_value = {"files_indexed": 5, "chunks_indexed": 12}
+        governance = _make_governance_mock()
+        governance.index_project.return_value = {"files_indexed": 5, "chunks_indexed": 12}
         vexor = _make_vexor_mock(available=True)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        retriever = UnifiedRetriever(vexor=vexor, governance=governance)
 
         result = retriever.index_governance("/some/project")
 
-        devrag.index.assert_called_once_with("/some/project")
+        governance.index_project.assert_called_once_with("/some/project")
         assert result == {"files_indexed": 5, "chunks_indexed": 12}
 
-    def test_index_governance_returns_unavailable_when_devrag_not_available(self):
-        """index_governance() returns unavailable dict when devrag not available."""
+    def test_index_governance_returns_unavailable_when_governance_none(self):
+        """index_governance() returns unavailable dict when governance is None."""
         from stratus.retrieval.unified import UnifiedRetriever
 
-        devrag = _make_devrag_mock(available=False)
-        devrag.is_available.return_value = False
         vexor = _make_vexor_mock(available=True)
-        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag)
+        retriever = UnifiedRetriever(vexor=vexor, governance=None)
 
         result = retriever.index_governance("/some/project")
 
-        devrag.index.assert_not_called()
         assert result == {"status": "unavailable"}
+
+
+# ---------------------------------------------------------------------------
+# TestParseGovernanceResults (module-level helper)
+# ---------------------------------------------------------------------------
+
+
+class TestParseGovernanceResults:
+    def test_parse_governance_results_basic(self) -> None:
+        from stratus.retrieval.unified import _parse_governance_results
+
+        raw = [
+            {"file_path": "docs/api.md", "content": "API documentation...", "score": -0.92},
+            {"file_path": "docs/auth.md", "content": "Auth docs", "score": -0.75},
+        ]
+        results = _parse_governance_results(raw)
+        assert len(results) == 2
+        assert all(isinstance(r, SearchResult) for r in results)
+        assert results[0].file_path == "docs/api.md"
+        assert results[0].score == -0.92
+        assert results[0].rank == 1
+        assert results[0].excerpt == "API documentation..."
+        assert results[0].corpus == CorpusType.GOVERNANCE
+        assert results[1].rank == 2
+
+    def test_parse_governance_results_includes_title_and_doc_type(self) -> None:
+        from stratus.retrieval.unified import _parse_governance_results
+
+        raw = [
+            {
+                "file_path": ".claude/rules/testing.md",
+                "title": "Testing",
+                "content": "Always write tests first",
+                "doc_type": "rule",
+                "score": -0.85,
+                "chunk_index": 0,
+            }
+        ]
+        results = _parse_governance_results(raw)
+        assert results[0].title == "Testing"
+        assert results[0].doc_type == "rule"
+
+    def test_parse_governance_results_empty(self) -> None:
+        from stratus.retrieval.unified import _parse_governance_results
+
+        results = _parse_governance_results([])
+        assert results == []

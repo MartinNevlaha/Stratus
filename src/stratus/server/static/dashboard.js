@@ -417,7 +417,7 @@
   function renderGovStats(data) {
     var el = document.getElementById('gov-stats');
     if (!el) return;
-    var avail = data.devrag_available;
+    var avail = data.governance_available;
     var gs = data.governance_stats || {};
     var statusBadge = avail
       ? '<span class="badge-fresh">available</span>'

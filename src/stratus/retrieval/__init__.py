@@ -1,7 +1,6 @@
-"""Semantic retrieval layer: Vexor code search, DevRag governance search, unified interface."""
+"""Semantic retrieval layer: Vexor code search, GovernanceStore governance search."""
 
-from stratus.retrieval.config import DevRagConfig, RetrievalConfig, VexorConfig
-from stratus.retrieval.devrag import DevRagClient
+from stratus.retrieval.config import RetrievalConfig, VexorConfig
 from stratus.retrieval.embed_cache import EmbedCache, compute_content_hash
 from stratus.retrieval.governance_store import GovernanceStore
 from stratus.retrieval.index_state import (
@@ -22,8 +21,6 @@ from stratus.retrieval.vexor import VexorClient
 
 __all__ = [
     "CorpusType",
-    "DevRagClient",
-    "DevRagConfig",
     "EmbedCache",
     "GovernanceStore",
     "IndexStatus",

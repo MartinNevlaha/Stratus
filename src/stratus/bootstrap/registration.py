@@ -135,8 +135,13 @@ def register_hooks(git_root: Path | None, *, dry_run: bool = False, scope: str =
 
 
 def build_statusline_config() -> dict[str, object]:
-    """Return the statusLine config block for Claude Code settings."""
-    return {"statusLine": {"type": "command", "command": "stratus statusline"}}
+    """Return the statusLine config block for Claude Code settings.
+
+    Uses a bash wrapper to capture stdin immediately (before Python startup
+    delay) and pipe it to stratus statusline, preventing empty stdin reads.
+    """
+    cmd = "bash -c 'input=$(cat); echo \"$input\" | stratus statusline'"
+    return {"statusLine": {"type": "command", "command": cmd}}
 
 
 def register_statusline(

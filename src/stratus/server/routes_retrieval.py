@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json as _json
+import threading
 from pathlib import Path
 
 from starlette.background import BackgroundTasks
@@ -45,33 +47,56 @@ async def retrieval_status(request: Request) -> JSONResponse:
     return JSONResponse(data)
 
 
-def _do_index(retriever: object, data_dir: Path) -> None:
-    """Run vexor index and persist updated index state. Best-effort."""
+def _do_index(retriever: object, data_dir: Path, lock: threading.Lock) -> None:
+    """Run vexor index and persist updated index state. Best-effort. Skips if already running."""
+    if not lock.acquire(blocking=False):
+        return  # Already indexing, skip
     try:
-        from stratus.retrieval.index_state import get_current_commit, write_index_state
-        from stratus.retrieval.models import IndexStatus
+        try:
+            from stratus.retrieval.index_state import get_current_commit, write_index_state
+            from stratus.retrieval.models import IndexStatus
 
-        retriever._vexor.index()  # type: ignore[union-attr]
-        commit = get_current_commit(Path.cwd())
-        write_index_state(data_dir, IndexStatus(stale=False, last_indexed_commit=commit))
-    except Exception:
-        pass
+            retriever._vexor.index()  # type: ignore[union-attr]
+            commit = get_current_commit(Path.cwd())
+            write_index_state(data_dir, IndexStatus(stale=False, last_indexed_commit=commit))
+        except Exception:
+            pass
 
-    try:
-        retriever.index_governance(str(Path.cwd()))  # type: ignore[union-attr]
-    except Exception:
-        pass
+        try:
+            retriever.index_governance(str(Path.cwd()))  # type: ignore[union-attr]
+        except Exception:
+            pass
+    finally:
+        lock.release()
 
 
 async def trigger_index(request: Request) -> JSONResponse:
     """POST /api/retrieval/index"""
     from stratus.session.config import get_data_dir
 
+    # Validate project_root if provided
+    try:
+        body = await request.body()
+        body_data = _json.loads(body) if body else {}
+    except Exception:
+        body_data = {}
+
+    requested_root = body_data.get("project_root")
+    if requested_root:
+        config = getattr(request.app.state.retriever, "_config", None)
+        if config and config.project_root:
+            if str(Path(requested_root).resolve()) != str(Path(config.project_root).resolve()):
+                return JSONResponse(
+                    {"status": "skipped", "reason": "project_root mismatch"},
+                    status_code=200,
+                )
+
     retriever = request.app.state.retriever
     data_dir = get_data_dir()
+    lock = request.app.state.index_lock
 
     tasks = BackgroundTasks()
-    tasks.add_task(_do_index, retriever, data_dir)
+    tasks.add_task(_do_index, retriever, data_dir, lock)
     return JSONResponse({"status": "indexing started"}, status_code=202, background=tasks)
 
 

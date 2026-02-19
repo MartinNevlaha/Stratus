@@ -113,8 +113,8 @@ def _cmd_retrieval_status(_args: argparse.Namespace) -> None:
     status: dict[str, object] = retriever.status()  # type: ignore[reportUnknownMemberType]
 
     print("Retrieval Status:")
-    print(f"  Vexor:  {'available' if status['vexor_available'] else 'unavailable'}")
-    print(f"  DevRag: {'available' if status['devrag_available'] else 'unavailable'}")
+    print(f"  Vexor:      {'available' if status['vexor_available'] else 'unavailable'}")
+    print(f"  Governance: {'available' if status['governance_available'] else 'unavailable'}")
 
 
 def _cmd_worktree(args: argparse.Namespace) -> None:

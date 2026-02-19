@@ -211,8 +211,7 @@ def create_mcp_server() -> Server:
                 result = await client.save_memory(**args)
             elif name == "retrieve":
                 from stratus.hooks._common import get_git_root
-                from stratus.retrieval.config import DevRagConfig, load_retrieval_config
-                from stratus.retrieval.devrag import DevRagClient
+                from stratus.retrieval.config import load_retrieval_config
                 from stratus.retrieval.governance_store import GovernanceStore
                 from stratus.retrieval.unified import UnifiedRetriever
                 from stratus.session.config import get_data_dir
@@ -223,14 +222,11 @@ def create_mcp_server() -> Server:
                 project_root_str = str(git_root.resolve()) if git_root else None
                 gov_db_path = str(get_data_dir() / "governance.db")
                 gov_store = GovernanceStore(gov_db_path)
-                devrag = DevRagClient(
-                    config=DevRagConfig(enabled=True),
-                    store=gov_store,
-                    project_root=project_root_str,
+                retriever = UnifiedRetriever(
+                    config=config, governance=gov_store
                 )
-                retriever = UnifiedRetriever(config=config, devrag=devrag)
                 if project_root_str:
-                    devrag.index(project_root_str)
+                    gov_store.index_project(project_root_str)
                 resp = retriever.retrieve(
                     args["query"],
                     corpus=args.get("corpus"),
@@ -240,8 +236,7 @@ def create_mcp_server() -> Server:
                 gov_store.close()
             elif name == "index_status":
                 from stratus.hooks._common import get_git_root
-                from stratus.retrieval.config import DevRagConfig, load_retrieval_config
-                from stratus.retrieval.devrag import DevRagClient
+                from stratus.retrieval.config import load_retrieval_config
                 from stratus.retrieval.governance_store import GovernanceStore
                 from stratus.retrieval.unified import UnifiedRetriever
                 from stratus.session.config import get_data_dir
@@ -252,14 +247,11 @@ def create_mcp_server() -> Server:
                 project_root_str = str(git_root.resolve()) if git_root else None
                 gov_db_path = str(get_data_dir() / "governance.db")
                 gov_store = GovernanceStore(gov_db_path)
-                devrag = DevRagClient(
-                    config=DevRagConfig(enabled=True),
-                    store=gov_store,
-                    project_root=project_root_str,
+                retriever = UnifiedRetriever(
+                    config=config, governance=gov_store
                 )
-                retriever = UnifiedRetriever(config=config, devrag=devrag)
                 if project_root_str:
-                    devrag.index(project_root_str)
+                    gov_store.index_project(project_root_str)
                 result = retriever.status()
                 gov_store.close()
             elif name == "delivery_dispatch":

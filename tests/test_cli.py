@@ -247,7 +247,7 @@ class TestRetrievalStatusSubcommand:
         mock_retriever = MagicMock()
         mock_retriever.status.return_value = {
             "vexor_available": True,
-            "devrag_available": False,
+            "governance_available": False,
         }
 
         with patch(
@@ -259,7 +259,7 @@ class TestRetrievalStatusSubcommand:
 
         captured = capsys.readouterr()
         assert "vexor" in captured.out.lower()
-        assert "devrag" in captured.out.lower()
+        assert "governance" in captured.out.lower()
         assert "available" in captured.out.lower()
 
 
