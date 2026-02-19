@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from starlette.background import BackgroundTasks
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -27,11 +30,29 @@ async def retrieval_status(request: Request) -> JSONResponse:
     return JSONResponse(retriever.status())
 
 
+def _do_index(retriever: object, data_dir: Path) -> None:
+    """Run vexor index and persist updated index state. Best-effort."""
+    try:
+        from stratus.retrieval.index_state import get_current_commit, write_index_state
+        from stratus.retrieval.models import IndexStatus
+
+        retriever._vexor.index()  # type: ignore[union-attr]
+        commit = get_current_commit(Path.cwd())
+        write_index_state(data_dir, IndexStatus(stale=False, last_indexed_commit=commit))
+    except Exception:
+        pass
+
+
 async def trigger_index(request: Request) -> JSONResponse:
     """POST /api/retrieval/index"""
+    from stratus.session.config import get_data_dir
+
     retriever = request.app.state.retriever
-    result = retriever._vexor.index()
-    return JSONResponse(result)
+    data_dir = get_data_dir()
+
+    tasks = BackgroundTasks()
+    tasks.add_task(_do_index, retriever, data_dir)
+    return JSONResponse({"status": "indexing started"}, status_code=202, background=tasks)
 
 
 async def index_state(request: Request) -> JSONResponse:

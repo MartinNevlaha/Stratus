@@ -109,10 +109,46 @@ class TestMain:
         """When learning is disabled, should not process anything."""
         monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "false")
         with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit") as mock_exit:
+             patch("sys.exit") as mock_exit, \
+             patch("httpx.post"):
             mock_stdin.read.return_value = json.dumps({
                 "tool_name": "Bash",
                 "tool_input": {"command": "git commit -m 'test'"},
             })
             main()
             mock_exit.assert_called_with(0)
+
+    def test_bash_git_commit_fires_reindex_post(self, tmp_path, monkeypatch):
+        """Reindex POST is always fired on git commit regardless of learning config."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        state_file = tmp_path / "learning-state.json"
+        state_file.write_text(json.dumps({"commit_count": 0}))
+
+        with patch("sys.stdin") as mock_stdin, \
+             patch("sys.exit"), \
+             patch("httpx.post") as mock_post:
+            mock_stdin.read.return_value = json.dumps({
+                "tool_name": "Bash",
+                "tool_input": {"command": "git commit -m 'test'"},
+            })
+            main()
+
+        urls = [str(call.args[0]) for call in mock_post.call_args_list]
+        assert any("/api/retrieval/index" in url for url in urls)
+
+    def test_reindex_fires_even_when_learning_disabled(self, tmp_path, monkeypatch):
+        """Reindex fires even when AI_FRAMEWORK_LEARNING_ENABLED=false."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "false")
+
+        with patch("sys.stdin") as mock_stdin, \
+             patch("sys.exit"), \
+             patch("httpx.post") as mock_post:
+            mock_stdin.read.return_value = json.dumps({
+                "tool_name": "Bash",
+                "tool_input": {"command": "git commit -m 'test'"},
+            })
+            main()
+
+        urls = [str(call.args[0]) for call in mock_post.call_args_list]
+        assert any("/api/retrieval/index" in url for url in urls)

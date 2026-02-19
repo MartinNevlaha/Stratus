@@ -47,17 +47,12 @@ def _increment_commit_count(state_file: Path) -> None:
 def main() -> None:
     """Entry point for PostToolUse hook."""
     from stratus.hooks._common import read_hook_input
-    from stratus.learning.config import load_learning_config
 
     hook_input = read_hook_input()
     if not hook_input:
         sys.exit(0)
 
-    # Check if learning is enabled
-    config = load_learning_config(None)
-    if not config.global_enabled:
-        sys.exit(0)
-
+    # Early exit if not a Bash git commit — reindex only fires on commits
     tool_name = hook_input.get("tool_name", "")
     if tool_name != "Bash":
         sys.exit(0)
@@ -65,6 +60,24 @@ def main() -> None:
     tool_input = hook_input.get("tool_input", {})
     command = tool_input.get("command", "")
     if not is_git_commit_command(command):
+        sys.exit(0)
+
+    # Fire reindex unconditionally on every commit (fire-and-forget)
+    try:
+        import httpx
+
+        from stratus.hooks._common import get_api_url
+
+        api_url = get_api_url()
+        httpx.post(f"{api_url}/api/retrieval/index", json={}, timeout=2.0)
+    except Exception:
+        pass  # Never block the tool
+
+    # Check if learning is enabled before proceeding with learning logic
+    from stratus.learning.config import load_learning_config
+
+    config = load_learning_config(None)
+    if not config.global_enabled:
         sys.exit(0)
 
     # Increment commit counter

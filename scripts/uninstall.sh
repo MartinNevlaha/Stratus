@@ -47,109 +47,6 @@ confirm() {
 removed=0
 
 # =========================================================================
-# 1. Remove binary (pipx or venv)
-# =========================================================================
-if command -v pipx >/dev/null 2>&1 && pipx list 2>/dev/null | grep -q "$PACKAGE"; then
-    log "Removing pipx installation..."
-    pipx uninstall "$PACKAGE"
-    removed=1
-fi
-
-if [ -d "$VENV_DIR" ]; then
-    log "Removing venv at $VENV_DIR..."
-    rm -rf "$VENV_DIR"
-    removed=1
-fi
-
-wrapper="$BIN_DIR/stratus"
-if [ -f "$wrapper" ]; then
-    log "Removing wrapper at $wrapper..."
-    rm -f "$wrapper"
-    removed=1
-fi
-
-# =========================================================================
-# 2. Remove data directory (~/.ai-framework/)
-# =========================================================================
-if [ -d "$DATA_DIR" ]; then
-    log "Found data directory: $DATA_DIR"
-    if confirm "Remove data directory (memory DB, learning DB, indexes)?"; then
-        rm -rf "$DATA_DIR"
-        log "Removed $DATA_DIR"
-        removed=1
-    else
-        log "Skipped data directory"
-    fi
-fi
-
-# =========================================================================
-# 3. Clean global hooks from ~/.claude/settings.json
-# =========================================================================
-global_settings="${HOME}/.claude/settings.json"
-if [ -f "$global_settings" ]; then
-    if grep -q "stratus.hooks" "$global_settings" 2>/dev/null; then
-        log "Removing stratus hooks from $global_settings..."
-        python3 -c "
-import json, sys
-p = '$global_settings'
-with open(p) as f: d = json.load(f)
-hooks = d.get('hooks', {})
-changed = False
-for event in list(hooks.keys()):
-    groups = hooks[event]
-    filtered = []
-    for g in groups:
-        cmds = [h for h in g.get('hooks', []) if 'stratus.hooks.' not in h.get('command', '')]
-        if cmds:
-            g['hooks'] = cmds
-            filtered.append(g)
-    if len(filtered) != len(groups):
-        changed = True
-    hooks[event] = filtered
-# Remove empty event keys
-for event in list(hooks.keys()):
-    if not hooks[event]:
-        del hooks[event]
-if not hooks:
-    del d['hooks']
-elif changed:
-    d['hooks'] = hooks
-if changed:
-    with open(p, 'w') as f: json.dump(d, f, indent=2)
-    print('Cleaned hooks from global settings')
-else:
-    print('No stratus hooks in global settings')
-" 2>/dev/null || warn "Could not clean global settings (python3 needed)"
-        removed=1
-    fi
-fi
-
-# =========================================================================
-# 4. Clean global MCP from ~/.claude/.mcp.json
-# =========================================================================
-global_mcp="${HOME}/.claude/.mcp.json"
-if [ -f "$global_mcp" ]; then
-    if grep -q "stratus-memory" "$global_mcp" 2>/dev/null; then
-        log "Removing stratus-memory from $global_mcp..."
-        python3 -c "
-import json
-p = '$global_mcp'
-with open(p) as f: d = json.load(f)
-servers = d.get('mcpServers', {})
-if 'stratus-memory' in servers:
-    del servers['stratus-memory']
-    if servers:
-        d['mcpServers'] = servers
-        with open(p, 'w') as f: json.dump(d, f, indent=2)
-    else:
-        import os; os.remove(p)
-    print('Removed stratus-memory from global MCP config')
-" 2>/dev/null || warn "Could not clean global MCP config (python3 needed)"
-        removed=1
-    fi
-fi
-
-# =========================================================================
 # 5. Clean project-local files (only with --project)
 # =========================================================================
 if [ "$clean_project" -eq 1 ]; then
@@ -277,6 +174,109 @@ print('Cleaned project MCP config')
         fi
 
         log "Project cleanup complete"
+    fi
+fi
+
+# =========================================================================
+# 1. Remove binary (pipx or venv)
+# =========================================================================
+if command -v pipx >/dev/null 2>&1 && pipx list 2>/dev/null | grep -q "$PACKAGE"; then
+    log "Removing pipx installation..."
+    pipx uninstall "$PACKAGE"
+    removed=1
+fi
+
+if [ -d "$VENV_DIR" ]; then
+    log "Removing venv at $VENV_DIR..."
+    rm -rf "$VENV_DIR"
+    removed=1
+fi
+
+wrapper="$BIN_DIR/stratus"
+if [ -f "$wrapper" ]; then
+    log "Removing wrapper at $wrapper..."
+    rm -f "$wrapper"
+    removed=1
+fi
+
+# =========================================================================
+# 2. Remove data directory (~/.ai-framework/)
+# =========================================================================
+if [ -d "$DATA_DIR" ]; then
+    log "Found data directory: $DATA_DIR"
+    if confirm "Remove data directory (memory DB, learning DB, indexes)?"; then
+        rm -rf "$DATA_DIR"
+        log "Removed $DATA_DIR"
+        removed=1
+    else
+        log "Skipped data directory"
+    fi
+fi
+
+# =========================================================================
+# 3. Clean global hooks from ~/.claude/settings.json
+# =========================================================================
+global_settings="${HOME}/.claude/settings.json"
+if [ -f "$global_settings" ]; then
+    if grep -q "stratus.hooks" "$global_settings" 2>/dev/null; then
+        log "Removing stratus hooks from $global_settings..."
+        python3 -c "
+import json, sys
+p = '$global_settings'
+with open(p) as f: d = json.load(f)
+hooks = d.get('hooks', {})
+changed = False
+for event in list(hooks.keys()):
+    groups = hooks[event]
+    filtered = []
+    for g in groups:
+        cmds = [h for h in g.get('hooks', []) if 'stratus.hooks.' not in h.get('command', '')]
+        if cmds:
+            g['hooks'] = cmds
+            filtered.append(g)
+    if len(filtered) != len(groups):
+        changed = True
+    hooks[event] = filtered
+# Remove empty event keys
+for event in list(hooks.keys()):
+    if not hooks[event]:
+        del hooks[event]
+if not hooks:
+    del d['hooks']
+elif changed:
+    d['hooks'] = hooks
+if changed:
+    with open(p, 'w') as f: json.dump(d, f, indent=2)
+    print('Cleaned hooks from global settings')
+else:
+    print('No stratus hooks in global settings')
+" 2>/dev/null || warn "Could not clean global settings (python3 needed)"
+        removed=1
+    fi
+fi
+
+# =========================================================================
+# 4. Clean global MCP from ~/.claude/.mcp.json
+# =========================================================================
+global_mcp="${HOME}/.claude/.mcp.json"
+if [ -f "$global_mcp" ]; then
+    if grep -q "stratus-memory" "$global_mcp" 2>/dev/null; then
+        log "Removing stratus-memory from $global_mcp..."
+        python3 -c "
+import json
+p = '$global_mcp'
+with open(p) as f: d = json.load(f)
+servers = d.get('mcpServers', {})
+if 'stratus-memory' in servers:
+    del servers['stratus-memory']
+    if servers:
+        d['mcpServers'] = servers
+        with open(p, 'w') as f: json.dump(d, f, indent=2)
+    else:
+        import os; os.remove(p)
+    print('Removed stratus-memory from global MCP config')
+" 2>/dev/null || warn "Could not clean global MCP config (python3 needed)"
+        removed=1
     fi
 fi
 

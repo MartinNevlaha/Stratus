@@ -95,15 +95,20 @@ class TestRetrievalStatusRoute:
 
 
 class TestTriggerIndexRoute:
-    def test_trigger_index_returns_200(self, client: TestClient):
+    def test_trigger_index_returns_202(self, client: TestClient):
         resp = client.post("/api/retrieval/index")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
 
     def test_trigger_index_returns_ok_status(self, client: TestClient):
         resp = client.post("/api/retrieval/index")
         data = resp.json()
-        assert data["status"] == "ok"
-        assert data["output"] == "done"
+        assert data["status"] == "indexing started"
+
+    def test_trigger_index_calls_vexor_in_background(self, client: TestClient):
+        # starlette TestClient (sync) executes background tasks before returning
+        mock_retriever = client.app.state.retriever
+        client.post("/api/retrieval/index")
+        assert mock_retriever._vexor.index.called
 
 
 class TestIndexStateRoute:
