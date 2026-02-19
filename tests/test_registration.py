@@ -724,7 +724,7 @@ class TestBuildStatuslineConfig:
         result = build_statusline_config()
         sl = result["statusLine"]
         assert isinstance(sl, dict)
-        assert sl["command"] == "stratus statusline"
+        assert sl["command"] == "uv run python -m stratus statusline"
 
 
 class TestRegisterStatusline:

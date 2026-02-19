@@ -136,7 +136,7 @@ def register_hooks(git_root: Path | None, *, dry_run: bool = False, scope: str =
 
 def build_statusline_config() -> dict[str, object]:
     """Return the statusLine config block for Claude Code settings."""
-    return {"statusLine": {"type": "command", "command": "stratus statusline"}}
+    return {"statusLine": {"type": "command", "command": "uv run python -m stratus statusline"}}
 
 
 def register_statusline(

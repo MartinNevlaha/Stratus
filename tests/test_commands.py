@@ -390,7 +390,7 @@ class TestCmdInit:
         assert settings.exists()
         data = json.loads(settings.read_text())
         assert "statusLine" in data
-        assert data["statusLine"]["command"] == "stratus statusline"
+        assert data["statusLine"]["command"] == "uv run python -m stratus statusline"
 
     def test_init_dry_run_skips_statusline(
         self,
