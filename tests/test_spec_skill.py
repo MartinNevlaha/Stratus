@@ -68,4 +68,6 @@ class TestSpecSkill:
         _ = path  # parametrized but we compare both
         project = SKILL_PATHS[0].read_text()
         plugin = SKILL_PATHS[1].read_text()
-        assert project == plugin
+        # Plugin generalizes agent names: framework-expert → implementation-expert
+        normalized = project.replace("framework-expert", "implementation-expert")
+        assert normalized == plugin
