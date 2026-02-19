@@ -162,27 +162,53 @@ def install_vexor_local_package(cuda: bool) -> bool:
 
 
 def detect_cuda() -> bool:
-    """Return True if an NVIDIA GPU is available (nvidia-smi exits 0)."""
+    """Return True if CUDA/GPU acceleration is available.
+
+    Checks nvidia-smi first (NVIDIA driver). Falls back to probing
+    onnxruntime for CUDAExecutionProvider, which covers users who have
+    onnxruntime-gpu installed without nvidia-smi on PATH.
+    """
+    try:
+        result = subprocess.run(["nvidia-smi"], capture_output=True, timeout=5)
+        if result.returncode == 0:
+            return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Fallback: onnxruntime-gpu CUDAExecutionProvider check
+    _ort_probe = (
+        "import onnxruntime; "
+        "print('CUDA' if 'CUDAExecutionProvider' in onnxruntime.get_available_providers() else '')"
+    )
     try:
         result = subprocess.run(
-            ["nvidia-smi"],
+            [sys.executable, "-c", _ort_probe],
             capture_output=True,
-            timeout=5,
+            text=True,
+            timeout=10,
         )
-        return result.returncode == 0
+        if result.returncode == 0 and "CUDA" in result.stdout:
+            return True
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+        pass
+
+    return False
 
 
 def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) -> tuple[bool, bool]:
-    """Run `vexor local --setup` with GPU if available, else CPU.
+    """Download local embedding model and configure CPU/CUDA execution mode.
 
-    Returns (success, used_cuda). If --cuda fails, retries with --cpu automatically.
+    For CUDA, tries in order per docs:
+    1. `vexor local --setup --cuda` — first-time setup with CUDA
+    2. `vexor local --cuda`        — mode switch (model already downloaded)
+    3. Falls back to `vexor local --setup --cpu`
+
+    Returns (success, used_cuda).
     """
     if cuda is None:
         cuda = detect_cuda()
 
-    def _run(flag: str) -> bool:
+    def _run_setup(flag: str) -> bool:
         try:
             result = subprocess.run(
                 [vexor_binary, "local", "--setup", flag],
@@ -192,13 +218,25 @@ def setup_vexor_local(vexor_binary: str = "vexor", *, cuda: bool | None = None) 
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
-    if cuda:
-        if _run("--cuda"):
-            return True, True
-        # CUDA runtime not available (e.g. onnxruntime-gpu not installed) — fall back to CPU
-        cuda = False
+    def _run_mode(flag: str) -> bool:
+        """Switch execution mode only — model already downloaded."""
+        try:
+            result = subprocess.run(
+                [vexor_binary, "local", flag],
+                timeout=30,
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
 
-    return _run("--cpu"), False
+    if cuda:
+        if _run_setup("--cuda"):
+            return True, True
+        # Model may already be downloaded — try mode switch only
+        if _run_mode("--cuda"):
+            return True, True
+
+    return _run_setup("--cpu"), False
 
 
 def run_initial_index_background(

@@ -408,10 +408,11 @@ class TestSetupVexorLocal:
             assert ok is False
 
     def test_cuda_fallback_to_cpu(self) -> None:
-        """When --cuda fails, setup retries with --cpu and returns (True, False)."""
+        """When --setup --cuda AND --cuda (mode switch) both fail, falls back to --setup --cpu."""
         fail_mock = MagicMock(returncode=1)
         ok_mock = MagicMock(returncode=0)
-        with patch(self.MOCK_TARGET, side_effect=[fail_mock, ok_mock]) as mock_run:
+        # Three attempts: --setup --cuda, --cuda (mode switch), --setup --cpu
+        with patch(self.MOCK_TARGET, side_effect=[fail_mock, fail_mock, ok_mock]) as mock_run:
             with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
                 from stratus.bootstrap.retrieval_setup import setup_vexor_local
                 ok, used_cuda = setup_vexor_local()
@@ -420,6 +421,22 @@ class TestSetupVexorLocal:
         calls = [c[0][0] for c in mock_run.call_args_list]
         assert any("--cuda" in c for c in calls)
         assert any("--cpu" in c for c in calls)
+
+    def test_cuda_setup_fails_mode_switch_succeeds(self) -> None:
+        """When --setup --cuda fails but --cuda alone (mode switch) succeeds, return (True, True)."""
+        fail_mock = MagicMock(returncode=1)
+        ok_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, side_effect=[fail_mock, ok_mock]) as mock_run:
+            with patch("stratus.bootstrap.retrieval_setup.detect_cuda", return_value=True):
+                from stratus.bootstrap.retrieval_setup import setup_vexor_local
+                ok, used_cuda = setup_vexor_local()
+        assert ok is True
+        assert used_cuda is True
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        # First call: combined --setup --cuda
+        assert "--setup" in calls[0] and "--cuda" in calls[0]
+        # Second call: mode switch only — no --setup
+        assert "--setup" not in calls[1] and "--cuda" in calls[1]
 
     def test_passes_correct_command(self) -> None:
         result_mock = MagicMock(returncode=0)
@@ -464,6 +481,29 @@ class TestDetectCuda:
         with patch(self.MOCK_TARGET, return_value=MagicMock(returncode=0)):
             from stratus.bootstrap.retrieval_setup import detect_cuda
             assert detect_cuda() is True
+
+    def test_returns_true_when_onnxruntime_has_cuda_provider(self) -> None:
+        """nvidia-smi fails but onnxruntime-gpu is installed with CUDAExecutionProvider."""
+        nvidia_fail = MagicMock(returncode=1)
+        ort_cuda = MagicMock(returncode=0, stdout="CUDA\n")
+        with patch(self.MOCK_TARGET, side_effect=[nvidia_fail, ort_cuda]):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is True
+
+    def test_returns_true_when_nvidia_smi_missing_but_ort_has_cuda(self) -> None:
+        """nvidia-smi not on PATH but onnxruntime-gpu provides CUDA support."""
+        ort_cuda = MagicMock(returncode=0, stdout="CUDA\n")
+        with patch(self.MOCK_TARGET, side_effect=[FileNotFoundError(), ort_cuda]):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is True
+
+    def test_returns_false_when_onnxruntime_cpu_only(self) -> None:
+        """nvidia-smi fails and onnxruntime has no CUDAExecutionProvider."""
+        nvidia_fail = MagicMock(returncode=1)
+        ort_cpu = MagicMock(returncode=0, stdout="\n")
+        with patch(self.MOCK_TARGET, side_effect=[nvidia_fail, ort_cpu]):
+            from stratus.bootstrap.retrieval_setup import detect_cuda
+            assert detect_cuda() is False
 
     def test_returns_false_when_nvidia_smi_fails(self) -> None:
         with patch(self.MOCK_TARGET, return_value=MagicMock(returncode=1)):

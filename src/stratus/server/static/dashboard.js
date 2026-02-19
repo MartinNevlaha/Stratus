@@ -316,6 +316,306 @@
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
   startPolling();
+  initTabs();
   startTime = performance.now();
   animFrame = requestAnimationFrame(drawSwarm);
+
+  // --- Tabs ---
+
+  var tabLoaded = {};
+
+  function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { switchTab(btn.dataset.tab); });
+    });
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.tab === name);
+    });
+    document.querySelectorAll('.tab-content').forEach(function(s) {
+      s.classList.toggle('active', s.id === 'tab-' + name);
+    });
+    loadTabData(name);
+  }
+
+  function loadTabData(name) {
+    if (tabLoaded[name]) return;
+    tabLoaded[name] = true;
+    if (name === 'retrieve') loadRetrievalStatus();
+    if (name === 'memory') loadRecentMemory();
+    if (name === 'agents') loadRegistry();
+    if (name === 'learning') loadLearning();
+  }
+
+  // --- Retrieve tab ---
+
+  function loadRetrievalStatus() {
+    fetch('/api/retrieval/status')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        var el = document.getElementById('vexor-status');
+        if (!el || !data) return;
+        var vexor = data.vexor || {};
+        var gov = data.governance || {};
+        el.textContent = 'Vexor: ' + (vexor.available ? 'available' : 'unavailable') +
+          '  |  Governance: ' + (gov.docs_indexed !== undefined ? gov.docs_indexed + ' docs indexed' : 'unavailable');
+      })
+      .catch(function() {});
+
+    document.getElementById('vexor-btn').addEventListener('click', doVexorSearch);
+    document.getElementById('vexor-query').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doVexorSearch();
+    });
+    document.getElementById('gov-btn').addEventListener('click', doGovSearch);
+    document.getElementById('gov-query').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doGovSearch();
+    });
+  }
+
+  function doVexorSearch() {
+    var q = document.getElementById('vexor-query').value.trim();
+    if (!q) return;
+    var el = document.getElementById('vexor-results');
+    el.innerHTML = '<span class="muted">Searching...</span>';
+    fetch('/api/retrieval/search?query=' + encodeURIComponent(q) + '&corpus=code&top_k=10')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) { renderResults(data, 'vexor-results'); })
+      .catch(function() { document.getElementById('vexor-results').innerHTML = '<span class="muted">Search failed.</span>'; });
+  }
+
+  function doGovSearch() {
+    var q = document.getElementById('gov-query').value.trim();
+    if (!q) return;
+    var el = document.getElementById('gov-results');
+    el.innerHTML = '<span class="muted">Searching...</span>';
+    fetch('/api/retrieval/search?query=' + encodeURIComponent(q) + '&corpus=governance&top_k=10')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) { renderResults(data, 'gov-results'); })
+      .catch(function() { document.getElementById('gov-results').innerHTML = '<span class="muted">Search failed.</span>'; });
+  }
+
+  function renderResults(data, targetId) {
+    var el = document.getElementById(targetId);
+    if (!el) return;
+    var results = data && data.results ? data.results : [];
+    if (results.length === 0) {
+      el.innerHTML = '<span class="muted">No results.</span>';
+      return;
+    }
+    el.innerHTML = results.map(function(r) {
+      var score = r.score !== undefined ? (r.score * 100).toFixed(0) + '%' : '';
+      var title = escHtml(r.title || r.file_path || 'Result');
+      var path = r.file_path ? '<div class="result-path">' + escHtml(r.file_path) + '</div>' : '';
+      var snippet = escHtml((r.content || r.snippet || '').substring(0, 200));
+      var docType = r.doc_type ? '<span class="tag ' + r.doc_type + '">' + r.doc_type + '</span>' : '';
+      return '<div class="result-card">' +
+        '<div class="result-header"><span class="result-title">' + title + '</span><span class="result-score">' + score + '</span></div>' +
+        path +
+        (docType ? '<div style="margin-bottom:0.3rem">' + docType + '</div>' : '') +
+        '<div class="result-snippet">' + snippet + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // --- Memory tab ---
+
+  function loadRecentMemory() {
+    fetchMemory('');
+    document.getElementById('memory-btn').addEventListener('click', function() {
+      var q = document.getElementById('memory-query').value.trim();
+      fetchMemory(q);
+    });
+    document.getElementById('memory-query').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        var q = document.getElementById('memory-query').value.trim();
+        fetchMemory(q);
+      }
+    });
+  }
+
+  function fetchMemory(query) {
+    var url = '/api/search?limit=20&query=' + encodeURIComponent(query);
+    fetch(url)
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        var results = data && data.results ? data.results : [];
+        renderMemoryEvents(results);
+      })
+      .catch(function() {});
+  }
+
+  function renderMemoryEvents(events) {
+    var el = document.getElementById('memory-results');
+    if (!el) return;
+    if (!events.length) {
+      el.innerHTML = '<span class="muted">No events found.</span>';
+      return;
+    }
+    el.innerHTML = events.map(function(ev) {
+      var title = escHtml(ev.title || ev.text.substring(0, 60));
+      var text = escHtml(ev.text ? ev.text.substring(0, 120) : '');
+      var ts = ev.ts ? new Date(ev.ts).toLocaleString() : '';
+      var type = ev.type || 'event';
+      var imp = ev.importance !== undefined ? ev.importance : 0.5;
+      return '<div class="event-card">' +
+        '<div class="event-header">' +
+        '<span class="event-title">' + title + ' <span class="tag">' + escHtml(type) + '</span></span>' +
+        '<span class="event-time">' + ts + '</span>' +
+        '</div>' +
+        '<div class="event-text">' + text + '</div>' +
+        '<div class="importance-bar"><div class="importance-fill" style="width:' + Math.round(imp * 100) + '%"></div></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // --- Agents tab ---
+
+  function loadRegistry() {
+    fetch('/api/dashboard/registry')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data) return;
+        renderAgentsTable(data.agents || []);
+        renderChipsList(data.skills || [], 'skills-list');
+        renderChipsList(data.rules || [], 'rules-list');
+      })
+      .catch(function() {});
+  }
+
+  function renderAgentsTable(agents) {
+    var el = document.getElementById('agents-table-container');
+    if (!el) return;
+    if (!agents.length) {
+      el.innerHTML = '<span class="muted">No agents found.</span>';
+      return;
+    }
+    var rows = agents.map(function(a) {
+      var phases = Array.isArray(a.phases) ? a.phases.join(', ') : (a.phases || '');
+      var model = a.model ? '<span class="tag">' + escHtml(a.model) + '</span>' : '';
+      var layer = a.layer ? '<span class="tag agent">' + escHtml(a.layer) + '</span>' : '';
+      var write = a.can_write ? '<span class="tag yes">write</span>' : '<span class="tag no">read-only</span>';
+      return '<tr><td><strong>' + escHtml(a.name) + '</strong></td><td>' + model + '</td><td>' + layer + '</td><td>' + escHtml(phases) + '</td><td>' + write + '</td></tr>';
+    }).join('');
+    el.innerHTML = '<table><thead><tr><th>Name</th><th>Model</th><th>Layer</th><th>Phases</th><th>Write</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function renderChipsList(items, elId) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    if (!items.length) {
+      el.innerHTML = '<span class="muted">None found.</span>';
+      return;
+    }
+    el.innerHTML = items.map(function(item) {
+      return '<span class="chip" title="' + escHtml(item.path || '') + '">' + escHtml(item.name) + '</span>';
+    }).join('');
+  }
+
+  // --- Learning tab ---
+
+  function loadLearning() {
+    Promise.all([
+      fetch('/api/learning/proposals?max_count=20').then(function(r) { return r.ok ? r.json() : null; }),
+      fetch('/api/learning/analytics/failures/summary?days=30').then(function(r) { return r.ok ? r.json() : null; }),
+      fetch('/api/learning/analytics/failures/hotspots?limit=10').then(function(r) { return r.ok ? r.json() : null; }),
+      fetch('/api/learning/analytics/rules/effectiveness').then(function(r) { return r.ok ? r.json() : null; }),
+    ]).then(function(results) {
+      renderProposals(results[0] ? results[0].proposals || [] : []);
+      renderFailuresSummary(results[1]);
+      renderHotspots(results[2]);
+      renderEffectiveness(results[3]);
+    }).catch(function() {});
+  }
+
+  function renderProposals(proposals) {
+    var el = document.getElementById('proposals-list');
+    if (!el) return;
+    var pending = proposals.filter(function(p) { return p.status === 'pending'; });
+    if (!pending.length) {
+      el.innerHTML = '<span class="muted">No pending proposals.</span>';
+      return;
+    }
+    el.innerHTML = pending.map(function(p) {
+      var conf = (p.confidence || 0);
+      var confPct = Math.round(conf * 100);
+      var type = p.proposal_type || p.type || '';
+      var desc = escHtml((p.description || p.rationale || '').substring(0, 160));
+      return '<div class="proposal-card">' +
+        '<div class="proposal-title">' + escHtml(p.title || 'Proposal') + ' <span class="tag">' + escHtml(type) + '</span></div>' +
+        '<div class="confidence-bar"><div class="confidence-fill" style="width:' + confPct + '%"></div></div>' +
+        '<div style="font-size:0.78rem;color:#888;margin-bottom:0.3rem">Confidence: ' + confPct + '%</div>' +
+        '<div class="proposal-desc">' + desc + '</div>' +
+        '<div class="proposal-actions">' +
+        '<button class="btn btn-accept" data-id="' + p.proposal_id + '" data-decision="accept">Accept</button>' +
+        '<button class="btn btn-reject" data-id="' + p.proposal_id + '" data-decision="reject">Reject</button>' +
+        '<button class="btn btn-ignore" data-id="' + p.proposal_id + '" data-decision="ignore">Ignore</button>' +
+        '</div>' +
+        '</div>';
+    }).join('');
+    el.querySelectorAll('.btn[data-id]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.id;
+        var decision = btn.dataset.decision;
+        fetch('/api/learning/decide', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({proposal_id: id, decision: decision}),
+        }).then(function() {
+          tabLoaded.learning = false;
+          loadLearning();
+        }).catch(function() {});
+      });
+    });
+  }
+
+  function renderFailuresSummary(data) {
+    var el = document.getElementById('failures-summary');
+    if (!el) return;
+    if (!data) { el.innerHTML = '<span class="muted">No data.</span>'; return; }
+    var cats = data.by_category || {};
+    var trend = data.trend || 'stable';
+    var trendColor = trend === 'increasing' ? '#ef5350' : trend === 'decreasing' ? '#66bb6a' : '#ffa726';
+    var rows = Object.keys(cats).map(function(cat) {
+      return '<div class="stat-row"><span>' + escHtml(cat) + '</span><span class="stat-value">' + cats[cat] + '</span></div>';
+    }).join('');
+    el.innerHTML = '<div class="stat-row"><span>Total</span><span class="stat-value">' + (data.total_failures || 0) + '</span></div>' +
+      '<div class="stat-row"><span>Trend</span><span class="stat-value" style="color:' + trendColor + '">' + trend + '</span></div>' +
+      rows;
+  }
+
+  function renderHotspots(data) {
+    var el = document.getElementById('hotspots-list');
+    if (!el) return;
+    var spots = data && data.hotspots ? data.hotspots : [];
+    if (!spots.length) { el.innerHTML = '<span class="muted">No hotspots.</span>'; return; }
+    el.innerHTML = spots.map(function(h) {
+      var parts = h.file_path.split('/');
+      var shortPath = parts.slice(-2).join('/');
+      return '<div class="hotspot-item"><span title="' + escHtml(h.file_path) + '">' + escHtml(shortPath) + '</span><span class="hotspot-count">' + h.failure_count + '</span></div>';
+    }).join('');
+  }
+
+  function renderEffectiveness(data) {
+    var el = document.getElementById('effectiveness-table-container');
+    if (!el) return;
+    var rules = data && data.rules ? data.rules : [];
+    if (!rules.length) { el.innerHTML = '<span class="muted">No data.</span>'; return; }
+    var rows = rules.map(function(r) {
+      var score = Math.round((r.effectiveness_score || 0) * 100);
+      var verdict = r.verdict || 'neutral';
+      return '<tr><td>' + escHtml(r.rule_title || r.proposal_id) + '</td>' +
+        '<td>' + score + '%</td>' +
+        '<td class="verdict-' + verdict + '">' + verdict + '</td></tr>';
+    }).join('');
+    el.innerHTML = '<table><thead><tr><th>Rule</th><th>Score</th><th>Verdict</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // --- Utility ---
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
 })();

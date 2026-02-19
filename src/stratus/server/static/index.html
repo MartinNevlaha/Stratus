@@ -3,48 +3,116 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stratus — Swarm Monitor</title>
+  <title>Stratus Monitor</title>
   <link rel="stylesheet" href="/dashboard/static/dashboard.css">
 </head>
 <body>
   <header>
-    <h1>Stratus Swarm Monitor</h1>
+    <span class="brand">stratus</span>
     <span id="version" class="badge">v0.0.0</span>
     <span id="status-indicator" class="badge inactive">inactive</span>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="retrieve">Retrieve</button>
+      <button class="tab-btn" data-tab="memory">Memory</button>
+      <button class="tab-btn" data-tab="agents">Agents</button>
+      <button class="tab-btn" data-tab="learning">Learning</button>
+    </nav>
   </header>
 
   <main>
-    <div class="canvas-container">
-      <canvas id="swarm" width="600" height="600"></canvas>
-    </div>
-
-    <aside class="panels">
-      <section class="panel" id="panel-phase">
-        <h2>Phase Progress</h2>
-        <div id="phase-content">
-          <span class="muted">No active workflow</span>
+    <!-- Tab: Overview -->
+    <section class="tab-content active" id="tab-overview">
+      <div class="canvas-container">
+        <canvas id="swarm"></canvas>
+      </div>
+      <aside class="panels">
+        <div class="panel">
+          <div class="panel-title">Phase Progress</div>
+          <div class="panel-body" id="phase-content"><span class="muted">Loading...</span></div>
         </div>
-      </section>
-
-      <section class="panel" id="panel-agents">
-        <h2>Active Agents</h2>
-        <ul id="agent-list"></ul>
-      </section>
-
-      <section class="panel" id="panel-learning">
-        <h2>Learning</h2>
-        <div id="learning-content">
-          <span class="muted">Disabled</span>
+        <div class="panel">
+          <div class="panel-title">Active Agents</div>
+          <div class="panel-body">
+            <ul id="agent-list"><li><span class="muted">Loading...</span></li></ul>
+          </div>
         </div>
-      </section>
-
-      <section class="panel" id="panel-memory">
-        <h2>Memory</h2>
-        <div id="memory-content">
-          <span class="muted">—</span>
+        <div class="panel">
+          <div class="panel-title">Learning</div>
+          <div class="panel-body" id="learning-content"><span class="muted">Loading...</span></div>
         </div>
-      </section>
-    </aside>
+        <div class="panel">
+          <div class="panel-title">Memory</div>
+          <div class="panel-body" id="memory-content"><span class="muted">Loading...</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Tab: Retrieve -->
+    <section class="tab-content" id="tab-retrieve">
+      <div class="retrieve-grid">
+        <div class="retrieve-col">
+          <h3>Vexor — Code Search</h3>
+          <div id="vexor-status" class="muted" style="margin-bottom:0.5rem;font-size:0.85em;"></div>
+          <div class="search-row">
+            <input id="vexor-query" type="text" placeholder="Search codebase...">
+            <button id="vexor-btn" class="btn-search">Search</button>
+          </div>
+          <div id="vexor-results"></div>
+        </div>
+        <div class="retrieve-col">
+          <h3>Governance DB</h3>
+          <div class="search-row">
+            <input id="gov-query" type="text" placeholder="Search rules, ADRs, skills...">
+            <button id="gov-btn" class="btn-search">Search</button>
+          </div>
+          <div id="gov-results"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab: Memory -->
+    <section class="tab-content" id="tab-memory">
+      <div class="tab-inner">
+        <div class="search-row">
+          <input id="memory-query" type="text" placeholder="Search memory events...">
+          <button id="memory-btn" class="btn-search">Search</button>
+        </div>
+        <div id="memory-results"></div>
+        <h3 style="margin-top:1.5rem;">Sessions</h3>
+        <div id="sessions-list"></div>
+      </div>
+    </section>
+
+    <!-- Tab: Agents -->
+    <section class="tab-content" id="tab-agents">
+      <div class="tab-inner">
+        <h3>Agent Registry</h3>
+        <div id="agents-table-container"><span class="muted">Loading...</span></div>
+        <h3 style="margin-top:1.5rem;">Skills</h3>
+        <div id="skills-list" class="chips-list"></div>
+        <h3 style="margin-top:1.5rem;">Rules</h3>
+        <div id="rules-list" class="chips-list"></div>
+      </div>
+    </section>
+
+    <!-- Tab: Learning -->
+    <section class="tab-content" id="tab-learning">
+      <div class="learning-grid">
+        <div class="learning-col">
+          <h3>Pending Proposals</h3>
+          <div id="proposals-list"><span class="muted">Loading...</span></div>
+        </div>
+        <div class="learning-col">
+          <h3>Failure Analytics</h3>
+          <div id="failures-summary"><span class="muted">Loading...</span></div>
+          <h3 style="margin-top:1.5rem;">Hotspot Files</h3>
+          <div id="hotspots-list"></div>
+          <h3 style="margin-top:1.5rem;">Rule Effectiveness</h3>
+          <div id="effectiveness-table-container"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script src="/dashboard/static/dashboard.js"></script>

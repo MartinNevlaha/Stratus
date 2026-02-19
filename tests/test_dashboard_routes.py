@@ -98,6 +98,34 @@ class TestDashboardState:
         assert "mode" in team
 
 
+class TestDashboardRegistry:
+    def test_registry_returns_agents(self, client: TestClient):
+        resp = client.get("/api/dashboard/registry")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+        assert isinstance(data["agents"], list)
+        assert len(data["agents"]) > 0
+        assert "name" in data["agents"][0]
+
+    def test_registry_returns_skills_and_rules(self, client: TestClient):
+        resp = client.get("/api/dashboard/registry")
+        data = resp.json()
+        assert "skills" in data
+        assert "rules" in data
+        assert isinstance(data["skills"], list)
+        assert isinstance(data["rules"], list)
+
+    def test_registry_agents_have_expected_fields(self, client: TestClient):
+        resp = client.get("/api/dashboard/registry")
+        agent = resp.json()["agents"][0]
+        assert "name" in agent
+        assert "model" in agent
+        assert "layer" in agent
+        assert "phases" in agent
+        assert "can_write" in agent
+
+
 class TestDashboardPage:
     def test_dashboard_page_returns_html(self, client: TestClient):
         resp = client.get("/dashboard")

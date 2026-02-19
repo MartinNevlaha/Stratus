@@ -438,6 +438,7 @@ class TestCmdInit:
                 "stratus.bootstrap.retrieval_setup.prompt_retrieval_setup",
                 return_value=(False, False, False),
             ),
+            patch("stratus.bootstrap.commands._prompt_install_vexor_desktop"),
         ):
             cmd_init(ns)
         mock_interactive.assert_called_once()
@@ -634,6 +635,7 @@ class TestCmdInitRetrieval:
                 "stratus.bootstrap.commands._interactive_init",
                 return_value=("local", False),
             ),
+            patch("stratus.bootstrap.commands._prompt_install_vexor_desktop"),
         ):
             cmd_init(ns)
         mock_setup.assert_called_once_with(cuda=False)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from starlette.routing import Route
 from stratus import __version__ as VERSION
 
 STATIC_DIR = Path(__file__).parent / "static"
+
 
 # Agent definitions per spec phase
 def _agent(id: str, category: str, model: str) -> dict[str, str]:
@@ -114,10 +116,7 @@ def _get_agents(orchestration: dict) -> list[dict]:
     if orchestration["mode"] == "spec" and orchestration["spec"]:
         phase = orchestration["spec"]["phase"]
         agents = SPEC_PHASE_AGENTS.get(phase, [])
-        return [
-            {**a, "active": True, "role": "worker"}
-            for a in agents
-        ]
+        return [{**a, "active": True, "role": "worker"} for a in agents]
 
     if orchestration["mode"] == "delivery" and orchestration["delivery"]:
         delivery = orchestration["delivery"]
@@ -186,17 +185,63 @@ def _build_memory(request: Request) -> dict:
         return {"total_events": 0, "total_sessions": 0}
 
 
+def _build_registry() -> dict:
+    """Build agents, skills, and rules for the registry endpoint."""
+    root = Path(os.getcwd())
+    claude_dir = root / ".claude"
+
+    agents: list[dict] = []
+    try:
+        from stratus.registry.loader import AgentRegistry
+
+        agents = [a.model_dump() for a in AgentRegistry.load().all_agents()]
+    except Exception:
+        pass
+
+    rules: list[dict] = []
+    try:
+        rules_dir = claude_dir / "rules"
+        if rules_dir.is_dir():
+            rules = [
+                {"name": f.stem, "path": str(f.relative_to(root))}
+                for f in sorted(rules_dir.glob("*.md"))
+            ]
+    except Exception:
+        pass
+
+    skills: list[dict] = []
+    try:
+        skills_dir = claude_dir / "skills"
+        if skills_dir.is_dir():
+            skills = [
+                {"name": d.name, "path": str(d.relative_to(root))}
+                for d in sorted(skills_dir.iterdir())
+                if d.is_dir()
+            ]
+    except Exception:
+        pass
+
+    return {"agents": agents, "rules": rules, "skills": skills}
+
+
+async def dashboard_registry(request: Request) -> JSONResponse:
+    """GET /api/dashboard/registry — agents list + local skills + rules."""
+    return JSONResponse(_build_registry())
+
+
 async def dashboard_state(request: Request) -> JSONResponse:
     """GET /api/dashboard/state — aggregated dashboard data."""
     orchestration = _build_orchestration(request)
-    return JSONResponse({
-        "timestamp": datetime.now(UTC).isoformat(),
-        "version": VERSION,
-        "orchestration": orchestration,
-        "agents": _get_agents(orchestration),
-        "learning": _build_learning(request),
-        "memory": _build_memory(request),
-    })
+    return JSONResponse(
+        {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "version": VERSION,
+            "orchestration": orchestration,
+            "agents": _get_agents(orchestration),
+            "learning": _build_learning(request),
+            "memory": _build_memory(request),
+        }
+    )
 
 
 async def dashboard_page(request: Request) -> FileResponse:
@@ -205,6 +250,7 @@ async def dashboard_page(request: Request) -> FileResponse:
 
 
 routes = [
+    Route("/api/dashboard/registry", dashboard_registry),
     Route("/api/dashboard/state", dashboard_state),
     Route("/dashboard", dashboard_page),
 ]
