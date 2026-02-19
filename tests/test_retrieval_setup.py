@@ -481,6 +481,58 @@ class TestDetectCuda:
             assert detect_cuda() is False
 
 
+class TestInstallVexorLocalPackage:
+    MOCK_TARGET = "stratus.bootstrap.retrieval_setup.subprocess.run"
+
+    def test_installs_cuda_package_when_gpu(self) -> None:
+        """Installs vexor[local-cuda] when cuda=True."""
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+            ok = install_vexor_local_package(cuda=True)
+        assert ok is True
+        cmd = mock_run.call_args[0][0]
+        assert "vexor[local-cuda]" in cmd
+
+    def test_installs_cpu_package_when_no_gpu(self) -> None:
+        """Installs vexor[local] when cuda=False."""
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+            ok = install_vexor_local_package(cuda=False)
+        assert ok is True
+        cmd = mock_run.call_args[0][0]
+        assert "vexor[local]" in cmd
+        assert "cuda" not in " ".join(cmd)
+
+    def test_returns_false_on_nonzero_exit(self) -> None:
+        result_mock = MagicMock(returncode=1)
+        with patch(self.MOCK_TARGET, return_value=result_mock):
+            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+            assert install_vexor_local_package(cuda=False) is False
+
+    def test_returns_false_on_timeout(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=subprocess.TimeoutExpired(["pip"], 300)):
+            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+            assert install_vexor_local_package(cuda=False) is False
+
+    def test_returns_false_when_pip_not_found(self) -> None:
+        with patch(self.MOCK_TARGET, side_effect=FileNotFoundError):
+            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+            assert install_vexor_local_package(cuda=True) is False
+
+    def test_uses_current_python_executable(self) -> None:
+        """Uses sys.executable so it installs into the same venv as stratus."""
+        import sys
+
+        result_mock = MagicMock(returncode=0)
+        with patch(self.MOCK_TARGET, return_value=result_mock) as mock_run:
+            from stratus.bootstrap.retrieval_setup import install_vexor_local_package
+            install_vexor_local_package(cuda=False)
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == sys.executable
+
+
 class TestRunInitialIndexBackground:
     MOCK_POPEN = "stratus.bootstrap.retrieval_setup.subprocess.Popen"
 

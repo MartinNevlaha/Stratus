@@ -161,11 +161,15 @@ def cmd_init(args: argparse.Namespace) -> None:
     if run_indexing and not dry_run:
         from stratus.bootstrap.retrieval_setup import (
             detect_cuda,
+            install_vexor_local_package,
             run_initial_index_background,
             setup_vexor_local,
         )
         cuda = detect_cuda()
         device = "GPU (CUDA)" if cuda else "CPU"
+        print(f"Installing vexor local extras for {device}...")
+        if not install_vexor_local_package(cuda=cuda):
+            print("Warning: could not install vexor local package — proceeding anyway")
         print(f"Downloading local embedding model on {device}...")
         ok, used_cuda = setup_vexor_local(cuda=cuda)
         if ok:

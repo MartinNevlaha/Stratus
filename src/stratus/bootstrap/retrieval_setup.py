@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -137,6 +138,23 @@ def configure_vexor_api_key(api_key: str, vexor_binary: str = "vexor") -> bool:
             capture_output=True,
             text=True,
             timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def install_vexor_local_package(cuda: bool) -> bool:
+    """Install vexor[local-cuda] or vexor[local] into the current Python environment.
+
+    Uses sys.executable so the package lands in whichever venv stratus runs from
+    (pipx isolated venv or user venv). Returns True on success.
+    """
+    package = "vexor[local-cuda]" if cuda else "vexor[local]"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", package],
+            timeout=300,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
