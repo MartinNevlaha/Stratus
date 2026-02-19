@@ -170,17 +170,29 @@ def verify_cuda_runtime() -> bool:
 def install_vexor_local_package(cuda: bool) -> bool:
     """Install vexor[local-cuda] or vexor[local] into the current Python environment.
 
-    Uses sys.executable so the package lands in whichever venv stratus runs from
-    (pipx isolated venv or user venv). Returns True on success.
+    Uses uv pip install with explicit --python so the package lands in whichever
+    venv stratus runs from (pipx isolated venv or user venv). Returns True on success.
     """
     package = "vexor[local-cuda]" if cuda else "vexor[local]"
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", package],
+            ["uv", "pip", "install", "--python", sys.executable, package],
+            capture_output=True,
             timeout=300,
         )
         return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except FileNotFoundError:
+        # uv not available — fall back to pip
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", package],
+                capture_output=True,
+                timeout=300,
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+    except subprocess.TimeoutExpired:
         return False
 
 

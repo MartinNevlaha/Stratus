@@ -604,7 +604,7 @@ class TestInstallVexorLocalPackage:
             assert install_vexor_local_package(cuda=True) is False
 
     def test_uses_current_python_executable(self) -> None:
-        """Uses sys.executable so it installs into the same venv as stratus."""
+        """Uses uv pip install --python sys.executable to install into the same venv as stratus."""
         import sys
 
         result_mock = MagicMock(returncode=0)
@@ -612,7 +612,8 @@ class TestInstallVexorLocalPackage:
             from stratus.bootstrap.retrieval_setup import install_vexor_local_package
             install_vexor_local_package(cuda=False)
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == sys.executable
+        assert cmd[0] == "uv"
+        assert sys.executable in cmd
 
 
 class TestRunInitialIndexBackground:

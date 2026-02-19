@@ -172,7 +172,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         )
         cuda = detect_cuda()
         device = "GPU (CUDA)" if cuda else "CPU"
-        print(f"Installing vexor local extras for {device}...")
+        print(f"Installing vexor local extras for {device}...", flush=True)
         if not install_vexor_local_package(cuda=cuda):
             print("Warning: could not install vexor local package — proceeding anyway")
         if cuda and not verify_cuda_runtime():
@@ -183,7 +183,7 @@ def cmd_init(args: argparse.Namespace) -> None:
                 "  → Falling back to CPU mode."
             )
             cuda = False
-        print(f"Downloading local embedding model on {'GPU (CUDA)' if cuda else 'CPU'}...")
+        print(f"Downloading local embedding model on {'GPU (CUDA)' if cuda else 'CPU'}...", flush=True)
         ok, used_cuda = setup_vexor_local(cuda=cuda)
         if ok:
             if cuda and not used_cuda:

@@ -282,3 +282,77 @@ class TestInstallVexorDesktop:
 
         kwargs = mock_popen.call_args[1]
         assert kwargs.get("start_new_session") is True
+
+    @pytest.mark.unit
+    def test_desktop_entry_not_created_on_windows(self, tmp_path: Path) -> None:
+        """_create_linux_desktop_entry is NOT called when platform is win32."""
+        zip_bytes = _make_zip({"app/vexor-desktop.exe": b"MZ"})
+
+        with patch(FETCH_TARGET, return_value=("https://example.com/app.zip", "vexor-desktop-0.19.0-windows.zip")):
+            with patch(HTTPX_STREAM, return_value=_mock_httpx_stream(zip_bytes)):
+                with patch(POPEN_TARGET):
+                    with patch(PLATFORM_TARGET, "win32"):
+                        with patch("stratus.bootstrap.desktop_setup._create_linux_desktop_entry") as mock_create:
+                            from stratus.bootstrap.desktop_setup import install_vexor_desktop
+
+                            install_vexor_desktop(install_dir=tmp_path)
+
+        mock_create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _create_linux_desktop_entry
+# ---------------------------------------------------------------------------
+
+CREATE_DESKTOP_TARGET = "stratus.bootstrap.desktop_setup._create_linux_desktop_entry"
+
+
+@pytest.mark.unit
+class TestCreateLinuxDesktopEntry:
+    def test_creates_desktop_file_at_applications_dir(self, tmp_path: Path) -> None:
+        """Desktop file is created inside the applications directory."""
+        from stratus.bootstrap.desktop_setup import _create_linux_desktop_entry
+
+        executable = Path("/usr/local/bin/vexor-desktop")
+        _create_linux_desktop_entry(executable, applications_dir=tmp_path)
+
+        desktop_file = tmp_path / "vexor-desktop.desktop"
+        assert desktop_file.exists()
+
+    def test_desktop_file_contains_exec_path(self, tmp_path: Path) -> None:
+        """Exec= line contains the absolute path to the executable."""
+        from stratus.bootstrap.desktop_setup import _create_linux_desktop_entry
+
+        executable = Path("/home/user/.local/share/vexor-desktop/vexor-desktop")
+        _create_linux_desktop_entry(executable, applications_dir=tmp_path)
+
+        content = (tmp_path / "vexor-desktop.desktop").read_text()
+        assert f"Exec={executable}" in content
+
+    def test_desktop_file_contains_required_fields(self, tmp_path: Path) -> None:
+        """All required XDG .desktop fields are present."""
+        from stratus.bootstrap.desktop_setup import _create_linux_desktop_entry
+
+        executable = Path("/opt/vexor/vexor-desktop")
+        _create_linux_desktop_entry(executable, applications_dir=tmp_path)
+
+        content = (tmp_path / "vexor-desktop.desktop").read_text()
+        assert "[Desktop Entry]" in content
+        assert "Name=" in content
+        assert "Type=Application" in content
+        assert "Terminal=false" in content
+
+    def test_desktop_entry_created_during_install_on_linux(self, tmp_path: Path) -> None:
+        """_create_linux_desktop_entry is called during install_vexor_desktop on Linux."""
+        zip_bytes = _make_zip({"vexor-desktop-0.19.0-linux/vexor-desktop": b"\x7fELF"})
+
+        with patch(FETCH_TARGET, return_value=("https://example.com/app.zip", "vexor-desktop-0.19.0-linux.zip")):
+            with patch(HTTPX_STREAM, return_value=_mock_httpx_stream(zip_bytes)):
+                with patch(POPEN_TARGET):
+                    with patch(PLATFORM_TARGET, "linux"):
+                        with patch(CREATE_DESKTOP_TARGET) as mock_create:
+                            from stratus.bootstrap.desktop_setup import install_vexor_desktop
+
+                            install_vexor_desktop(install_dir=tmp_path)
+
+        mock_create.assert_called_once()
