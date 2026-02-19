@@ -187,6 +187,154 @@ class TestVexorClient:
 # ---------------------------------------------------------------------------
 
 
+class TestVexorShow:
+    """Tests for VexorClient.show() — index metadata via `vexor index --show`."""
+
+    def _make_client(self, binary_path: str = "vexor") -> VexorClient:
+        return VexorClient(VexorConfig(binary_path=binary_path))
+
+    _SHOW_OUTPUT = """\
+Cached index details for /some/path:
+Mode: auto
+Model: intfloat/multilingual-e5-small
+Files: 312
+Generated at: 2026-02-19T11:23:16.928913+00:00
+"""
+
+    def test_show_builds_correct_command(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._SHOW_OUTPUT
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.show()
+            args, _ = mock_run.call_args
+            cmd = args[0]
+            assert cmd[0] == "vexor"
+            assert "index" in cmd
+            assert "--show" in cmd
+
+    def test_show_with_path_appends_path_flag(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._SHOW_OUTPUT
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.show(path="/my/project")
+            args, _ = mock_run.call_args
+            cmd = args[0]
+            assert "--path" in cmd
+            assert "/my/project" in cmd
+
+    def test_show_without_path_omits_path_flag(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._SHOW_OUTPUT
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.show()
+            args, _ = mock_run.call_args
+            cmd = args[0]
+            assert "--path" not in cmd
+
+    def test_show_returns_parsed_stats(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._SHOW_OUTPUT
+        with patch(_PATCH, return_value=mock_result):
+            client = self._make_client()
+            stats = client.show()
+            assert stats["total_files"] == 312
+            assert stats["model"] == "intfloat/multilingual-e5-small"
+            assert stats["last_indexed_at"] == "2026-02-19T11:23:16.928913+00:00"
+
+    def test_show_returns_empty_dict_on_nonzero_exit(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_result.stderr = "error"
+        with patch(_PATCH, return_value=mock_result):
+            client = self._make_client()
+            assert client.show() == {}
+
+    def test_show_returns_empty_dict_on_file_not_found(self):
+        with patch(_PATCH, side_effect=FileNotFoundError):
+            client = self._make_client()
+            assert client.show() == {}
+
+    def test_show_returns_empty_dict_on_timeout(self):
+        with patch(_PATCH, side_effect=subprocess.TimeoutExpired(cmd="vexor", timeout=10)):
+            client = self._make_client()
+            assert client.show() == {}
+
+    def test_show_uses_timeout_10(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._SHOW_OUTPUT
+        with patch(_PATCH, return_value=mock_result) as mock_run:
+            client = self._make_client()
+            client.show()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("timeout") == 10
+
+
+class TestParseShowOutput:
+    """Tests for VexorClient._parse_show_output() static method."""
+
+    def test_parses_all_fields(self):
+        output = """\
+Cached index details for /some/path:
+Mode: auto
+Model: intfloat/multilingual-e5-small
+Files: 312
+Generated at: 2026-02-19T11:23:16.928913+00:00
+"""
+        data = VexorClient._parse_show_output(output)
+        assert data["total_files"] == 312
+        assert data["model"] == "intfloat/multilingual-e5-small"
+        assert data["last_indexed_at"] == "2026-02-19T11:23:16.928913+00:00"
+
+    def test_parses_files_as_int(self):
+        output = "Files: 99\n"
+        data = VexorClient._parse_show_output(output)
+        assert data["total_files"] == 99
+        assert isinstance(data["total_files"], int)
+
+    def test_ignores_invalid_files_value(self):
+        output = "Files: notanumber\n"
+        data = VexorClient._parse_show_output(output)
+        assert "total_files" not in data
+
+    def test_skips_lines_without_colon(self):
+        output = "Cached index details for /path\nMode: auto\n"
+        data = VexorClient._parse_show_output(output)
+        assert "total_files" not in data
+        assert "mode" not in data  # mode is not a known key we capture
+
+    def test_empty_output_returns_empty_dict(self):
+        data = VexorClient._parse_show_output("")
+        assert data == {}
+
+    def test_partial_output_returns_available_fields(self):
+        output = "Model: text-embedding-3-small\n"
+        data = VexorClient._parse_show_output(output)
+        assert data["model"] == "text-embedding-3-small"
+        assert "total_files" not in data
+        assert "last_indexed_at" not in data
+
+    def test_generated_at_key_maps_to_last_indexed_at(self):
+        output = "Generated at: 2026-01-01T00:00:00Z\n"
+        data = VexorClient._parse_show_output(output)
+        assert "last_indexed_at" in data
+        assert data["last_indexed_at"] == "2026-01-01T00:00:00Z"
+
+    def test_generated_at_with_colon_in_value_preserves_full_timestamp(self):
+        """Timestamps contain colons — partition(':') must be used, not split."""
+        output = "Generated at: 2026-02-19T11:23:16.928913+00:00\n"
+        data = VexorClient._parse_show_output(output)
+        assert data["last_indexed_at"] == "2026-02-19T11:23:16.928913+00:00"
+
+
 class TestParsePorcelain:
     def test_parse_porcelain_single_result(self):
         output = "1\t0.95\tsrc/main.py\t0\t10\t20\tdef main :: def main(): ..."

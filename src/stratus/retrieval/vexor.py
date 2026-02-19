@@ -107,6 +107,48 @@ class VexorClient:
 
         return {"status": "ok", "output": result.stdout.strip()}
 
+    def show(self, *, path: str | None = None) -> dict:
+        """Return index metadata via `vexor index --show`. Returns {} on failure."""
+        cmd = [self._config.binary_path, "index", "--show"]
+        if path is not None:
+            cmd += ["--path", path]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return {}
+        if result.returncode != 0:
+            return {}
+        return self._parse_show_output(result.stdout)
+
+    @staticmethod
+    def _parse_show_output(output: str) -> dict:
+        """Parse `vexor index --show` output into a dict.
+
+        Example output:
+            Cached index details for /path:
+            Mode: auto
+            Model: intfloat/multilingual-e5-small
+            Files: 312
+            Generated at: 2026-02-19T11:23:16.928913+00:00
+        """
+        data = {}
+        for line in output.splitlines():
+            if ":" not in line:
+                continue
+            key, _, value = line.partition(":")
+            key = key.strip().lower().replace(" ", "_")
+            value = value.strip()
+            if key == "files":
+                try:
+                    data["total_files"] = int(value)
+                except ValueError:
+                    pass
+            elif key == "model":
+                data["model"] = value
+            elif key == "generated_at":
+                data["last_indexed_at"] = value
+        return data
+
     @staticmethod
     def parse_porcelain(output: str) -> list[SearchResult]:
         """Parse vexor porcelain output.

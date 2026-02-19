@@ -315,3 +315,33 @@ class TestStatus:
         result = retriever.status()
 
         assert "governance_stats" not in result
+
+    def test_status_passes_project_root_to_governance_stats(self):
+        """status() calls devrag.governance_stats(project_root=config.project_root)."""
+        from stratus.retrieval.config import RetrievalConfig
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        vexor = _make_vexor_mock(available=True)
+        devrag = _make_devrag_mock(available=True)
+        devrag.governance_stats.return_value = None
+        config = RetrievalConfig(project_root="/my/project")
+        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag, config=config)
+
+        retriever.status()
+
+        devrag.governance_stats.assert_called_once_with(project_root="/my/project")
+
+    def test_status_passes_none_project_root_when_config_has_none(self):
+        """status() calls devrag.governance_stats(project_root=None) when config has no root."""
+        from stratus.retrieval.config import RetrievalConfig
+        from stratus.retrieval.unified import UnifiedRetriever
+
+        vexor = _make_vexor_mock(available=True)
+        devrag = _make_devrag_mock(available=True)
+        devrag.governance_stats.return_value = None
+        config = RetrievalConfig(project_root=None)
+        retriever = UnifiedRetriever(vexor=vexor, devrag=devrag, config=config)
+
+        retriever.status()
+
+        devrag.governance_stats.assert_called_once_with(project_root=None)

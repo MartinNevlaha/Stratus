@@ -131,6 +131,60 @@ class TestGovernanceStats:
         result = client.governance_stats()
         assert result is None
 
+    def test_governance_stats_passes_project_root_to_store(self, tmp_path: Path) -> None:
+        """governance_stats(project_root=...) forwards filter to store.stats()."""
+        project = tmp_path / "project"
+        other = tmp_path / "other"
+        for proj in (project, other):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rule.md").write_text("## Rule\nContent for " + proj.name)
+        store = GovernanceStore()
+        store.index_project(str(project))
+        store.index_project(str(other))
+        client = DevRagClient(config=DevRagConfig(enabled=True), store=store)
+        # Explicit project_root passed to governance_stats
+        result = client.governance_stats(project_root=str(project))
+        assert result is not None
+        assert result["total_files"] == 1
+
+    def test_governance_stats_falls_back_to_client_project_root(self, tmp_path: Path) -> None:
+        """governance_stats() without arg uses client._project_root."""
+        project = tmp_path / "project"
+        other = tmp_path / "other"
+        for proj in (project, other):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rule.md").write_text("## Rule\nContent for " + proj.name)
+        store = GovernanceStore()
+        store.index_project(str(project))
+        store.index_project(str(other))
+        client = DevRagClient(
+            config=DevRagConfig(enabled=True),
+            store=store,
+            project_root=str(project),
+        )
+        result = client.governance_stats()
+        assert result is not None
+        assert result["total_files"] == 1
+
+    def test_governance_stats_no_project_root_returns_all(self, tmp_path: Path) -> None:
+        """governance_stats() with no project_root and no client root returns all docs."""
+        project = tmp_path / "project"
+        other = tmp_path / "other"
+        for proj in (project, other):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rule.md").write_text("## Rule\nContent for " + proj.name)
+        store = GovernanceStore()
+        store.index_project(str(project))
+        store.index_project(str(other))
+        # Client has no project_root
+        client = DevRagClient(config=DevRagConfig(enabled=True), store=store)
+        result = client.governance_stats()
+        assert result is not None
+        assert result["total_files"] == 2
+
 
 class TestParseSearchResults:
     def test_parse_search_results_basic(self) -> None:

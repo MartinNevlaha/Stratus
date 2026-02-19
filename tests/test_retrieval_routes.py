@@ -185,6 +185,73 @@ class TestRetrievalStatusExtended:
         assert data["governance_stats"]["total_files"] == 7
 
 
+class TestRetrievalStatusLiveVexorStats:
+    def test_retrieval_status_merges_live_vexor_show_stats(self, client: TestClient):
+        """GET /api/retrieval/status merges live total_files/model/last_indexed_at from vexor show()."""
+        from unittest.mock import patch
+
+        from stratus.retrieval.models import IndexStatus
+
+        live_stats = {
+            "total_files": 312,
+            "model": "intfloat/multilingual-e5-small",
+            "last_indexed_at": "2026-02-19T11:23:16.928913+00:00",
+        }
+        client.app.state.retriever._vexor.show.return_value = live_stats
+
+        with patch(
+            "stratus.retrieval.index_state.read_index_state",
+            return_value=IndexStatus(stale=False),
+        ), patch("stratus.session.config.get_data_dir", return_value="/tmp"):
+            resp = client.get("/api/retrieval/status")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["index_state"]["total_files"] == 312
+        assert data["index_state"]["model"] == "intfloat/multilingual-e5-small"
+        assert data["index_state"]["last_indexed_at"] == "2026-02-19T11:23:16.928913+00:00"
+
+    def test_retrieval_status_show_empty_dict_does_not_overwrite_index_state(
+        self, client: TestClient
+    ):
+        """When vexor show() returns {}, index_state fields from file are not overwritten."""
+        from unittest.mock import patch
+
+        from stratus.retrieval.models import IndexStatus
+
+        client.app.state.retriever._vexor.show.return_value = {}
+
+        with patch(
+            "stratus.retrieval.index_state.read_index_state",
+            return_value=IndexStatus(stale=True, total_files=99),
+        ), patch("stratus.session.config.get_data_dir", return_value="/tmp"):
+            resp = client.get("/api/retrieval/status")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        # stale from index-state must still be present
+        assert data["index_state"]["stale"] is True
+        # total_files from IndexStatus still preserved (show() was empty)
+        assert data["index_state"]["total_files"] == 99
+
+    def test_retrieval_status_calls_show_with_project_root(self, client: TestClient):
+        """retrieval_status calls vexor.show(path=project_root) from retriever config."""
+        from unittest.mock import patch
+
+        from stratus.retrieval.models import IndexStatus
+
+        client.app.state.retriever._vexor.show.return_value = {}
+        client.app.state.retriever._config.project_root = "/the/project"
+
+        with patch(
+            "stratus.retrieval.index_state.read_index_state",
+            return_value=IndexStatus(stale=False),
+        ), patch("stratus.session.config.get_data_dir", return_value="/tmp"):
+            client.get("/api/retrieval/status")
+
+        client.app.state.retriever._vexor.show.assert_called_once_with(path="/the/project")
+
+
 class TestRegressionExistingRoutes:
     def test_health_still_returns_200(self, client: TestClient):
         resp = client.get("/health")

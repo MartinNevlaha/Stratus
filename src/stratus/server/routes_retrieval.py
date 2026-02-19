@@ -32,7 +32,11 @@ async def retrieval_status(request: Request) -> JSONResponse:
     retriever = request.app.state.retriever
     data = retriever.status()
     state = read_index_state(get_data_dir())
-    data["index_state"] = state.model_dump()
+    state_dict = state.model_dump()
+    # Merge live vexor stats (total_files, model, last_indexed_at) into state
+    live = retriever._vexor.show(path=retriever._config.project_root)
+    state_dict.update({k: v for k, v in live.items() if v is not None})
+    data["index_state"] = state_dict
     return JSONResponse(data)
 
 

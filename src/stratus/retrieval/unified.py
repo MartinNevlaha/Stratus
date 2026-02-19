@@ -77,7 +77,7 @@ class UnifiedRetriever:
             "vexor_available": self._vexor.is_available(),
             "devrag_available": self._devrag.is_available(),
         }
-        gov = self._devrag.governance_stats()
+        gov = self._devrag.governance_stats(project_root=self._config.project_root)
         if gov is not None:
             result["governance_stats"] = gov
         return result

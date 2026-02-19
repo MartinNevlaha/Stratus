@@ -509,3 +509,72 @@ class TestStats:
         assert stats["total_files"] == 0
         assert stats["total_chunks"] == 0
         assert stats["by_doc_type"] == {}
+
+    def test_stats_without_project_root_returns_all(self, tmp_path: Path) -> None:
+        """stats(project_root=None) returns counts across all indexed projects."""
+        project_a = tmp_path / "proj_a"
+        project_b = tmp_path / "proj_b"
+        for proj in (project_a, project_b):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rule.md").write_text("## Rule\nContent for " + proj.name)
+        store = GovernanceStore()
+        store.index_project(str(project_a))
+        store.index_project(str(project_b))
+        stats = store.stats()
+        assert stats["total_files"] == 2
+
+    def test_stats_with_project_root_filters_to_that_project(self, tmp_path: Path) -> None:
+        """stats(project_root=...) returns counts only for the given project."""
+        project_a = tmp_path / "proj_a"
+        project_b = tmp_path / "proj_b"
+        for proj in (project_a, project_b):
+            rules = proj / ".claude" / "rules"
+            rules.mkdir(parents=True)
+            (rules / "rule.md").write_text("## Rule\nContent for " + proj.name)
+        store = GovernanceStore()
+        store.index_project(str(project_a))
+        store.index_project(str(project_b))
+        stats_a = store.stats(project_root=str(project_a))
+        assert stats_a["total_files"] == 1
+        stats_b = store.stats(project_root=str(project_b))
+        assert stats_b["total_files"] == 1
+
+    def test_stats_project_root_empty_project_returns_zeros(self, tmp_path: Path) -> None:
+        """stats with a project_root that has no indexed docs returns zeros."""
+        project = tmp_path / "proj"
+        rules = project / ".claude" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "rule.md").write_text("## Rule\nContent")
+        other = tmp_path / "other"
+        other.mkdir()
+        store = GovernanceStore()
+        store.index_project(str(project))
+        stats = store.stats(project_root=str(other))
+        assert stats["total_files"] == 0
+        assert stats["total_chunks"] == 0
+        assert stats["by_doc_type"] == {}
+
+    def test_stats_project_root_includes_correct_doc_type_breakdown(self, tmp_path: Path) -> None:
+        """stats with project_root includes accurate by_doc_type breakdown."""
+        project_a = tmp_path / "proj_a"
+        rules_a = project_a / ".claude" / "rules"
+        rules_a.mkdir(parents=True)
+        (rules_a / "rule.md").write_text("## Rule\nContent")
+        decisions_a = project_a / "docs" / "decisions"
+        decisions_a.mkdir(parents=True)
+        (decisions_a / "001.md").write_text("## Decision\nContent")
+
+        project_b = tmp_path / "proj_b"
+        rules_b = project_b / ".claude" / "rules"
+        rules_b.mkdir(parents=True)
+        (rules_b / "rule.md").write_text("## Rule\nContent")
+
+        store = GovernanceStore()
+        store.index_project(str(project_a))
+        store.index_project(str(project_b))
+
+        stats_a = store.stats(project_root=str(project_a))
+        assert stats_a["by_doc_type"].get("rule") == 1
+        assert stats_a["by_doc_type"].get("adr") == 1
+        assert "rule" in stats_a["by_doc_type"]

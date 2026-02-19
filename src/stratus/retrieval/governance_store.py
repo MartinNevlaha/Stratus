@@ -275,17 +275,27 @@ class GovernanceStore:
         ).fetchall()
         return [{"file_path": r["file_path"], "doc_type": r["doc_type"]} for r in rows]
 
-    def stats(self) -> dict:
-        """Return document and chunk counts with doc_type breakdown."""
+    def stats(self, *, project_root: str | None = None) -> dict:
+        """Return document and chunk counts with doc_type breakdown.
+
+        Pass project_root to filter counts to a single project; omit for all projects.
+        """
+        where = ""
+        params: list = []
+        if project_root:
+            where = "WHERE file_path LIKE ?"
+            params.append(str(Path(project_root).resolve()) + "%")
+
         total_files = self._conn.execute(
-            "SELECT COUNT(DISTINCT file_path) FROM governance_docs"
+            f"SELECT COUNT(DISTINCT file_path) FROM governance_docs {where}", params
         ).fetchone()[0]
         total_chunks = self._conn.execute(
-            "SELECT COUNT(*) FROM governance_docs"
+            f"SELECT COUNT(*) FROM governance_docs {where}", params
         ).fetchone()[0]
         type_rows = self._conn.execute(
-            "SELECT doc_type, COUNT(DISTINCT file_path) as cnt "
-            "FROM governance_docs GROUP BY doc_type"
+            f"SELECT doc_type, COUNT(DISTINCT file_path) as cnt "
+            f"FROM governance_docs {where} GROUP BY doc_type",
+            params,
         ).fetchall()
         by_doc_type = {r["doc_type"]: r["cnt"] for r in type_rows}
         return {
