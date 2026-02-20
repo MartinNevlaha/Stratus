@@ -33,6 +33,12 @@ codebase while respecting platform conventions.
 - Images: use `expo-image` (not bare RN Image) for caching and performance
 - Permissions: always request contextually, explain why before system prompt appears
 
+## Task Ownership
+
+- Only create **subtasks** under TPM-created parent tasks (use `addBlockedBy`/`addBlocks` to link)
+- Never create top-level tasks — that is TPM's responsibility
+- Update task status via TaskUpdate as work progresses
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

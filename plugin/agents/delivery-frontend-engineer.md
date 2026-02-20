@@ -32,6 +32,12 @@ You produce accessible, performant, and well-tested UI components that match des
 - Images: always use `next/image` with explicit width/height or `fill` layout
 - Never commit `.env.local` or secrets
 
+## Task Ownership
+
+- Only create **subtasks** under TPM-created parent tasks (use `addBlockedBy`/`addBlocks` to link)
+- Never create top-level tasks — that is TPM's responsibility
+- Update task status via TaskUpdate as work progresses
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

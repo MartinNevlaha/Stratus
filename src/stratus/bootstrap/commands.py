@@ -6,7 +6,6 @@ import argparse
 import json
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import httpx
@@ -66,8 +65,8 @@ def cmd_init(args: argparse.Namespace) -> None:
         if sl_path and not dry_run:
             print(f"Statusline: {sl_path}")
         if not dry_run:
-            _ensure_server()
-        print("\nGlobal installation complete (hooks and MCP registered in ~/.claude/)")
+            print("\nGlobal installation complete (hooks and MCP registered in ~/.claude/)")
+            print("Start the HTTP server with: stratus serve")
         return
 
     # Step 1: Detect git root
@@ -121,7 +120,9 @@ def cmd_init(args: argparse.Namespace) -> None:
         if ai_path.exists() and not force:
             # Existing project: merge retrieval config
             merged = merge_retrieval_into_existing(
-                _load_json(ai_path), backend_status, str(git_root),
+                _load_json(ai_path),
+                backend_status,
+                str(git_root),
             )
             if not dry_run:
                 update_ai_framework_config(git_root, merged)
@@ -138,7 +139,8 @@ def cmd_init(args: argparse.Namespace) -> None:
             # New project or --force: build retrieval config
             if interactive and not dry_run:
                 enable_vexor, enable_devrag, run_indexing = prompt_retrieval_setup(
-                    backend_status, project_root=str(git_root),
+                    backend_status,
+                    project_root=str(git_root),
                 )
                 retrieval_config = {
                     "vexor": {"enabled": enable_vexor, "project_root": str(git_root)},
@@ -146,7 +148,6 @@ def cmd_init(args: argparse.Namespace) -> None:
                 }
             else:
                 retrieval_config = build_retrieval_config(backend_status, str(git_root))
-
 
     # Step 6: Write .ai-framework.json
     ai_path = git_root / ".ai-framework.json"
@@ -158,7 +159,10 @@ def cmd_init(args: argparse.Namespace) -> None:
                 print(f"[dry-run] Would write .ai-framework.json to {git_root}")
         else:
             result = write_ai_framework_config(
-                git_root, graph, force=force, retrieval_config=retrieval_config,
+                git_root,
+                graph,
+                force=force,
+                retrieval_config=retrieval_config,
             )
             if result is None:
                 print(".ai-framework.json already exists (use --force to overwrite)")
@@ -174,6 +178,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             setup_vexor_local,
             verify_cuda_runtime,
         )
+
         cuda = detect_cuda()
         device = "GPU (CUDA)" if cuda else "CPU"
         print(f"Installing vexor local extras for {device}...", flush=True)
@@ -208,6 +213,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     # Step 6c: Index governance docs if enabled
     if enable_devrag and not dry_run:
         from stratus.bootstrap.retrieval_setup import run_governance_index
+
         gov_db_path = str(data_dir / "governance.db")
         print("Indexing governance docs...", flush=True)
         result = run_governance_index(str(git_root), gov_db_path)
@@ -283,9 +289,8 @@ def cmd_init(args: argparse.Namespace) -> None:
             written = register_agents(git_root, delivery_config, detected_types, force=force)
             print(f"Agents: {len(written)} agent(s) installed")
 
-    # Step 11: Ensure HTTP server is running
     if not dry_run:
-        _ensure_server()
+        print("\nStart the HTTP server with: stratus serve")
 
 
 def _interactive_init() -> tuple[str, bool]:
@@ -303,48 +308,6 @@ def _interactive_init() -> tuple[str, bool]:
 
     print()
     return scope, enable_delivery
-
-
-
-def _ensure_server() -> None:
-    """Start the HTTP server if not already running."""
-    from stratus.hooks._common import get_api_url
-    from stratus.session.config import DEFAULT_PORT
-
-    api_url = get_api_url()
-
-    # Check if already running
-    try:
-        resp = httpx.get(f"{api_url}/health", timeout=2.0)
-        if resp.status_code == 200:
-            print(f"Server: already running at {api_url}")
-            return
-    except Exception:
-        pass
-
-    # Spawn server as background daemon
-    port = DEFAULT_PORT
-    print(f"Starting HTTP server on port {port}...")
-    subprocess.Popen(
-        [sys.executable, "-m", "stratus.server.runner"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-
-    # Wait for server to become ready
-    for _ in range(10):
-        time.sleep(0.5)
-        try:
-            resp = httpx.get(f"{api_url}/health", timeout=2.0)
-            if resp.status_code == 200:
-                print(f"Server: running at {api_url}")
-                print(f"Dashboard: {api_url}/dashboard")
-                return
-        except Exception:
-            continue
-
-    print("Warning: server started but did not respond in time")
 
 
 def cmd_doctor(_args: argparse.Namespace) -> None:

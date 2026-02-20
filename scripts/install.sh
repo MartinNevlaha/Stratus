@@ -102,8 +102,8 @@ if [ -t 0 ]; then
     log "Running stratus init..."
     if "$STRATUS_BIN" init; then
         log ""
-        log "Installation complete. Hooks, MCP, and HTTP server are ready."
-        log "Dashboard: http://localhost:41777/dashboard"
+        log "Installation complete. Hooks and MCP are ready."
+        log "Start the HTTP server with: stratus serve"
     else
         log ""
         log "Installation complete. Run 'stratus init' to finish setup."
@@ -113,8 +113,8 @@ elif [ -e /dev/tty ]; then
     log "Running stratus init..."
     if "$STRATUS_BIN" init </dev/tty; then
         log ""
-        log "Installation complete. Hooks, MCP, and HTTP server are ready."
-        log "Dashboard: http://localhost:41777/dashboard"
+        log "Installation complete. Hooks and MCP are ready."
+        log "Start the HTTP server with: stratus serve"
     else
         log ""
         log "Installation complete. Run 'stratus init' to finish setup."
@@ -130,8 +130,8 @@ else
     fi
     if "$STRATUS_BIN" init --scope "$INIT_SCOPE"; then
         log ""
-        log "Installation complete. Hooks, MCP, and HTTP server are ready."
-        log "Dashboard: http://localhost:41777/dashboard"
+        log "Installation complete. Hooks and MCP are ready."
+        log "Start the HTTP server with: stratus serve"
     else
         log ""
         log "Installation complete. Run 'stratus init' to finish setup."

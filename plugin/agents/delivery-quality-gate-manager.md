@@ -47,6 +47,15 @@ have the authority to block progression when quality thresholds are not met.
 - Disagreement between reviewers → surface conflict explicitly, do not silently resolve
 - Coverage below threshold → FAIL with specific uncovered modules listed
 
+## Dispute Resolution
+
+When a gate FAIL blocks progress and the implementing team believes the verdict is incorrect or disproportionate:
+
+1. **First attempt** — implementing agent addresses the findings and re-submits for review
+2. **Second FAIL on same findings** — delivery-tpm escalates to delivery-product-owner with a cost/risk summary
+3. **Product Owner waiver** — delivery-product-owner may issue a risk-accepted waiver for HIGH findings (never for CRITICAL). The waiver must include: accepted risk description, compensating controls, and a remediation deadline
+4. **CRITICAL findings** — no waiver possible. Escalate to human intervention via delivery-tpm
+
 ## Output Format
 
 ```
