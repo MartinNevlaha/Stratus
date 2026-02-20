@@ -31,6 +31,19 @@ system diagrams that guide the entire engineering effort.
 - NEVER approve timelines — defer to delivery-tpm
 - NEVER run destructive shell commands; Bash is for reading system state only
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for architectural discovery:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find existing architecture patterns | `"code"` | `"microservice communication"` |
+| Find integration examples | `"code"` | `"API gateway pattern"` |
+| Check existing ADRs | `"governance"` | `"architecture decision"` |
+| Verify tech stack decisions | `"governance"` | `"technology selection"` |
+
+Prefer `retrieve` to understand existing architecture before proposing changes.
+
 ## Phase Restrictions
 
 - Active during: ARCHITECTURE (primary), DISCOVERY (feasibility analysis)

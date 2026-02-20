@@ -29,6 +29,18 @@ quality gate has issued a PASS verdict.
 - Tag the release in git (command only — do not push without human approval)
 - Coordinate with delivery-devops-engineer for CI/CD pipeline execution
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for release context:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find changelog patterns | `"governance"` | `"changelog format"` |
+| Check versioning policy | `"governance"` | `"semantic versioning"` |
+| Verify release process | `"governance"` | `"release checklist"` |
+
+Prefer `retrieve` to follow established release conventions.
+
 ## Phase Restrictions
 
 - Active during: RELEASE

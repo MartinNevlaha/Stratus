@@ -38,7 +38,20 @@ and produce structured security audit reports.
 - NEVER write code or edit implementation files
 - NEVER commit or push changes
 - NEVER approve releases — verdicts inform delivery-quality-gate-manager
-- Bash is for read-only inspection (file listing, grep, dependency audit tools) only
+- Bash is **read-only**: file listing, grep, and dependency audit tools (e.g. `pip audit`, `npm audit`). No writes, no installs, no code execution
+
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find security patterns and known vulnerabilities:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find authentication patterns | `"code"` | `"JWT verification"` |
+| Find input validation examples | `"code"` | `"SQL parameterized query"` |
+| Check security standards | `"governance"` | `"security requirements"` |
+| Verify auth flow conventions | `"governance"` | `"authentication standard"` |
+
+Prefer `retrieve` to ground findings in actual codebase patterns.
 
 ## Phase Restrictions
 

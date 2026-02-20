@@ -165,6 +165,51 @@ This skill scans your environment and produces a conflict report against the Str
 
 ---
 
+## Spec-Driven Development Modes
+
+Stratus provides two spec modes based on task complexity:
+
+| Command | Phases | Flow |
+|---------|--------|------|
+| `/spec` | 4 | Plan → Do → Review → Learn |
+| `/spec-complex` | 8 | Discovery → Design → Governance → Plan → Accept → Implement → Review → Learn |
+
+### When to Use Which?
+
+| Use `/spec` (Simple) | Use `/spec-complex` (Complex) |
+|----------------------|-------------------------------|
+| Single file changes | Authentication, authorization |
+| Bug fixes | Database migrations, schema changes |
+| Small refactorings | API design, new endpoints |
+| Clear, well-defined scope | Third-party integrations |
+| < 3 files affected | Multi-service changes |
+| No security impact | Infrastructure, CI/CD changes |
+| No database changes | Unclear or evolving requirements |
+
+### Flow Comparison
+
+```
+SIMPLE (4-phase)              COMPLEX (8-phase)
+─────────────────             ─────────────────────
+Plan ─────────────┐           Discovery ────┐
+                  │                          │
+Do ───────────────┤           Design ───────┤
+                  │                          │
+Review ───────────┤           Governance ───┤ (skip if no risk)
+                  │                          │
+Learn ────────────┘           Plan ─────────┤
+                              │              │
+                              Accept ────────┤ (user gate)
+                              │              │
+                              Implement ─────┤
+                              │              │
+                              Review ────────┤
+                              │              │
+                              Learn ─────────┘
+```
+
+---
+
 ## CLI Reference
 
 ### Basic commands
@@ -239,6 +284,8 @@ Available commands:
 
 | Command | Description |
 |---------|-------------|
+| `/stratus:spec` | Simple spec (4-phase): Plan → Do → Review → Learn |
+| `/stratus:spec-complex` | Complex spec (8-phase): Discovery → Design → Governance → ... |
 | `/stratus:init` | Initialize project |
 | `/stratus:doctor` | Health check |
 | `/stratus:status` | Show status |

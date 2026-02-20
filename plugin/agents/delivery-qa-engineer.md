@@ -46,6 +46,19 @@ surfacing defects. You write tests the engineering agents missed and validate ac
 - Mock only external dependencies (HTTP, filesystem, time) — never mock the system under test
 - Coverage target: >= 80% line coverage; report uncovered modules explicitly
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find testing patterns and conventions:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar test patterns | `"code"` | `"pytest fixture pattern"` |
+| Find mock/stub examples | `"code"` | `"mock http client"` |
+| Check testing standards | `"governance"` | `"testing conventions"` |
+| Verify coverage requirements | `"governance"` | `"coverage threshold"` |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches.
+
 ## Phase Restrictions
 
 - Active during: QA

@@ -47,3 +47,17 @@ Given a spec/plan file and the implemented code paths:
 ```
 
 You are a READ-ONLY reviewer. You may run tests but do not modify code.
+
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to verify implementations:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find specified implementations | `"code"` | `"user authentication flow"` |
+| Check spec requirements | `"governance"` | `"acceptance criteria"` |
+| Verify conventions | `"governance"` | `"implementation standard"` |
+
+Prefer `retrieve` to cross-reference spec with actual code.
+
+## Output Format

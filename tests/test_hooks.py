@@ -12,7 +12,7 @@ from stratus.hooks.context_monitor import (
     check_context_usage,
     should_throttle,
 )
-from stratus.hooks.post_compact_restore import build_restore_message
+from stratus.hooks.post_compact_restore import build_restore_message, save_compact_summary
 from stratus.hooks.pre_compact import capture_pre_compact_state
 
 
@@ -699,3 +699,109 @@ class TestPostCompactRestoreMain:
 
             main()
         assert exc_info.value.code == 0
+
+
+class TestSaveCompactSummary:
+    def test_saves_summary_to_file(self, tmp_path: Path):
+        session_dir = tmp_path / "sessions" / "s1"
+        summary = "This session is being continued...\n## Key Decisions\n- Use SQLite"
+
+        save_compact_summary(
+            session_dir,
+            "s1",
+            summary,
+            "2026-02-15T12:10:00.000Z",
+            167000,
+        )
+
+        files = list(session_dir.glob("compact-summary-*.txt"))
+        assert len(files) == 1
+        content = files[0].read_text()
+        assert "Key Decisions" in content
+
+    def test_dedupe_key_per_session(self, tmp_path: Path):
+        session_dir = tmp_path / "sessions" / "s1"
+        save_compact_summary(
+            session_dir,
+            "my-session-id",
+            "Test summary",
+            "2026-02-15T12:10:00.000Z",
+            167000,
+        )
+
+        files = list(session_dir.glob("compact-summary-*.txt"))
+        assert len(files) == 1
+
+    def test_api_failure_falls_back_to_file(self, tmp_path: Path):
+        session_dir = tmp_path / "sessions" / "s1"
+        save_compact_summary(
+            session_dir,
+            "s1",
+            "Fallback summary",
+            "2026-02-15T12:10:00.000Z",
+            167000,
+        )
+
+        files = list(session_dir.glob("compact-summary-*.txt"))
+        assert len(files) == 1
+        assert "Fallback summary" in files[0].read_text()
+
+
+class TestPostCompactExtractsSummary:
+    def test_extracts_and_saves_summary_from_transcript(self, monkeypatch, tmp_path: Path):
+        from tests.conftest import _make_compact_boundary, _write_jsonl
+
+        session_dir = tmp_path / "sessions" / "test-sess"
+        session_dir.mkdir(parents=True)
+        (session_dir / "pre-compact-state.json").write_text(
+            json.dumps({"captured_at": "2026-01-01T00:00:00Z"})
+        )
+
+        entries = [
+            _make_compact_boundary(pre_tokens=167000, timestamp="2026-02-15T12:10:00.000Z"),
+            {
+                "type": "user",
+                "uuid": "u1",
+                "message": {"role": "user", "content": "## Key Decisions\n- Use SQLite"},
+            },
+        ]
+        transcript = _write_jsonl(tmp_path / "transcript.jsonl", entries)
+
+        hook_input = json.dumps(
+            {
+                "session_id": "test-sess",
+                "transcript_path": str(transcript),
+            }
+        )
+        monkeypatch.setattr("sys.stdin", type("", (), {"read": lambda self: hook_input})())
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+
+        with pytest.raises(SystemExit) as exc_info:
+            from stratus.hooks.post_compact_restore import main
+
+            main()
+
+        assert exc_info.value.code == 0
+        files = list(session_dir.glob("compact-summary-*.txt"))
+        assert len(files) == 1
+        assert "Key Decisions" in files[0].read_text()
+
+    def test_no_summary_when_no_transcript_path(self, monkeypatch, tmp_path: Path, capsys):
+        session_dir = tmp_path / "sessions" / "test-sess"
+        session_dir.mkdir(parents=True)
+        (session_dir / "pre-compact-state.json").write_text(
+            json.dumps({"captured_at": "2026-01-01T00:00:00Z"})
+        )
+
+        hook_input = json.dumps({"session_id": "test-sess"})
+        monkeypatch.setattr("sys.stdin", type("", (), {"read": lambda self: hook_input})())
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "test-sess")
+
+        with pytest.raises(SystemExit):
+            from stratus.hooks.post_compact_restore import main
+
+            main()
+
+        files = list(session_dir.glob("compact-summary-*.txt"))
+        assert len(files) == 0

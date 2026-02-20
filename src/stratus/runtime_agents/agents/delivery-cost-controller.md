@@ -31,6 +31,17 @@ in a lightweight monitoring capacity.
 - NEVER run shell commands (Bash is not available to you)
 - NEVER override agent model assignments without TPM approval — only recommend
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for cost context:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find budget policies | `"governance"` | `"token budget limit"` |
+| Check model assignment rules | `"governance"` | `"model selection policy"` |
+
+Prefer `retrieve` to understand project cost policies.
+
 ## Phase Restrictions
 
 - Active during: All phases (passive monitoring, reports at phase transitions)

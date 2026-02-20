@@ -43,6 +43,18 @@ retrospective knowledge) phases.
 - Documentation must be written for the target audience: developer (README), operator (runbook), user (guide)
 - Never document internal implementation details that are not part of the public contract
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for documentation context:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find existing doc patterns | `"code"` | `"README structure"` |
+| Check documentation standards | `"governance"` | `"documentation style"` |
+| Verify API contracts | `"governance"` | `"API specification"` |
+
+Prefer `retrieve` to follow established documentation conventions.
+
 ## Phase Restrictions
 
 - Active during: RELEASE (primary), LEARNING (retrospective documentation)

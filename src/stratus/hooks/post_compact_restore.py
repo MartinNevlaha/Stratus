@@ -77,17 +77,79 @@ def build_restore_message(session_dir: Path) -> str | None:
     return "\n".join(parts)
 
 
+def save_compact_summary(
+    session_dir: Path,
+    session_id: str,
+    summary: str,
+    timestamp: str,
+    pre_tokens: int,
+) -> None:
+    """Save compact summary to memory API and file fallback."""
+    try:
+        import httpx
+
+        from stratus.hooks._common import get_api_url
+
+        api_url = get_api_url()
+        httpx.post(
+            f"{api_url}/api/memory/save",
+            json={
+                "text": summary,
+                "title": f"Compact summary ({pre_tokens:,} tokens)",
+                "type": "decision",
+                "actor": "system",
+                "tags": ["compact-summary"],
+                "session_id": session_id,
+                "dedupe_key": f"compact:{session_id}",
+                "importance": 0.7,
+            },
+            timeout=2.0,
+        )
+    except Exception:
+        pass
+
+    session_dir.mkdir(parents=True, exist_ok=True)
+    summary_file = (
+        session_dir / f"compact-summary-{timestamp.replace(':', '-').replace('.', '-')}.txt"
+    )
+    try:
+        summary_file.write_text(summary)
+    except OSError:
+        pass
+
+
 def main() -> None:
     """Entry point for SessionStart[compact] hook."""
-    from stratus.hooks._common import get_session_dir
+    from stratus.hooks._common import get_session_dir, read_hook_input
     from stratus.session.state import resolve_session_id
+    from stratus.transcript import extract_compact_summaries
 
-    session_id = resolve_session_id()
+    hook_input = read_hook_input()
+    session_id = hook_input.get("session_id") or resolve_session_id()
     session_dir = get_session_dir(session_id)
 
     message = build_restore_message(session_dir)
     if message:
         print(message)
+
+    transcript_path = hook_input.get("transcript_path")
+    if transcript_path:
+        from pathlib import Path
+
+        path = Path(transcript_path)
+        if path.exists():
+            events = extract_compact_summaries(path)
+            if events:
+                latest = events[-1]
+                if latest.summary:
+                    save_compact_summary(
+                        session_dir,
+                        session_id,
+                        latest.summary,
+                        latest.timestamp,
+                        latest.pre_tokens,
+                    )
+
     sys.exit(0)
 
 
