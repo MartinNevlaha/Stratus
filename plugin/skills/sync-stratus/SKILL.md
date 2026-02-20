@@ -102,12 +102,11 @@ For each command:
 
 Read `.ai-framework.json` if present. Determine:
 - Is Stratus initialized (`stratus init` was run)?
-- Is Sworm/delivery mode enabled, disabled, or opt-in?
 - Which phases are active?
 
 Read the project name from `.ai-framework.json` field `project.name` (fallback: directory name). Use this in the Environment Summary.
 
-**Mode-aware completeness:** A Default-mode project only needs `version`, `project`, `retrieval`, `learning`, and `agent_teams` in `.ai-framework.json`. Missing `stratus`, `delivery`, or `swords` keys are **expected** for Default mode — do NOT flag as incomplete. Only flag missing swords/delivery config if `agent_teams.enabled: true` or swords mode is explicitly configured.
+**Config completeness:** A project needs `version`, `project`, `retrieval`, `learning`, and `agent_teams` in `.ai-framework.json`. Missing keys should be flagged as incomplete.
 
 Read `.claude/settings.json` — are hooks registered?
 
@@ -134,7 +133,7 @@ Propose a safe integration plan. In report-only mode (no `--apply`), describe wh
 - Rename conflicting agents (proposal)
 - Merge or split responsibilities
 - Ensure single registry authority (`src/stratus/registry/agent-registry.json` is the source of truth)
-- Verify compatibility with Default mode and Sworm mode
+- All agents use `orchestration_modes: ["default"]` — no mode-specific agents
 
 ### Skill Layer
 - Identify skills that need refactoring to use `context: fork`

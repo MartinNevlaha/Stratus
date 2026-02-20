@@ -21,22 +21,26 @@ from stratus.orchestration.delivery_state import (
 )
 
 
-def _compute_phase_roles() -> dict[DeliveryPhase, list[str]]:
+def _compute_phase_roles(
+    project_root: Path | None = None,
+) -> dict[DeliveryPhase, list[str]]:
     """Compute PHASE_ROLES from the agent registry."""
     from stratus.registry.loader import AgentRegistry
 
-    registry = AgentRegistry.load()
+    registry = AgentRegistry.load_merged(project_root)
     result: dict[DeliveryPhase, list[str]] = {}
     for phase in DeliveryPhase:
         result[phase] = registry.get_phase_roles(phase.value)
     return result
 
 
-def _compute_phase_leads() -> dict[DeliveryPhase, str]:
+def _compute_phase_leads(
+    project_root: Path | None = None,
+) -> dict[DeliveryPhase, str]:
     """Compute PHASE_LEADS from the agent registry."""
     from stratus.registry.loader import AgentRegistry
 
-    registry = AgentRegistry.load()
+    registry = AgentRegistry.load_merged(project_root)
     result: dict[DeliveryPhase, str] = {}
     for phase in DeliveryPhase:
         lead = registry.get_phase_lead(phase.value)
@@ -60,11 +64,26 @@ class DeliveryCoordinator:
 
     _session_dir: Path
     _config: DeliveryConfig
+    _project_root: Path | None
+    _phase_roles: dict[DeliveryPhase, list[str]]
+    _phase_leads: dict[DeliveryPhase, str]
 
-    def __init__(self, session_dir: Path, config: DeliveryConfig) -> None:
+    def __init__(
+        self,
+        session_dir: Path,
+        config: DeliveryConfig,
+        project_root: Path | None = None,
+    ) -> None:
         self._session_dir = session_dir
         self._config = config
+        self._project_root = project_root
         self._state: DeliveryState | None = read_delivery_state(session_dir)
+        if project_root is not None:
+            self._phase_roles = _compute_phase_roles(project_root)
+            self._phase_leads = _compute_phase_leads(project_root)
+        else:
+            self._phase_roles = PHASE_ROLES
+            self._phase_leads = PHASE_LEADS
 
     def get_state(self) -> DeliveryState | None:
         return self._state
@@ -99,25 +118,12 @@ class DeliveryCoordinator:
                 continue
             if phase.value in active:
                 return phase
-            # Pass through inactive but reachable phase
             reachable = reachable | DELIVERY_TRANSITIONS[phase]
 
         return None
 
     def start_delivery(self, slug: str, plan_path: str | None = None) -> DeliveryState:
         """Start a new delivery lifecycle."""
-        # Validate mode agents
-        try:
-            import sys
-
-            from stratus.registry.validation import validate_mode_agents
-
-            warnings = validate_mode_agents("sworm")
-            for w in warnings:
-                print(f"Registry warning: {w.message}", file=sys.stderr)
-        except ImportError:
-            pass
-
         active = self._active_phases()
         first_phase = next((p for p in PHASE_ORDER if p.value in active), None)
         if first_phase is None:
@@ -128,8 +134,8 @@ class DeliveryCoordinator:
             slug=slug,
             orchestration_mode=self._config.orchestration_mode,
             plan_path=plan_path,
-            active_roles=PHASE_ROLES.get(first_phase, []),
-            phase_lead=PHASE_LEADS.get(first_phase),
+            active_roles=self._phase_roles.get(first_phase, []),
+            phase_lead=self._phase_leads.get(first_phase),
             max_review_iterations=self._config.max_review_iterations,
         )
         self._persist()
@@ -148,8 +154,8 @@ class DeliveryCoordinator:
         self._state = state.model_copy(
             update={
                 "delivery_phase": next_phase,
-                "active_roles": PHASE_ROLES.get(next_phase, []),
-                "phase_lead": PHASE_LEADS.get(next_phase),
+                "active_roles": self._phase_roles.get(next_phase, []),
+                "phase_lead": self._phase_leads.get(next_phase),
             }
         )
         self._persist()
@@ -167,8 +173,8 @@ class DeliveryCoordinator:
         self._state = state.model_copy(
             update={
                 "delivery_phase": DeliveryPhase.IMPLEMENTATION,
-                "active_roles": PHASE_ROLES[DeliveryPhase.IMPLEMENTATION],
-                "phase_lead": PHASE_LEADS[DeliveryPhase.IMPLEMENTATION],
+                "active_roles": self._phase_roles[DeliveryPhase.IMPLEMENTATION],
+                "phase_lead": self._phase_leads[DeliveryPhase.IMPLEMENTATION],
                 "review_iteration": state.review_iteration + 1,
             }
         )
@@ -177,7 +183,7 @@ class DeliveryCoordinator:
 
     def get_active_roles(self) -> list[str]:
         state = self._require_state()
-        return PHASE_ROLES.get(state.delivery_phase, [])
+        return self._phase_roles.get(state.delivery_phase, [])
 
     def record_phase_result(self, result: PhaseResult) -> DeliveryState:
         state = self._require_state()
@@ -205,8 +211,8 @@ class DeliveryCoordinator:
                 "delivery_phase": next_phase,
                 "skipped_phases": skipped,
                 "phase_results": new_results,
-                "active_roles": PHASE_ROLES.get(next_phase, []),
-                "phase_lead": PHASE_LEADS.get(next_phase),
+                "active_roles": self._phase_roles.get(next_phase, []),
+                "phase_lead": self._phase_leads.get(next_phase),
             }
         )
         self._persist()

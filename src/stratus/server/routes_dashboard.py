@@ -212,7 +212,8 @@ def _build_registry() -> dict:
     try:
         from stratus.registry.loader import AgentRegistry
 
-        agents = [a.model_dump() for a in AgentRegistry.load().all_agents()]
+        registry = AgentRegistry.load_merged(root)
+        agents = [a.model_dump() for a in registry.all_agents()]
     except Exception:
         pass
 

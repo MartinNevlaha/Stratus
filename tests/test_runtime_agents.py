@@ -98,10 +98,10 @@ def test_skill_spec_is_frozen():
 
 
 @pytest.mark.unit
-def test_agent_catalog_has_19_entries():
+def test_agent_catalog_has_all_entries():
     from stratus.runtime_agents import AGENT_CATALOG
 
-    assert len(AGENT_CATALOG) == 19
+    assert len(AGENT_CATALOG) == 26
 
 
 # ---------------------------------------------------------------------------

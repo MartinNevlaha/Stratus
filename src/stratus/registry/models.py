@@ -12,7 +12,7 @@ class AgentEntry(BaseModel):
     filename: str
     model: str  # "sonnet" | "opus" | "haiku"
     can_write: bool
-    layer: str  # "core" | "process" | "engineering"
+    layer: str  # "core" | "process" | "engineering" | "user"
     phases: list[str]
     task_types: list[str] = Field(default_factory=list)
     applicable_stacks: list[str] | None = None  # None = universal

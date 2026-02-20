@@ -11,8 +11,8 @@ from stratus.registry.loader import AgentRegistry
 from stratus.registry.models import AgentEntry
 
 TOTAL_AGENTS = 26
-CORE_AGENTS = 7  # orchestration_modes == ["default"]
-SWORM_AGENTS = 19  # orchestration_modes includes "sworm"
+DEFAULT_AGENTS = 26  # All agents use orchestration_modes: ["default"]
+CORE_LAYER_AGENTS = 7  # Agents with layer="core"
 
 
 @pytest.mark.unit
@@ -53,22 +53,20 @@ def test_get_unknown_returns_none():
 
 @pytest.mark.unit
 def test_filter_by_mode_default():
-    """filter_by_mode('default') returns exactly 7 core agents."""
+    """filter_by_mode('default') returns all 26 agents."""
     registry = AgentRegistry.load()
     agents = registry.filter_by_mode("default")
-    assert len(agents) == CORE_AGENTS
+    assert len(agents) == DEFAULT_AGENTS
     for agent in agents:
         assert "default" in agent.orchestration_modes
 
 
 @pytest.mark.unit
 def test_filter_by_mode_sworm():
-    """filter_by_mode('sworm') returns exactly 19 delivery agents."""
+    """filter_by_mode('sworm') returns empty list (no sworm-only agents)."""
     registry = AgentRegistry.load()
     agents = registry.filter_by_mode("sworm")
-    assert len(agents) == SWORM_AGENTS
-    for agent in agents:
-        assert "sworm" in agent.orchestration_modes
+    assert len(agents) == 0
 
 
 @pytest.mark.unit
@@ -300,7 +298,7 @@ def test_core_agents_have_default_mode():
     """All core agents (layer=core) are in default orchestration mode."""
     registry = AgentRegistry.load()
     core_agents = [a for a in registry.all_agents() if a.layer == "core"]
-    assert len(core_agents) == CORE_AGENTS
+    assert len(core_agents) == CORE_LAYER_AGENTS
     for agent in core_agents:
         assert "default" in agent.orchestration_modes
 

@@ -46,9 +46,10 @@ def test_validate_mode_default_has_agents():
 
 
 @pytest.mark.unit
-def test_validate_mode_sworm_has_agents():
+def test_validate_mode_sworm_has_no_agents():
     warnings = validate_mode_agents("sworm")
-    assert warnings == []
+    assert len(warnings) == 1
+    assert "sworm" in warnings[0].message
 
 
 @pytest.mark.unit

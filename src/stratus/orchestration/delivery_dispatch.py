@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from stratus.orchestration.delivery_coordinator import PHASE_LEADS, PHASE_ROLES
 from stratus.orchestration.delivery_models import DeliveryPhase, DeliveryState
 
@@ -79,13 +81,15 @@ _PHASE_ORDER: list[DeliveryPhase] = list(DeliveryPhase)
 _FIX_LOOP_PHASES = {DeliveryPhase.QA, DeliveryPhase.GOVERNANCE, DeliveryPhase.PERFORMANCE}
 
 
-def _compute_role_keywords() -> dict[str, list[str]]:
+def _compute_role_keywords(
+    project_root: Path | None = None,
+) -> dict[str, list[str]]:
     """Compute _ROLE_KEYWORDS from the agent registry."""
     from stratus.registry.loader import AgentRegistry
 
-    registry = AgentRegistry.load()
+    registry = AgentRegistry.load_merged(project_root)
     result: dict[str, list[str]] = {}
-    for agent in registry.filter_by_mode("sworm"):
+    for agent in registry.filter_by_mode("default"):
         if not agent.keywords:
             continue
         # Use short name (strip delivery- prefix)

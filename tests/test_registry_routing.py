@@ -4,88 +4,72 @@ from __future__ import annotations
 
 import pytest
 
-from stratus.registry.routing import (
-    ROUTING_TABLE,
-    RoutingError,
-    route_task,
-)
+from stratus.registry.routing import RoutingError, route_task
 
 
 @pytest.mark.unit
-def test_route_implementation_default():
-    assert route_task("implementation", "default") == "framework-expert"
+def test_route_implementation_prefers_delivery():
+    assert route_task("implementation") == "delivery-backend-engineer"
 
 
 @pytest.mark.unit
-def test_route_implementation_sworm():
-    assert route_task("implementation", "swords") == "delivery-backend-engineer"
+def test_route_test_prefers_delivery():
+    assert route_task("test") == "delivery-qa-engineer"
 
 
 @pytest.mark.unit
-def test_route_test_default():
-    assert route_task("test", "default") == "qa-engineer"
+def test_route_architecture_prefers_delivery():
+    assert route_task("architecture") == "delivery-strategic-architect"
 
 
 @pytest.mark.unit
-def test_route_test_sworm():
-    assert route_task("test", "swords") == "delivery-qa-engineer"
-
-
-@pytest.mark.unit
-def test_route_architecture_default():
-    assert route_task("architecture", "default") == "architecture-guide"
-
-
-@pytest.mark.unit
-def test_route_review_default():
-    assert route_task("review", "default") == "spec-reviewer-quality"
-
-
-@pytest.mark.unit
-def test_route_review_sworm():
-    assert route_task("review", "swords") == "delivery-code-reviewer"
+def test_route_review_prefers_delivery():
+    assert route_task("review") == "delivery-code-reviewer"
 
 
 @pytest.mark.unit
 def test_route_unknown_type_raises():
     with pytest.raises(RoutingError):
-        route_task("nonexistent-task-type", "default")
+        route_task("nonexistent-task-type")
 
 
 @pytest.mark.unit
 def test_route_with_available_agents_filter():
-    # Provide whitelist that excludes the table-primary agent; falls back to registry
-    # "qa-engineer" excluded → should raise (no other default agent covers "test")
     with pytest.raises(RoutingError):
-        route_task("test", "default", available_agents=["framework-expert"])
+        route_task("test", available_agents=["framework-expert"])
 
 
 @pytest.mark.unit
 def test_route_require_write_filters():
-    # "architecture-guide" cannot write; delivery-strategic-architect also cannot write.
-    # With require_write=True, routing table still selects the agent name from the table,
-    # but then fails the can_write check and falls to registry fallback which also yields
-    # no writers -> RoutingError.
     with pytest.raises(RoutingError):
-        route_task("architecture", "default", require_write=True)
+        route_task("architecture", require_write=True)
 
 
 @pytest.mark.unit
 def test_route_require_write_no_candidate():
-    # "review" default -> spec-reviewer-quality (can_write=False); no other writer exists
     with pytest.raises(RoutingError):
-        route_task("review", "default", require_write=True)
+        route_task("review", require_write=True)
 
 
 @pytest.mark.unit
-def test_routing_table_has_four_entries():
-    assert len(ROUTING_TABLE) == 4
+def test_route_implementation_with_write():
+    result = route_task("implementation", require_write=True)
+    assert result == "delivery-backend-engineer"
 
 
 @pytest.mark.unit
-def test_route_never_returns_unassigned():
-    for entry in ROUTING_TABLE:
-        result_default = route_task(entry.task_type, "default")
-        result_swords = route_task(entry.task_type, "swords")
-        assert "_unassigned_" not in result_default
-        assert "_unassigned_" not in result_swords
+def test_route_test_with_write():
+    result = route_task("test", require_write=True)
+    assert result == "delivery-qa-engineer"
+
+
+@pytest.mark.unit
+def test_route_fallback_to_registry():
+    result = route_task("bug-fix")
+    assert result in ("delivery-backend-engineer", "framework-expert")
+
+
+@pytest.mark.unit
+def test_route_prefer_delivery_false():
+    result = route_task("test", prefer_delivery=False)
+    assert result == "qa-engineer"
