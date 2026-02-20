@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/assets/stratus.png" alt="Stratus Logo" width="400">
+  <img src="./stratus.png" alt="Stratus Logo" width="400">
 </p>
-
-<h1 align="center">Stratus</h1>
 
 <p align="center">
   <strong>Open-source framework for Claude Code sessions</strong>
