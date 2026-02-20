@@ -374,30 +374,23 @@ class TestMCPServer:
 
     @pytest.mark.asyncio
     async def test_call_tool_delivery_dispatch(self):
-        from unittest.mock import MagicMock, patch
-
-        import httpx
+        from unittest.mock import patch
 
         server = create_mcp_server()
         from mcp import types
 
-        mock_response = MagicMock(spec=httpx.Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "phase": "implementation",
-            "agents": [],
-            "objectives": [],
-            "briefing_markdown": "# Phase",
-        }
-        mock_response.raise_for_status = MagicMock()
-
         mock_client = AsyncMock()
+        mock_client.delivery_dispatch = AsyncMock(
+            return_value={
+                "phase": "implementation",
+                "agents": [],
+                "objectives": [],
+                "briefing_markdown": "# Phase",
+            }
+        )
         mock_client.close = AsyncMock()
 
-        with (
-            patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
-            patch("httpx.get", return_value=mock_response),
-        ):
+        with patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client):
             result = await server.request_handlers[types.CallToolRequest](
                 types.CallToolRequest(
                     method="tools/call",
@@ -638,66 +631,49 @@ class TestMCPServer:
         mock_gov_store.index_project.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_index_status_indexes_governance_when_project_root_known(self):
-        """index_status handler must call governance.index_project() before status check."""
-        from pathlib import Path
+    async def test_retrieve_closes_gov_store_on_exception(self):
+        """Verify gov_store.close() is called even when exception occurs."""
         from unittest.mock import MagicMock, patch
 
         server = create_mcp_server()
         from mcp import types
 
         mock_gov_store = MagicMock()
+        mock_gov_store.index_project.side_effect = RuntimeError("boom")
         mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
-
-        mock_retriever = MagicMock()
-        mock_retriever.status = MagicMock(
-            return_value={"vexor_available": False, "governance_available": True}
-        )
-        mock_retriever_cls = MagicMock(return_value=mock_retriever)
 
         mock_client = AsyncMock()
         mock_client.close = AsyncMock()
 
-        fake_git_root = Path("/tmp/fake-project")
-
         with (
             patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
             patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
-            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
-            patch(
-                "stratus.hooks._common.get_git_root",
-                return_value=fake_git_root,
-            ),
         ):
-            await server.request_handlers[types.CallToolRequest](
+            result = await server.request_handlers[types.CallToolRequest](
                 types.CallToolRequest(
                     method="tools/call",
                     params=types.CallToolRequestParams(
-                        name="index_status",
-                        arguments={},
+                        name="retrieve",
+                        arguments={"query": "test"},
                     ),
                 )
             )
 
-        # governance.index_project() must have been called with the resolved project root
-        mock_gov_store.index_project.assert_called_once_with(str(fake_git_root.resolve()))
+        mock_gov_store.close.assert_called_once()
+        content = result.root.content
+        assert "error" in content[0].text
 
     @pytest.mark.asyncio
-    async def test_index_status_skips_governance_index_when_no_git_root(self):
-        """index_status handler must NOT call governance.index_project() when root is None."""
+    async def test_index_status_closes_gov_store_on_exception(self):
+        """Verify gov_store.close() is called even when exception occurs in index_status."""
         from unittest.mock import MagicMock, patch
 
         server = create_mcp_server()
         from mcp import types
 
         mock_gov_store = MagicMock()
+        mock_gov_store.index_project.side_effect = RuntimeError("boom")
         mock_gov_store_cls = MagicMock(return_value=mock_gov_store)
-
-        mock_retriever = MagicMock()
-        mock_retriever.status = MagicMock(
-            return_value={"vexor_available": False, "governance_available": True}
-        )
-        mock_retriever_cls = MagicMock(return_value=mock_retriever)
 
         mock_client = AsyncMock()
         mock_client.close = AsyncMock()
@@ -705,10 +681,8 @@ class TestMCPServer:
         with (
             patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client),
             patch("stratus.retrieval.governance_store.GovernanceStore", mock_gov_store_cls),
-            patch("stratus.retrieval.unified.UnifiedRetriever", mock_retriever_cls),
-            patch("stratus.hooks._common.get_git_root", return_value=None),
         ):
-            await server.request_handlers[types.CallToolRequest](
+            result = await server.request_handlers[types.CallToolRequest](
                 types.CallToolRequest(
                     method="tools/call",
                     params=types.CallToolRequestParams(
@@ -718,5 +692,131 @@ class TestMCPServer:
                 )
             )
 
-        # governance.index_project() must NOT have been called when git root is None
-        mock_gov_store.index_project.assert_not_called()
+        mock_gov_store.close.assert_called_once()
+        content = result.root.content
+        assert "error" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_http_error_returns_json_error(self):
+        """Verify HTTP errors return JSON with error key."""
+        from unittest.mock import MagicMock, patch
+
+        import httpx
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(
+            side_effect=httpx.HTTPStatusError("error", request=MagicMock(), response=mock_response)
+        )
+        mock_client.close = AsyncMock()
+
+        with patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client):
+            result = await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="search",
+                        arguments={"query": "test"},
+                    ),
+                )
+            )
+
+        content = result.root.content
+        assert len(content) == 1
+        assert "error" in content[0].text
+        assert "500" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_request_error_returns_json_error(self):
+        """Verify request errors (network) return JSON with error key."""
+        from unittest.mock import MagicMock, patch
+
+        import httpx
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(
+            side_effect=httpx.RequestError("connection refused", request=MagicMock())
+        )
+        mock_client.close = AsyncMock()
+
+        with patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client):
+            result = await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="search",
+                        arguments={"query": "test"},
+                    ),
+                )
+            )
+
+        content = result.root.content
+        assert len(content) == 1
+        assert "error" in content[0].text
+        assert "Request failed" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_unexpected_error_returns_json_error(self):
+        """Verify unexpected errors return JSON with error key."""
+        from unittest.mock import patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(side_effect=ValueError("unexpected boom"))
+        mock_client.close = AsyncMock()
+
+        with patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client):
+            result = await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="search",
+                        arguments={"query": "test"},
+                    ),
+                )
+            )
+
+        content = result.root.content
+        assert len(content) == 1
+        assert "error" in content[0].text
+        assert "ValueError" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_delivery_dispatch_uses_memory_client(self):
+        """Verify delivery_dispatch uses MemoryClient, not sync httpx."""
+        from unittest.mock import patch
+
+        server = create_mcp_server()
+        from mcp import types
+
+        mock_client = AsyncMock()
+        mock_client.delivery_dispatch = AsyncMock(
+            return_value={"phase": "plan", "agents": [], "objectives": []}
+        )
+        mock_client.close = AsyncMock()
+
+        with patch("stratus.mcp_server.server.MemoryClient", return_value=mock_client):
+            result = await server.request_handlers[types.CallToolRequest](
+                types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(
+                        name="delivery_dispatch",
+                        arguments={},
+                    ),
+                )
+            )
+
+        mock_client.delivery_dispatch.assert_called_once()
+        content = result.root.content
+        assert "phase" in content[0].text

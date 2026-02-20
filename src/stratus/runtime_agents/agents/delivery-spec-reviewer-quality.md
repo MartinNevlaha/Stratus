@@ -61,4 +61,26 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) to find project conventi
 
 Use `retrieve corpus:"governance"` as a complement to reading `.claude/rules/*.md` — governance DB includes ADRs, architecture docs, and skills too.
 
+## Memory Capture
+
+Use **`save_memory`** MCP tool for important findings:
+
+| Type | When to use |
+|------|-------------|
+| `pattern_candidate` | Reusable patterns discovered in codebase |
+| `rejected_pattern` | Anti-patterns or code smells found repeatedly |
+| `discovery` | Lessons about code quality standards |
+
+Example:
+```
+save_memory(
+  text="Error handling uses Result monad pattern across services",
+  type="pattern_candidate",
+  tags=["error-handling", "pattern"],
+  importance=0.6
+)
+```
+
+Save sparingly — only genuinely reusable knowledge.
+
 You are a READ-ONLY reviewer. You may run diagnostic commands but do not modify code. `must_fix` items cause FAIL verdict. `should_fix` items are warnings. `suggestion` items are optional improvements.

@@ -45,6 +45,24 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) to find related code and
 
 Prefer `retrieve` to find related issues and patterns quickly.
 
+## Historical Context
+
+Use **`search`** MCP tool to find similar past bugs and fixes:
+
+| Use case | Example |
+|----------|---------|
+| Similar bugs before | `search("null pointer exception bug")` |
+| Related error patterns | `search("connection timeout error")` |
+| Past fixes | `search("fix database connection")` |
+
+Use **`get_observations`** for full details after search:
+```
+results = search("bug database", limit=5)
+full = get_observations([r["id"] for r in results])
+```
+
+This helps identify if a similar bug was seen before and how it was resolved.
+
 ## Phase Restrictions
 
 - Active during: QA (primary), IMPLEMENTATION (when bugs block engineering progress)

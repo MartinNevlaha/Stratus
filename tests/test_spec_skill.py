@@ -4,10 +4,7 @@ from pathlib import Path
 
 import pytest
 
-SKILL_PATHS = [
-    Path(__file__).parent.parent / ".claude" / "skills" / "spec" / "SKILL.md",
-    Path(__file__).parent.parent / "plugin" / "skills" / "spec" / "SKILL.md",
-]
+SKILL_PATH = Path(__file__).parent.parent / ".claude" / "skills" / "spec" / "SKILL.md"
 
 
 def _parse_frontmatter(content: str) -> dict[str, str]:
@@ -25,57 +22,40 @@ def _parse_frontmatter(content: str) -> dict[str, str]:
     return fm
 
 
-@pytest.mark.parametrize("path", SKILL_PATHS, ids=["project", "plugin"])
+@pytest.mark.unit
 class TestSpecSkill:
-    def test_file_exists(self, path: Path) -> None:
-        assert path.exists(), f"{path} does not exist"
+    def test_file_exists(self) -> None:
+        assert SKILL_PATH.exists(), f"{SKILL_PATH} does not exist"
 
-    def test_has_yaml_frontmatter(self, path: Path) -> None:
-        content = path.read_text()
+    def test_has_yaml_frontmatter(self) -> None:
+        content = SKILL_PATH.read_text()
         assert content.startswith("---"), "Missing YAML frontmatter delimiter"
-        # Find closing delimiter
         lines = content.splitlines()
         closing = [i for i, line in enumerate(lines[1:], 1) if line.strip() == "---"]
         assert closing, "Missing closing frontmatter delimiter"
 
-    def test_frontmatter_has_name(self, path: Path) -> None:
-        fm = _parse_frontmatter(path.read_text())
+    def test_frontmatter_has_name(self) -> None:
+        fm = _parse_frontmatter(SKILL_PATH.read_text())
         assert fm.get("name") == "spec"
 
-    def test_frontmatter_has_context_fork(self, path: Path) -> None:
-        fm = _parse_frontmatter(path.read_text())
+    def test_frontmatter_has_context_fork(self) -> None:
+        fm = _parse_frontmatter(SKILL_PATH.read_text())
         assert fm.get("context") == "fork"
 
-    def test_frontmatter_no_agent_field(self, path: Path) -> None:
+    def test_frontmatter_no_agent_field(self) -> None:
         """Spec skill should NOT have an agent field — it's a coordinator."""
-        fm = _parse_frontmatter(path.read_text())
+        fm = _parse_frontmatter(SKILL_PATH.read_text())
         assert "agent" not in fm
 
-    def test_references_task_tool(self, path: Path) -> None:
-        content = path.read_text()
+    def test_references_task_tool(self) -> None:
+        content = SKILL_PATH.read_text()
         assert "Task tool" in content or "Task" in content
 
-    def test_references_delegation(self, path: Path) -> None:
-        content = path.read_text()
+    def test_references_delegation(self) -> None:
+        content = SKILL_PATH.read_text()
         assert "delegate" in content.lower()
 
-    def test_references_both_modes(self, path: Path) -> None:
-        content = path.read_text()
+    def test_references_both_modes(self) -> None:
+        content = SKILL_PATH.read_text()
         assert "Default" in content
         assert "Sworm" in content
-
-    def test_project_and_plugin_identical(self, path: Path) -> None:
-        _ = path  # parametrized but we compare both
-        project = SKILL_PATHS[0].read_text()
-        plugin = SKILL_PATHS[1].read_text()
-        # Plugin and project versions have minor naming differences
-        # Both should reference delivery agents, but may differ in prefix usage
-        # Core content should be functionally equivalent
-        assert len(project) > 0
-        assert len(plugin) > 0
-        # Both should have same frontmatter name
-        assert "name: spec" in project
-        assert "name: spec" in plugin
-        # Both should have context: fork
-        assert "context: fork" in project
-        assert "context: fork" in plugin

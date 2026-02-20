@@ -27,7 +27,6 @@ _IMPORT_PATCH_UNSAFE: frozenset[str] = frozenset(
         "__init__",
         "hooks/",
         "registry/",
-        "plugin/",
     }
 )
 
@@ -35,7 +34,6 @@ _GOVERNANCE_DENYLIST: frozenset[str] = frozenset(
     {
         ".claude/",
         ".ai-framework.json",
-        "plugin/hooks/",
         ".github/",
     }
 )

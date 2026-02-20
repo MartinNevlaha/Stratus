@@ -59,6 +59,13 @@ FTS_TRIGGERS = [
     """,
 ]
 
+INDEX_METADATA_DDL = """
+CREATE TABLE IF NOT EXISTS index_metadata (
+    project_root TEXT PRIMARY KEY,
+    indexed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+"""
+
 MIGRATIONS: dict[int, list[str]] = {
     1: [
         GOVERNANCE_DOCS_DDL,
@@ -66,8 +73,10 @@ MIGRATIONS: dict[int, list[str]] = {
         *FTS_TRIGGERS,
     ],
     2: [
-        # Clear old relative-path records — they are ambiguous across projects.
         "DELETE FROM governance_docs;",
+    ],
+    3: [
+        INDEX_METADATA_DDL,
     ],
 }
 
@@ -230,6 +239,7 @@ class GovernanceStore:
                     )
                     files_removed += 1
 
+            self._update_index_timestamp(project_root)
             self._conn.commit()
         except Exception:
             self._conn.rollback()
@@ -325,3 +335,55 @@ class GovernanceStore:
             "total_chunks": total_chunks,
             "by_doc_type": by_doc_type,
         }
+
+    def needs_reindex(self, project_root: str, ttl_seconds: int = 300) -> bool:
+        """Check if project was indexed more than ttl_seconds ago.
+
+        Returns True if:
+        - Project has never been indexed
+        - Last index was more than ttl_seconds ago
+        - Project has no documents indexed
+        """
+        from datetime import UTC, datetime
+
+        abs_root = str(Path(project_root).resolve())
+
+        row = self._conn.execute(
+            "SELECT indexed_at FROM index_metadata WHERE project_root = ?",
+            (abs_root,),
+        ).fetchone()
+
+        if row is None:
+            return True
+
+        try:
+            indexed_at = row["indexed_at"]
+            if indexed_at.endswith("Z"):
+                indexed_at = indexed_at[:-1] + "+00:00"
+            indexed_dt = datetime.fromisoformat(indexed_at)
+            if indexed_dt.tzinfo is None:
+                indexed_dt = indexed_dt.replace(tzinfo=UTC)
+            now_dt = datetime.now(UTC)
+            elapsed = (now_dt - indexed_dt).total_seconds()
+            if elapsed > ttl_seconds:
+                return True
+        except (ValueError, TypeError):
+            return True
+
+        doc_count = self._conn.execute(
+            "SELECT COUNT(*) FROM governance_docs WHERE file_path LIKE ?",
+            (abs_root + "%",),
+        ).fetchone()[0]
+
+        return doc_count == 0
+
+    def _update_index_timestamp(self, project_root: str) -> None:
+        """Update the indexed_at timestamp for a project (UPSERT)."""
+        abs_root = str(Path(project_root).resolve())
+        self._conn.execute(
+            """INSERT INTO index_metadata (project_root, indexed_at)
+               VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+               ON CONFLICT(project_root) DO UPDATE SET
+                   indexed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')""",
+            (abs_root,),
+        )

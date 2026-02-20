@@ -212,12 +212,6 @@ class TestCheckGovernanceImpact:
         impact = _check_governance_impact(".ai-framework.json", _GOVERNANCE_DENYLIST)
         assert impact == GovernanceImpact.CRITICAL
 
-    def test_plugin_hooks_is_critical(self):
-        from stratus.self_debug.patcher import _GOVERNANCE_DENYLIST, _check_governance_impact
-
-        impact = _check_governance_impact("plugin/hooks/something.py", _GOVERNANCE_DENYLIST)
-        assert impact == GovernanceImpact.CRITICAL
-
     def test_github_path_is_critical(self):
         from stratus.self_debug.patcher import _GOVERNANCE_DENYLIST, _check_governance_impact
 
@@ -307,18 +301,6 @@ class TestPatchSafety:
         issue = _make_issue(
             IssueType.UNUSED_IMPORT,
             file_path="src/stratus/registry/loader.py",
-            line_start=1,
-        )
-        result = generate_patch(issue, UNUSED_IMPORT_SOURCE)
-
-        assert result is None
-
-    def test_unused_import_in_plugin_path_returns_none(self):
-        from stratus.self_debug.patcher import generate_patch
-
-        issue = _make_issue(
-            IssueType.UNUSED_IMPORT,
-            file_path="plugin/commands/init.py",
             line_start=1,
         )
         result = generate_patch(issue, UNUSED_IMPORT_SOURCE)

@@ -204,18 +204,6 @@ tests/
     implement-mcp/           # Delegates to framework-expert
     spec/                    # /spec coordinator skill (context: fork, no agent)
 
-plugin/
-  .claude-plugin/
-    plugin.json             # Plugin manifest (name, version, description)
-  .mcp.json                 # MCP server config (stratus mcp-serve, stdio)
-  commands/                 # 8 command files (init, doctor, status, analyze, reindex, proposals, decide, worktree)
-  agents/                   # 26 agent definitions (7 core + 19 delivery)
-  rules/
-    01-agent-workflow.md    # Hard delegation rule (plugin copy)
-  skills/                   # 11 skill definitions (3 core + 7 delivery + 1 spec)
-  hooks/
-    hooks.json              # Hook configuration (13 hooks using `stratus hook <module>`)
-
 scripts/
   install.sh          # POSIX installer (pipx or venv fallback, no sudo)
   uninstall.sh        # POSIX uninstaller (pipx and venv)
@@ -259,7 +247,7 @@ uv run stratus learning config           # Show learning config
 
 uv run stratus self-debug                # Run self-debug analysis (stdout)
 uv run stratus self-debug -o report.md   # Write report to file
-uv run stratus hook <module>             # Run a hook module (plugin entry point)
+uv run stratus hook <module>             # Run a hook module
 uv run stratus statusline               # Output status line for Claude Code (reads JSON from stdin)
 
 # Backward compat
@@ -369,18 +357,6 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - Hook failure recording is best-effort (try/except: pass) — never blocks hooks
 - No new runtime dependencies — uses stdlib + existing pydantic/httpx
 
-### Plugin
-
-- `plugin/` directory is the Claude Code plugin (separate from `.claude/` which is for framework development)
-- `stratus hook <module>` CLI subcommand is the single entry point for all plugin hooks
-- Plugin hooks use `stratus hook <module>` instead of `uv run python -m stratus.hooks.<module>`
-- Plugin manifest at `plugin/.claude-plugin/plugin.json`
-- Plugin MCP config at `plugin/.mcp.json` (uses `stratus mcp-serve` directly, no `uv run`)
-- Core agents generalized: `framework-expert` → `implementation-expert`, stratus-specific refs removed
-- Delivery agents copied verbatim from `src/stratus/runtime_agents/agents/`
-- Core skills generalized: detect project type dynamically instead of hardcoding `uv run pytest`
-- Delivery skills copied verbatim from `src/stratus/runtime_agents/skills/`
-
 ### Release & Distribution
 
 - `__version__` sourced from `importlib.metadata` (single source of truth: pyproject.toml)
@@ -426,11 +402,11 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - Env override: `AI_FRAMEWORK_SELF_DEBUG_ENABLED`
 - Split prefix strategy: analyze broadly (`src/stratus/`), patch narrowly (deny hooks/orchestration/registry/self_debug)
 - Only `BARE_EXCEPT` and `UNUSED_IMPORT` are auto-patchable; `MISSING_TYPE_HINT`, `DEAD_CODE`, `ERROR_HANDLING` are report-only
-- `UNUSED_IMPORT` safety: skip `__init__.py`, skip `TYPE_CHECKING` blocks, skip hook/registry/plugin paths
+- `UNUSED_IMPORT` safety: skip `__init__.py`, skip `TYPE_CHECKING` blocks, skip hook/registry paths
 - Branch check: analysis fails-open (warn if git unavailable), patch generation fails-closed (no patches if branch unknown)
 - On `main`/`master` branch: refuses to run entirely (`ValueError`)
 - Recursion guard: `self_debug/` in patch deny prefixes (can be analyzed but not patched)
 - Max issues cap: `config.max_issues` (default 50)
 - Max patch size: `config.max_patch_lines` (default 200)
-- Governance denylist: `.claude/`, `.ai-framework.json`, `plugin/hooks/`, `.github/` — CRITICAL impact → no patch generated
+- Governance denylist: `.claude/`, `.ai-framework.json`, `.github/` — CRITICAL impact → no patch generated
 - Report is markdown with summary, per-issue blocks, unified diffs in fenced code blocks

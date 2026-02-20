@@ -1,8 +1,0 @@
-{
-  "name": "stratus",
-  "version": "0.1.0",
-  "description": "Persistent memory, retrieval, adaptive learning, and spec-driven orchestration for Claude Code",
-  "author": { "name": "Better Claude Contributors" },
-  "repository": "https://github.com/MartinNevlaha/stratus",
-  "license": "Apache-2.0"
-}

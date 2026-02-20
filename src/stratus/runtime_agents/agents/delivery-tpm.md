@@ -50,6 +50,23 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) for planning context:
 
 Prefer `retrieve` to understand project-specific planning conventions.
 
+## Work Context
+
+Use **`timeline`** MCP tool for chronological context of project history:
+
+| Use case | Example |
+|----------|---------|
+| Context around a past decision | `timeline(anchor_id=42)` |
+| Find events by topic | `timeline(query="database migration")` |
+| Recent project activity | `timeline(depth_before=10, depth_after=10)` |
+
+Use **`search`** to find specific historical events:
+```
+results = search("authentication decision", type="decision")
+```
+
+Timeline helps understand what led to current state before planning changes.
+
 ## Phase Restrictions
 
 - Active during: PLANNING (primary), all subsequent phases (progress tracking)

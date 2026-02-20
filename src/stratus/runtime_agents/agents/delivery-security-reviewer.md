@@ -53,6 +53,28 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) to find security pattern
 
 Prefer `retrieve` to ground findings in actual codebase patterns.
 
+## Memory Capture
+
+Use **`save_memory`** MCP tool for important security findings:
+
+| Type | When to use |
+|------|-------------|
+| `rejected_pattern` | Security anti-patterns discovered |
+| `discovery` | Security lessons or vulnerability patterns |
+| `decision` | Security architecture decisions |
+
+Example:
+```
+save_memory(
+  text="JWT tokens must verify 'iss' claim before trusting payload",
+  type="rejected_pattern",
+  tags=["security", "jwt", "authentication"],
+  importance=0.8
+)
+```
+
+Save sparingly — only genuinely reusable knowledge.
+
 ## Phase Restrictions
 
 - Active during: GOVERNANCE

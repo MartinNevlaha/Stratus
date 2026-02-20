@@ -78,6 +78,8 @@ CORE_SKILL_DIRNAMES: list[str] = [
     "web-perf",
     # Architecture
     "explain-architecture",
+    # Debugging
+    "sqlite-async-threading",
 ]
 
 SKILL_CATALOG: list[SkillSpec] = [

@@ -60,4 +60,24 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) to verify implementation
 
 Prefer `retrieve` to cross-reference spec with actual code.
 
-## Output Format
+## Memory Capture
+
+Use **`save_memory`** MCP tool for important compliance findings:
+
+| Type | When to use |
+|------|-------------|
+| `decision` | Compliance decisions made during review |
+| `rejected_pattern` | Patterns that fail spec compliance |
+| `discovery` | Lessons about spec-to-code alignment |
+
+Example:
+```
+save_memory(
+  text="Spec compliance requires explicit return types on all public functions",
+  type="decision",
+  tags=["compliance", "type-hints"],
+  importance=0.6
+)
+```
+
+Save sparingly — only genuinely reusable knowledge.

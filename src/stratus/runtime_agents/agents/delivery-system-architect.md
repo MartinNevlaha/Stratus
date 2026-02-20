@@ -45,6 +45,27 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) for design discovery:
 
 Prefer `retrieve` to understand existing patterns before designing.
 
+## Memory Capture
+
+Use **`save_memory`** MCP tool for design decisions:
+
+| Type | When to use |
+|------|-------------|
+| `decision` | Component design decisions |
+| `pattern_candidate` | Reusable component patterns |
+
+Example:
+```
+save_memory(
+  text="Use repository pattern for all data access layers",
+  type="pattern_candidate",
+  tags=["architecture", "data-access", "pattern"],
+  importance=0.7
+)
+```
+
+Save sparingly — only genuinely reusable knowledge.
+
 ## Phase Restrictions
 
 - Active during: ARCHITECTURE (primary), PLANNING (estimation support)

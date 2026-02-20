@@ -23,7 +23,6 @@ Scan the following locations using Read, Glob, and Grep:
 
 Enumerate every `.md` file in:
 - `.claude/agents/`
-- `plugin/agents/` (if present)
 - Any other agent directories mentioned in `.ai-framework.json`
 
 For each agent extract:
@@ -32,7 +31,7 @@ For each agent extract:
 - `model` field
 - Any `phase` or `mode` hints in the body
 
-Also check `agent-registry.json` (in `plugin/` or `src/stratus/registry/`) if present. Note each agent's `optional` field and `orchestration_modes`.
+Also check `agent-registry.json` (in `src/stratus/registry/`) if present. Note each agent's `optional` field and `orchestration_modes`.
 
 Detect:
 - **Naming conflicts** — two agents with the same `name`
@@ -43,7 +42,7 @@ Detect:
 
 ### B) Skills
 
-Enumerate every `SKILL.md` in `.claude/skills/` and `plugin/skills/`.
+Enumerate every `SKILL.md` in `.claude/skills/`.
 
 For each skill check:
 - Does frontmatter have `context: fork`? (required for coordinator skills)
@@ -53,13 +52,12 @@ For each skill check:
 
 Detect **bypass patterns**: any skill that delegates implementation to `framework-expert` or similar via `agent:` field is fine; any skill that tells the coordinator to write code directly is a conflict.
 
-**Agent resolution:** When a skill references an agent via `agent:` field, resolve it across ALL agent sources: `.claude/agents/`, `plugin/agents/`, and the agent registry. Stratus core agents (`qa-engineer`, `spec-reviewer-quality`, `framework-expert`, etc.) are provided by the framework and may only exist in `plugin/agents/` or the registry — they do not need a `.md` file in the project's `.claude/agents/` to be valid.
+**Agent resolution:** When a skill references an agent via `agent:` field, resolve it across ALL agent sources: `.claude/agents/` and the agent registry. Stratus core agents (`qa-engineer`, `spec-reviewer-quality`, `framework-expert`, etc.) are provided by the framework via the registry — they do not need a `.md` file in the project's `.claude/agents/` to be valid.
 
 ### C) Rules
 
 Enumerate every `.md` file in:
 - `.claude/rules/`
-- `plugin/rules/`
 - `~/.claude/rules/` or `~/.claude/CLAUDE.md` (global rules — read if accessible)
 
 For each rule check:
@@ -91,7 +89,7 @@ Add CLAUDE.md findings to the conflict report alongside rules findings.
 
 ### D) Slash-Commands
 
-Enumerate every file in `.claude/commands/` and `plugin/commands/`.
+Enumerate every file in `.claude/commands/`.
 
 For each command:
 - Does it delegate via Task tool or skill fork?
