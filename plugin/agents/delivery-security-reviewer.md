@@ -38,7 +38,7 @@ and produce structured security audit reports.
 - NEVER write code or edit implementation files
 - NEVER commit or push changes
 - NEVER approve releases — verdicts inform delivery-quality-gate-manager
-- Bash is for read-only inspection (file listing, grep, dependency audit tools) only
+- Bash is **read-only**: file listing, grep, and dependency audit tools (e.g. `pip audit`, `npm audit`). No writes, no installs, no code execution
 
 ## Phase Restrictions
 

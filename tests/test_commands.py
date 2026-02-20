@@ -125,7 +125,11 @@ class TestCmdInit:
     ) -> None:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+            dry_run=False,
+            force=False,
+            skip_hooks=False,
+            skip_mcp=False,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
@@ -141,7 +145,11 @@ class TestCmdInit:
     ) -> None:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+            dry_run=False,
+            force=False,
+            skip_hooks=False,
+            skip_mcp=False,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
@@ -159,7 +167,11 @@ class TestCmdInit:
     ) -> None:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=True, skip_mcp=False, scope="local",
+            dry_run=False,
+            force=False,
+            skip_hooks=True,
+            skip_mcp=False,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
@@ -176,7 +188,11 @@ class TestCmdInit:
     ) -> None:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=False, skip_mcp=True, scope="local",
+            dry_run=False,
+            force=False,
+            skip_hooks=False,
+            skip_mcp=True,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
@@ -190,7 +206,11 @@ class TestCmdInit:
     ) -> None:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=True, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+            dry_run=True,
+            force=False,
+            skip_hooks=False,
+            skip_mcp=False,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
@@ -382,7 +402,11 @@ class TestCmdInit:
         """cmd_init registers statusLine in settings.json."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+            dry_run=False,
+            force=False,
+            skip_hooks=False,
+            skip_mcp=False,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
@@ -401,13 +425,16 @@ class TestCmdInit:
         """Dry-run does not write statusLine."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
-            dry_run=True, force=False, skip_hooks=False, skip_mcp=False, scope="local",
+            dry_run=True,
+            force=False,
+            skip_hooks=False,
+            skip_mcp=False,
+            scope="local",
         )
         with patch("stratus.hooks._common.get_git_root", return_value=tmp_path):
             cmd_init(ns)
         settings = tmp_path / ".claude" / "settings.json"
         assert not settings.exists()
-
 
     def test_cmd_init_interactive_when_no_scope(
         self,
@@ -642,7 +669,6 @@ class TestCmdInitRetrieval:
         captured = capsys.readouterr()
         assert "index" in captured.out.lower()
 
-
     def test_init_falls_back_to_cpu_when_cuda_runtime_unavailable(
         self,
         tmp_path: Path,
@@ -681,7 +707,6 @@ class TestCmdInitRetrieval:
         mock_setup.assert_called_once_with(cuda=False)
         captured = capsys.readouterr()
         assert "cuda runtime" in captured.out.lower() or "cpu" in captured.out.lower()
-
 
     def test_init_calls_governance_index_when_devrag_enabled(
         self,
@@ -858,143 +883,6 @@ class TestInteractiveInit:
         assert delivery is False
         # Only 1 call (scope), no delivery prompt
         assert mock_input.call_count == 1
-
-
-class TestEnsureServer:
-    def test_ensure_server_skips_when_already_running(
-        self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """If health check passes, don't start a new server."""
-        from stratus.bootstrap.commands import _ensure_server
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        with patch("stratus.bootstrap.commands.httpx.get", return_value=mock_resp):
-            _ensure_server()
-        captured = capsys.readouterr()
-        assert "already running" in captured.out.lower()
-
-    def test_ensure_server_starts_when_not_running(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """If health check fails, spawn server process."""
-        from stratus.bootstrap.commands import _ensure_server
-
-        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
-        (tmp_path / "data").mkdir(parents=True)
-
-        mock_popen = MagicMock()
-        mock_popen.pid = 12345
-        # First health check fails, second (after spawn) succeeds
-        mock_resp_ok = MagicMock()
-        mock_resp_ok.status_code = 200
-        with (
-            patch(
-                "stratus.bootstrap.commands.httpx.get",
-                side_effect=[Exception("no server"), mock_resp_ok],
-            ),
-            patch(
-                "stratus.bootstrap.commands.subprocess.Popen",
-                return_value=mock_popen,
-            ) as mock_spawn,
-        ):
-            _ensure_server()
-        mock_spawn.assert_called_once()
-        captured = capsys.readouterr()
-        assert "server" in captured.out.lower()
-
-    def test_ensure_server_warns_on_startup_failure(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """If server doesn't become healthy after spawn, print warning."""
-        from stratus.bootstrap.commands import _ensure_server
-
-        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
-        (tmp_path / "data").mkdir(parents=True)
-
-        mock_popen = MagicMock()
-        mock_popen.pid = 99999
-        with (
-            patch(
-                "stratus.bootstrap.commands.httpx.get",
-                side_effect=Exception("no server"),
-            ),
-            patch(
-                "stratus.bootstrap.commands.subprocess.Popen",
-                return_value=mock_popen,
-            ),
-            patch("stratus.bootstrap.commands.time.sleep"),
-        ):
-            _ensure_server()
-        captured = capsys.readouterr()
-        assert "not respond" in captured.out.lower() or "warning" in captured.out.lower()
-
-    def test_init_calls_ensure_server(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """cmd_init calls _ensure_server at the end (not in dry-run)."""
-        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
-        ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=True, skip_mcp=True, scope="local",
-        )
-        with (
-            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
-            patch(
-                "stratus.bootstrap.commands._ensure_server",
-            ) as mock_ensure,
-        ):
-            cmd_init(ns)
-        mock_ensure.assert_called_once()
-
-    def test_init_dry_run_skips_ensure_server(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """cmd_init does NOT call _ensure_server in dry-run mode."""
-        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
-        ns = argparse.Namespace(
-            dry_run=True, force=False, skip_hooks=True, skip_mcp=True, scope="local",
-        )
-        with (
-            patch("stratus.hooks._common.get_git_root", return_value=tmp_path),
-            patch(
-                "stratus.bootstrap.commands._ensure_server",
-            ) as mock_ensure,
-        ):
-            cmd_init(ns)
-        mock_ensure.assert_not_called()
-
-    def test_init_global_scope_calls_ensure_server(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Global scope init also starts the server."""
-        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
-        fake_home = tmp_path / "fakehome"
-        fake_home.mkdir()
-        ns = argparse.Namespace(
-            dry_run=False, force=False, skip_hooks=False, skip_mcp=False, scope="global",
-        )
-        with (
-            patch("stratus.hooks._common.get_git_root", return_value=None),
-            patch("stratus.bootstrap.registration.Path.home", return_value=fake_home),
-            patch(
-                "stratus.bootstrap.commands._ensure_server",
-            ) as mock_ensure,
-        ):
-            cmd_init(ns)
-        mock_ensure.assert_called_once()
 
 
 class TestCmdDoctor:

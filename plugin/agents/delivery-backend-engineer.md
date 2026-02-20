@@ -34,6 +34,12 @@ data layers. You follow TDD, write clean idiomatic code, and update tasks as you
 - API responses must follow the project's established envelope format
 - Test coverage >= 80% for all new modules
 
+## Task Ownership
+
+- Only create **subtasks** under TPM-created parent tasks (use `addBlockedBy`/`addBlocks` to link)
+- Never create top-level tasks — that is TPM's responsibility
+- Update task status via TaskUpdate as work progresses
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

@@ -31,6 +31,13 @@ phases to track progress and surface blockers early.
 - NEVER override engineering estimates — negotiate, do not dictate
 - NEVER approve quality gates — defer to delivery-quality-gate-manager
 
+## Task Ownership
+
+- TPM is the **sole creator** of top-level tasks (epics → task breakdown)
+- Engineers may create **subtasks** under an existing TPM-created parent task using `addBlockedBy`/`addBlocks` to link them
+- delivery-product-owner may create tasks only during PLANNING for requirement clarifications
+- When in doubt about whether to create a new task or a subtask → ask TPM
+
 ## Phase Restrictions
 
 - Active during: PLANNING (primary), all subsequent phases (progress tracking)
