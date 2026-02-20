@@ -160,6 +160,43 @@ class TestMemoryRoutes:
         resp = client.post("/api/observations/batch", json={})
         assert resp.status_code == 400
 
+    def test_recent_memory_empty(self, client: TestClient):
+        resp = client.get("/api/memory/recent")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "results" in data
+        assert "count" in data
+        assert data["results"] == []
+        assert data["count"] == 0
+
+    def test_recent_memory_returns_events(self, client: TestClient):
+        for i in range(5):
+            client.post("/api/memory/save", json={"text": f"event {i}", "project": "proj-x"})
+
+        resp = client.get("/api/memory/recent", params={"limit": "3"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 3
+        assert len(data["results"]) == 3
+
+    def test_recent_memory_project_filter(self, client: TestClient):
+        client.post("/api/memory/save", json={"text": "proj a event", "project": "proj-a"})
+        client.post("/api/memory/save", json={"text": "proj b event", "project": "proj-b"})
+
+        resp = client.get("/api/memory/recent", params={"project": "proj-a"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["results"][0]["project"] == "proj-a"
+
+    def test_recent_memory_limit_capped_at_100(self, client: TestClient):
+        resp = client.get("/api/memory/recent", params={"limit": "9999"})
+        assert resp.status_code == 200
+
+    def test_recent_memory_invalid_limit(self, client: TestClient):
+        resp = client.get("/api/memory/recent", params={"limit": "notanint"})
+        assert resp.status_code == 400
+
 
 class TestSessionRoutes:
     def test_session_init(self, client: TestClient):
@@ -384,9 +421,7 @@ class TestLifespanInitialization:
             assert app.state.retriever._config.project_root is not None
             assert app.state.retriever._config.project_root == str(tmp_path.resolve())
 
-    def test_app_skips_governance_indexing_if_no_ai_framework_json(
-        self, tmp_path, monkeypatch
-    ):
+    def test_app_skips_governance_indexing_if_no_ai_framework_json(self, tmp_path, monkeypatch):
         """When .ai-framework.json is absent, index_project must NOT be called."""
         from unittest.mock import patch
 
@@ -402,9 +437,7 @@ class TestLifespanInitialization:
             with TestClient(app):
                 mock_index.assert_not_called()
 
-    def test_app_indexes_governance_if_ai_framework_json_exists(
-        self, tmp_path, monkeypatch
-    ):
+    def test_app_indexes_governance_if_ai_framework_json_exists(self, tmp_path, monkeypatch):
         """When .ai-framework.json is present, index_project must be called once."""
         from unittest.mock import patch
 

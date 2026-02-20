@@ -17,7 +17,7 @@ def test_route_implementation_default():
 
 
 @pytest.mark.unit
-def test_route_implementation_swords():
+def test_route_implementation_sworm():
     assert route_task("implementation", "swords") == "delivery-backend-engineer"
 
 
@@ -27,7 +27,7 @@ def test_route_test_default():
 
 
 @pytest.mark.unit
-def test_route_test_swords():
+def test_route_test_sworm():
     assert route_task("test", "swords") == "delivery-qa-engineer"
 
 
@@ -42,7 +42,7 @@ def test_route_review_default():
 
 
 @pytest.mark.unit
-def test_route_review_swords():
+def test_route_review_sworm():
     assert route_task("review", "swords") == "delivery-code-reviewer"
 
 

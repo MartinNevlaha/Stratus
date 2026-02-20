@@ -19,11 +19,42 @@ _EXTENSION_MAP: dict[str, str] = {
     ".go": "go",
 }
 
+_ESLINT_CONFIGS = [
+    ".eslintrc",
+    ".eslintrc.js",
+    ".eslintrc.json",
+    ".eslintrc.yml",
+    ".eslintrc.yaml",
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.cjs",
+]
+
+_TSC_CONFIGS = ["tsconfig.json"]
+
 
 def detect_language(file_path: str) -> str | None:
     """Return the language key for a file path, or None if unsupported."""
     suffix = Path(file_path).suffix.lower()
     return _EXTENSION_MAP.get(suffix)
+
+
+def _find_config_up(file_path: str, config_names: list[str]) -> bool:
+    """Walk up from file_path's directory checking for any of the config_names.
+
+    Stops at the filesystem root or at a directory containing a .git entry
+    (project root indicator). Returns True if any config file is found.
+    """
+    current = Path(file_path).resolve().parent
+    while True:
+        for name in config_names:
+            if (current / name).exists():
+                return True
+        # Stop at project root (has .git) or filesystem root
+        if (current / ".git").exists() or current == current.parent:
+            break
+        current = current.parent
+    return False
 
 
 def _run_cmd(cmd: list[str]) -> tuple[int, str]:
@@ -52,11 +83,13 @@ def run_linters(file_path: str, language: str) -> list[str]:
             (["basedpyright", file_path], True),
         ]
     elif language == "typescript":
-        commands = [
-            (["eslint", "--fix", file_path], True),
+        commands: list[tuple[list[str], bool]] = [
             (["prettier", "--write", file_path], False),
-            (["tsc", "--noEmit", file_path], True),
         ]
+        if _find_config_up(file_path, _ESLINT_CONFIGS):
+            commands.insert(0, (["eslint", "--fix", file_path], True))
+        if _find_config_up(file_path, _TSC_CONFIGS):
+            commands.append((["tsc", "--noEmit", file_path], True))
     elif language == "go":
         commands = [
             (["gofmt", "-w", file_path], False),

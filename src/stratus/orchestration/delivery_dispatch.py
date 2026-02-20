@@ -78,19 +78,20 @@ _PHASE_ORDER: list[DeliveryPhase] = list(DeliveryPhase)
 
 _FIX_LOOP_PHASES = {DeliveryPhase.QA, DeliveryPhase.GOVERNANCE, DeliveryPhase.PERFORMANCE}
 
+
 def _compute_role_keywords() -> dict[str, list[str]]:
     """Compute _ROLE_KEYWORDS from the agent registry."""
     from stratus.registry.loader import AgentRegistry
 
     registry = AgentRegistry.load()
     result: dict[str, list[str]] = {}
-    for agent in registry.filter_by_mode("swords"):
+    for agent in registry.filter_by_mode("sworm"):
         if not agent.keywords:
             continue
         # Use short name (strip delivery- prefix)
         name = agent.name
         if name.startswith("delivery-"):
-            name = name[len("delivery-"):]
+            name = name[len("delivery-") :]
         result[name] = agent.keywords
     return result
 

@@ -40,7 +40,11 @@ def is_skippable(file_path: str) -> bool:
 def find_test_file(file_path: str, project_root: Path | None = None) -> Path | None:
     """Return the test file path if it exists, otherwise None.
 
-    Maps src/.../foo.py → <project_root>/tests/test_foo.py.
+    Checks three naming conventions in order:
+    1. tests/test_{stem}.py         — e.g. database.py → test_database.py
+    2. tests/test_{parent}_{stem}.py — e.g. registry/loader.py → test_registry_loader.py
+    3. tests/test_*{stem}*.py       — glob fallback for aggregated test files
+
     Only applies to .py files.
     """
     path = Path(file_path)
@@ -48,8 +52,27 @@ def find_test_file(file_path: str, project_root: Path | None = None) -> Path | N
         return None
 
     root = project_root if project_root is not None else Path.cwd()
-    test_file = root / "tests" / f"test_{path.stem}.py"
-    return test_file if test_file.exists() else None
+    tests_dir = root / "tests"
+
+    # Check 1: tests/test_{stem}.py
+    candidate = tests_dir / f"test_{path.stem}.py"
+    if candidate.exists():
+        return candidate
+
+    # Check 2: tests/test_{parent}_{stem}.py
+    parent_name = path.parent.name
+    if parent_name:
+        candidate = tests_dir / f"test_{parent_name}_{path.stem}.py"
+        if candidate.exists():
+            return candidate
+
+    # Check 3: glob fallback — any test file whose name contains the stem
+    if tests_dir.exists():
+        matches = sorted(tests_dir.glob(f"test_*{path.stem}*.py"))
+        if matches:
+            return matches[0]
+
+    return None
 
 
 def _record_missing_test(file_path: str) -> None:
@@ -93,10 +116,14 @@ def main() -> None:
 
     test_path = find_test_file(file_path)
     if test_path is None:
-        stem = Path(file_path).stem
+        path = Path(file_path)
+        stem = path.stem
+        parent = path.parent.name
         print(
             f"TDD WARNING: No test file found for '{file_path}'.\n"
-            f"Expected: tests/test_{stem}.py\n"
+            f"Checked: tests/test_{stem}.py, "
+            f"tests/test_{parent}_{stem}.py, "
+            f"tests/test_*{stem}*.py\n"
             f"Write the test first (TDD) or create the missing test file.",
             file=sys.stderr,
         )

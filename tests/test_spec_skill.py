@@ -62,7 +62,7 @@ class TestSpecSkill:
     def test_references_both_modes(self, path: Path) -> None:
         content = path.read_text()
         assert "Default" in content
-        assert "Swords" in content
+        assert "Sworm" in content
 
     def test_project_and_plugin_identical(self, path: Path) -> None:
         _ = path  # parametrized but we compare both

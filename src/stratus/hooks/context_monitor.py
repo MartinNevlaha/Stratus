@@ -96,9 +96,17 @@ def _record_context_overflow(warning: str) -> None:
         from stratus.hooks._common import get_api_url
 
         api_url = get_api_url()
+        # Normalize detail to threshold band for effective dedup.
+        # The dedup signature hashes category+file_path+detail[:200]+day,
+        # so using exact percentages creates a unique signature on every call.
+        # At most 2 events per day: one for "warning", one for "critical".
+        if "CRITICAL" in warning:
+            detail = "context_critical"
+        else:
+            detail = "context_warning"
         httpx.post(
             f"{api_url}/api/learning/analytics/record-failure",
-            json={"category": "context_overflow", "detail": warning[:500]},
+            json={"category": "context_overflow", "detail": detail},
             timeout=2.0,
         )
     except Exception:

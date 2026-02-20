@@ -16,6 +16,6 @@ class AgentEntry(BaseModel):
     phases: list[str]
     task_types: list[str] = Field(default_factory=list)
     applicable_stacks: list[str] | None = None  # None = universal
-    orchestration_modes: list[str]  # ["default"] | ["swords"] | ["default", "swords"]
+    orchestration_modes: list[str]  # ["default"] | ["sworm"] | ["default", "sworm"]
     optional: bool = False
     keywords: list[str] = Field(default_factory=list)

@@ -101,6 +101,55 @@ class TestFindTestFile:
         result = find_test_file("src/stratus/transcript.py", project_root=tmp_path)
         assert result == test_file
 
+    def test_find_test_file_parent_prefix_convention(self, tmp_path):
+        # registry/loader.py → tests/test_registry_loader.py
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        test_file = tests_dir / "test_registry_loader.py"
+        test_file.write_text("# test")
+
+        result = find_test_file("src/stratus/registry/loader.py", project_root=tmp_path)
+        assert result == test_file
+
+    def test_find_test_file_parent_prefix_prefers_direct_match(self, tmp_path):
+        # When both tests/test_loader.py and tests/test_registry_loader.py exist,
+        # the direct match (check 1) is returned first.
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        direct = tests_dir / "test_loader.py"
+        direct.write_text("# test")
+        prefixed = tests_dir / "test_registry_loader.py"
+        prefixed.write_text("# test")
+
+        result = find_test_file("src/stratus/registry/loader.py", project_root=tmp_path)
+        assert result == direct
+
+    def test_find_test_file_glob_fallback(self, tmp_path):
+        # routes_memory.py → tests/test_server.py does NOT match the glob
+        # (stem is "routes_memory", not contained in "test_server").
+        # But test_routes_memory_extra.py WOULD match.
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        test_file = tests_dir / "test_routes_memory_extra.py"
+        test_file.write_text("# test")
+
+        result = find_test_file("src/stratus/server/routes_memory.py", project_root=tmp_path)
+        assert result == test_file
+
+    def test_find_test_file_glob_no_match(self, tmp_path):
+        # No test file contains the stem at all.
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_unrelated.py").write_text("# test")
+
+        result = find_test_file("src/stratus/server/routes_memory.py", project_root=tmp_path)
+        assert result is None
+
+    def test_find_test_file_no_tests_dir(self, tmp_path):
+        # tests/ directory does not exist — no crash, returns None.
+        result = find_test_file("src/stratus/registry/routing.py", project_root=tmp_path)
+        assert result is None
+
 
 class TestMain:
     def _make_stdin(self, data: dict):
@@ -140,9 +189,7 @@ class TestMain:
             "tool_input": {"file_path": "src/stratus/foo.py"},
         }
         monkeypatch.setattr("sys.stdin", self._make_stdin(hook_input))
-        with patch(
-            "stratus.hooks.tdd_enforcer.find_test_file", return_value=None
-        ):
+        with patch("stratus.hooks.tdd_enforcer.find_test_file", return_value=None):
             with pytest.raises(SystemExit) as exc_info:
                 main()
         assert exc_info.value.code == 2
@@ -156,17 +203,13 @@ class TestMain:
         }
         monkeypatch.setattr("sys.stdin", self._make_stdin(hook_input))
         fake_test_path = tmp_path / "tests" / "test_foo.py"
-        with patch(
-            "stratus.hooks.tdd_enforcer.find_test_file", return_value=fake_test_path
-        ):
+        with patch("stratus.hooks.tdd_enforcer.find_test_file", return_value=fake_test_path):
             with pytest.raises(SystemExit) as exc_info:
                 main()
         assert exc_info.value.code == 0
 
     def test_main_exits_0_on_empty_input(self, monkeypatch):
-        monkeypatch.setattr(
-            "sys.stdin", type("FakeStdin", (), {"read": lambda self: "{}"})()
-        )
+        monkeypatch.setattr("sys.stdin", type("FakeStdin", (), {"read": lambda self: "{}"})())
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 0

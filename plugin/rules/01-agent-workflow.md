@@ -30,4 +30,4 @@ User global rules about "write code" and "fix errors" apply to **delegated agent
 
 ### Applies To
 
-Both Default mode (SpecCoordinator, 4-phase) and Swords mode (DeliveryCoordinator, 9-phase).
+Both Default mode (SpecCoordinator, 4-phase) and Sworm mode (DeliveryCoordinator, 9-phase).

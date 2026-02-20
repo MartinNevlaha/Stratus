@@ -185,6 +185,24 @@ def _build_memory(request: Request) -> dict:
         return {"total_events": 0, "total_sessions": 0}
 
 
+def _parse_skill_frontmatter(content: str) -> dict:
+    """Parse YAML-like frontmatter from SKILL.md content."""
+    result: dict = {}
+    if not content.startswith("---"):
+        return {"body": content}
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {"body": content}
+    frontmatter = parts[1].strip()
+    body = parts[2].strip()
+    for line in frontmatter.splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            result[key.strip()] = value.strip()
+    result["body"] = body
+    return result
+
+
 def _build_registry() -> dict:
     """Build agents, skills, and rules for the registry endpoint."""
     root = Path(os.getcwd())
@@ -213,11 +231,23 @@ def _build_registry() -> dict:
     try:
         skills_dir = claude_dir / "skills"
         if skills_dir.is_dir():
-            skills = [
-                {"name": d.name, "path": str(d.relative_to(root))}
-                for d in sorted(skills_dir.iterdir())
-                if d.is_dir()
-            ]
+            for d in sorted(skills_dir.iterdir()):
+                if not d.is_dir():
+                    continue
+                skill: dict = {
+                    "name": d.name,
+                    "path": str(d.relative_to(root)),
+                }
+                try:
+                    skill_md = d / "SKILL.md"
+                    if skill_md.is_file():
+                        parsed = _parse_skill_frontmatter(skill_md.read_text())
+                        for key in ("description", "agent", "context", "body"):
+                            if key in parsed:
+                                skill[key] = parsed[key]
+                except Exception:
+                    pass
+                skills.append(skill)
     except Exception:
         pass
 

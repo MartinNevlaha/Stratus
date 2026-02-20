@@ -29,7 +29,8 @@ def _entry_to_spec(entry: object) -> AgentSpec:
     stacks: frozenset[ServiceType] | None = None
     if entry.applicable_stacks is not None:  # type: ignore[union-attr]
         stacks = frozenset(
-            ServiceType(s) for s in entry.applicable_stacks  # type: ignore[union-attr]
+            ServiceType(s)
+            for s in entry.applicable_stacks  # type: ignore[union-attr]
         )
     return AgentSpec(
         filename=entry.filename,  # type: ignore[union-attr]
@@ -44,7 +45,7 @@ def _build_catalog() -> list[AgentSpec]:
     from stratus.registry.loader import AgentRegistry
 
     registry = AgentRegistry.load()
-    return [_entry_to_spec(e) for e in registry.filter_by_mode("swords")]
+    return [_entry_to_spec(e) for e in registry.filter_by_mode("sworm")]
 
 
 AGENT_CATALOG: list[AgentSpec] = _build_catalog()
@@ -93,6 +94,7 @@ SKILL_CATALOG: list[SkillSpec] = [
     SkillSpec("governance-audit", "delivery-risk-officer.md", "governance"),
 ]
 
+
 def get_detected_types(graph: dict[str, list[dict[str, str]]] | None) -> set[ServiceType]:
     """Extract detected ServiceType values from a ProjectGraph dict."""
     if not graph:
@@ -118,8 +120,8 @@ def filter_agents(
     stacks = {t.value for t in detected_types}
     registry = AgentRegistry.load()
     entries = registry.filter_by_stack(stacks, enabled_phases=enabled_phases)
-    swords = [e for e in entries if "swords" in e.orchestration_modes]
-    return [_entry_to_spec(e) for e in swords]
+    sworm = [e for e in entries if "sworm" in e.orchestration_modes]
+    return [_entry_to_spec(e) for e in sworm]
 
 
 def filter_skills(

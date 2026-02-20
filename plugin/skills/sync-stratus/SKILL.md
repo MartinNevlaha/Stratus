@@ -32,11 +32,14 @@ For each agent extract:
 - `model` field
 - Any `phase` or `mode` hints in the body
 
+Also check `agent-registry.json` (in `plugin/` or `src/stratus/registry/`) if present. Note each agent's `optional` field and `orchestration_modes`.
+
 Detect:
 - **Naming conflicts** — two agents with the same `name`
 - **Responsibility overlap** — two agents claiming the same domain (implementation, QA, architecture, etc.)
-- **Phase mismatch** — reviewer/QA agent that has Write/Edit tools
+- **Phase mismatch** — a `verify`/`governance`/`review`-phase agent that has Write/Edit tools. **Exception:** QA agents in `qa` or `implementation` phases legitimately need Write/Edit to create test files — do NOT flag these.
 - **Missing tool restrictions** — implementation agents without tool allowlists
+- **Missing optional agents** — agents marked `optional: true` in the registry that are absent from `.claude/agents/` are **expected** and should NOT be flagged. Only flag missing agents that are `optional: false`.
 
 ### B) Skills
 
@@ -49,6 +52,8 @@ For each skill check:
 - Does the skill encourage the main instance to write code?
 
 Detect **bypass patterns**: any skill that delegates implementation to `framework-expert` or similar via `agent:` field is fine; any skill that tells the coordinator to write code directly is a conflict.
+
+**Agent resolution:** When a skill references an agent via `agent:` field, resolve it across ALL agent sources: `.claude/agents/`, `plugin/agents/`, and the agent registry. Stratus core agents (`qa-engineer`, `spec-reviewer-quality`, `framework-expert`, etc.) are provided by the framework and may only exist in `plugin/agents/` or the registry — they do not need a `.md` file in the project's `.claude/agents/` to be valid.
 
 ### C) Rules
 
@@ -97,8 +102,12 @@ For each command:
 
 Read `.ai-framework.json` if present. Determine:
 - Is Stratus initialized (`stratus init` was run)?
-- Is Swords/delivery mode enabled, disabled, or opt-in?
+- Is Sworm/delivery mode enabled, disabled, or opt-in?
 - Which phases are active?
+
+Read the project name from `.ai-framework.json` field `project.name` (fallback: directory name). Use this in the Environment Summary.
+
+**Mode-aware completeness:** A Default-mode project only needs `version`, `project`, `retrieval`, `learning`, and `agent_teams` in `.ai-framework.json`. Missing `stratus`, `delivery`, or `swords` keys are **expected** for Default mode — do NOT flag as incomplete. Only flag missing swords/delivery config if `agent_teams.enabled: true` or swords mode is explicitly configured.
 
 Read `.claude/settings.json` — are hooks registered?
 
@@ -110,6 +119,8 @@ For every issue found, classify with:
 - **CRITICAL** — breaks delegation enforcement (coordinator can implement, bypass of Task tool, conflicting rules that override delegation)
 - **MAJOR** — inconsistent routing, unclear ownership, ambiguous mode switching
 - **MINOR** — cosmetic, naming, stub content, doc-only gaps
+
+**Severity downgrade rule:** If the `delegation_guard` PreToolUse hook is registered and active (confirmed in Step 1E), then global rules or CLAUDE.md instructions that conflict with delegation but are **mechanically blocked by the hook** should be classified as **MINOR** (confusing but not dangerous), not MAJOR or CRITICAL. The hook provides hard enforcement regardless of what the rules say.
 
 For each issue include: file path, exact description, why it matters.
 
@@ -123,7 +134,7 @@ Propose a safe integration plan. In report-only mode (no `--apply`), describe wh
 - Rename conflicting agents (proposal)
 - Merge or split responsibilities
 - Ensure single registry authority (`src/stratus/registry/agent-registry.json` is the source of truth)
-- Verify compatibility with Default mode and Swords mode
+- Verify compatibility with Default mode and Sworm mode
 
 ### Skill Layer
 - Identify skills that need refactoring to use `context: fork`
@@ -235,7 +246,7 @@ Execute fixes in severity order (CRITICAL → MAJOR → MINOR). For each action,
 
 | Issue Type | Fix Action | Tool |
 |------------|-----------|------|
-| **Reviewer/QA agent has Write/Edit tools** | Remove Write/Edit/NotebookEdit from `tools:` frontmatter | Edit on `.md` |
+| **Reviewer agent in verify/governance phase has Write/Edit tools** | Remove Write/Edit/NotebookEdit from `tools:` frontmatter | Edit on `.md` |
 | **Skill missing `context: fork`** | Add `context: fork` to frontmatter | Edit on `SKILL.md` |
 | **Skill instructs coordinator to write code** | Add delegation warning comment at top of skill body | Edit on `SKILL.md` |
 | **Rule stub (under 10 words)** | Append `<!-- STUB: needs content -->` marker | Edit on `.md` |
