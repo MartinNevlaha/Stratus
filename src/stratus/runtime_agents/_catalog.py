@@ -57,6 +57,7 @@ CORE_SKILL_DIRNAMES: list[str] = [
     "spec",
     "spec-complex",
     "sync-stratus",
+    "learn",
     # Testing & debugging
     "webapp-testing",
     "find-bugs",

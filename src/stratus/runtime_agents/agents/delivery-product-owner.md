@@ -51,7 +51,7 @@ Prefer `retrieve` to understand existing product context.
 
 ## Phase Restrictions
 
-- Active during: DISCOVERY (primary), LEARNING (retrospective review)
+- Active during: DISCOVERY (primary)
 - Hand off to: delivery-tpm (planning), delivery-strategic-architect (design)
 
 ## Escalation Rules

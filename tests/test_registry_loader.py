@@ -10,21 +10,21 @@ import pytest
 from stratus.registry.loader import AgentRegistry
 from stratus.registry.models import AgentEntry
 
-TOTAL_AGENTS = 25
-DEFAULT_AGENTS = 25  # All agents use orchestration_modes: ["default"]
+TOTAL_AGENTS = 26
+DEFAULT_AGENTS = 26  # All agents use orchestration_modes: ["default"]
 CORE_LAYER_AGENTS = 0  # No more core layer agents - all are delivery
 
 
 @pytest.mark.unit
 def test_load_from_package():
-    """AgentRegistry.load() returns all 25 agents from bundled JSON."""
+    """AgentRegistry.load() returns all 26 agents from bundled JSON."""
     registry = AgentRegistry.load()
     assert len(registry.all_agents()) == TOTAL_AGENTS
 
 
 @pytest.mark.unit
 def test_all_agents_count():
-    """all_agents() returns exactly 25 agents."""
+    """all_agents() returns exactly 26 agents."""
     registry = AgentRegistry.load()
     agents = registry.all_agents()
     assert len(agents) == TOTAL_AGENTS

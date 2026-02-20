@@ -5,17 +5,19 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from stratus.learning.models import Decision, ProposalStatus
+from stratus.session.config import get_data_dir
+
 
 def cmd_learning(args: argparse.Namespace) -> None:
-    """Handle learning subcommand actions."""
     from stratus.learning.config import load_learning_config
     from stratus.learning.database import LearningDatabase
-    from stratus.learning.models import Decision
     from stratus.learning.watcher import ProjectWatcher
 
     action = args.learning_action
     config = load_learning_config(None)
-    db = LearningDatabase()
+    db_path = str(get_data_dir() / "learning.db")
+    db = LearningDatabase(db_path)
 
     if action == "status":
         s, state = db.stats(), db.get_analysis_state()
@@ -41,7 +43,11 @@ def cmd_learning(args: argparse.Namespace) -> None:
     elif action == "proposals":
         max_count = getattr(args, "max_count", 10)
         min_conf = getattr(args, "min_confidence", 0.0)
-        proposals = db.list_proposals(min_confidence=min_conf, limit=max_count)
+        proposals = db.list_proposals(
+            status=ProposalStatus.PENDING,
+            min_confidence=min_conf,
+            limit=max_count,
+        )
         if not proposals:
             print("No pending proposals.")
         else:
@@ -51,8 +57,11 @@ def cmd_learning(args: argparse.Namespace) -> None:
     elif action == "decide":
         proposal_id = args.proposal_id
         decision = Decision(args.decision)
-        db.decide_proposal(proposal_id, decision)
+        watcher = ProjectWatcher(config=config, db=db, project_root=Path.cwd())
+        result = watcher.decide_proposal(proposal_id, decision)
         print(f"Decided: {proposal_id} -> {decision.value}")
+        if result.get("artifact_path"):
+            print(f"Created: {result['artifact_path']}")
 
     elif action == "config":
         if getattr(args, "enable", False):

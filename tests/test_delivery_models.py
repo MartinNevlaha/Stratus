@@ -219,12 +219,12 @@ def test_delivery_state_json_roundtrip():
 
 @pytest.mark.unit
 def test_delivery_config_creation_with_defaults():
-    from stratus.orchestration.delivery_config import DeliveryConfig
+    from stratus.orchestration.delivery_config import ALL_PHASES, DeliveryConfig
 
     config = DeliveryConfig()
     assert config.enabled is False
     assert config.orchestration_mode == "classic"
-    assert config.active_phases == []
+    assert config.active_phases == ALL_PHASES
     assert config.disabled_invariants == []
     assert config.disabled_agents == []
     assert config.max_review_iterations == 3

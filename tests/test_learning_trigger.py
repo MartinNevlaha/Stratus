@@ -95,22 +95,24 @@ class TestIncrementCommitCount:
 
 class TestMain:
     def test_non_bash_tool_exits_0(self):
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit") as mock_exit:
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Read",
-                "tool_input": {"file_path": "/test"},
-            })
+        with patch("sys.stdin") as mock_stdin, patch("sys.exit") as mock_exit:
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Read",
+                    "tool_input": {"file_path": "/test"},
+                }
+            )
             main()
             mock_exit.assert_called_with(0)
 
     def test_bash_non_git_exits_0(self):
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit") as mock_exit:
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "npm install"},
-            })
+        with patch("sys.stdin") as mock_stdin, patch("sys.exit") as mock_exit:
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "npm install"},
+                }
+            )
             main()
             mock_exit.assert_called_with(0)
 
@@ -120,41 +122,71 @@ class TestMain:
         state_file.write_text(json.dumps({"commit_count": 0}))
         (tmp_path / ".ai-framework.json").write_text("{}")
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit"), \
-             patch("httpx.post"), \
-             patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path):
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "git commit -m 'test'"},
-            })
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit"),
+            patch("httpx.post"),
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
             main()
 
         data = json.loads(state_file.read_text())
         assert data["commit_count"] == 1
 
     def test_empty_stdin_exits_0(self):
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit") as mock_exit:
+        with patch("sys.stdin") as mock_stdin, patch("sys.exit") as mock_exit:
             mock_stdin.read.return_value = ""
             main()
             mock_exit.assert_called_with(0)
 
     def test_global_disabled_exits_0(self, tmp_path, monkeypatch):
-        """When learning is disabled, should not process anything."""
-        monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "false")
+        """When learning is disabled in project config, should not process anything."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
-        (tmp_path / ".ai-framework.json").write_text("{}")
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit") as mock_exit, \
-             patch("httpx.post"), \
-             patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path):
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "git commit -m 'test'"},
-            })
+        (tmp_path / ".ai-framework.json").write_text('{"learning": {"global_enabled": false}}')
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit") as mock_exit,
+            patch("httpx.post"),
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
             main()
             mock_exit.assert_called_with(0)
+
+    def test_learning_enabled_in_project_config(self, tmp_path, monkeypatch):
+        """Learning triggers when enabled in project .ai-framework.json."""
+        monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
+        (tmp_path / ".ai-framework.json").write_text('{"learning": {"global_enabled": true}}')
+        state_file = tmp_path / "learning-state.json"
+        state_file.write_text(json.dumps({"commit_count": 4}))
+
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit"),
+            patch("httpx.post") as mock_post,
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
+            main()
+
+        urls = [str(call.args[0]) for call in mock_post.call_args_list]
+        assert any("/api/learning/analyze" in url for url in urls)
 
     def test_bash_git_commit_fires_reindex_post(self, tmp_path, monkeypatch):
         """Reindex POST is always fired on git commit regardless of learning config."""
@@ -163,14 +195,18 @@ class TestMain:
         state_file.write_text(json.dumps({"commit_count": 0}))
         (tmp_path / ".ai-framework.json").write_text("{}")
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit"), \
-             patch("httpx.post") as mock_post, \
-             patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path):
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "git commit -m 'test'"},
-            })
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit"),
+            patch("httpx.post") as mock_post,
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
             main()
 
         urls = [str(call.args[0]) for call in mock_post.call_args_list]
@@ -181,15 +217,19 @@ class TestMain:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "false")
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit"), \
-             patch("httpx.post") as mock_post, \
-             patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path):
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit"),
+            patch("httpx.post") as mock_post,
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
             (tmp_path / ".ai-framework.json").write_text("{}")
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "git commit -m 'test'"},
-            })
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
             main()
 
         urls = [str(call.args[0]) for call in mock_post.call_args_list]
@@ -203,15 +243,19 @@ class TestStratusInitGuard:
         """No POST to /api/retrieval/index when .ai-framework.json is absent."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit"), \
-             patch("httpx.post") as mock_post, \
-             patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path):
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit"),
+            patch("httpx.post") as mock_post,
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
             # .ai-framework.json does NOT exist in tmp_path
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "git commit -m 'test'"},
-            })
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
             main()
 
         urls = [str(call.args[0]) for call in mock_post.call_args_list]
@@ -222,14 +266,18 @@ class TestStratusInitGuard:
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path))
         (tmp_path / ".ai-framework.json").write_text("{}")
 
-        with patch("sys.stdin") as mock_stdin, \
-             patch("sys.exit"), \
-             patch("httpx.post") as mock_post, \
-             patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path):
-            mock_stdin.read.return_value = json.dumps({
-                "tool_name": "Bash",
-                "tool_input": {"command": "git commit -m 'test'"},
-            })
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.exit"),
+            patch("httpx.post") as mock_post,
+            patch("stratus.hooks.learning_trigger.get_git_root", return_value=tmp_path),
+        ):
+            mock_stdin.read.return_value = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git commit -m 'test'"},
+                }
+            )
             main()
 
         urls = [str(call.args[0]) for call in mock_post.call_args_list]

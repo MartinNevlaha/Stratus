@@ -138,13 +138,13 @@ class TestLoadMerged:
     @pytest.mark.unit
     def test_load_merged_without_project_root(self) -> None:
         registry = AgentRegistry.load_merged(None)
-        assert len(registry.all_agents()) == 25
+        assert len(registry.all_agents()) == 26
 
     @pytest.mark.unit
     def test_load_merged_with_user_agents(self, user_agent_dir: Path) -> None:
         registry = AgentRegistry.load_merged(user_agent_dir)
         all_agents = registry.all_agents()
-        assert len(all_agents) == 26
+        assert len(all_agents) == 27
         assert registry.get("my-custom-backend") is not None
 
     @pytest.mark.unit

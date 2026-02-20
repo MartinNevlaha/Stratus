@@ -104,7 +104,7 @@ def main() -> None:
     # Check if learning is enabled before proceeding with learning logic
     from stratus.learning.config import load_learning_config
 
-    config = load_learning_config(None)
+    config = load_learning_config(git_root / ".ai-framework.json")
     if not config.global_enabled:
         sys.exit(0)
 

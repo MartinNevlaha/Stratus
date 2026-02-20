@@ -197,7 +197,7 @@ class TestConfigEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert "global_enabled" in data
-        assert data["global_enabled"] is False
+        assert data["global_enabled"] is True
 
     def test_put_config_enable(self, client: TestClient):
         resp = client.put("/api/learning/config", json={"global_enabled": True})
