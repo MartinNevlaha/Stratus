@@ -45,7 +45,7 @@ def _build_catalog() -> list[AgentSpec]:
     from stratus.registry.loader import AgentRegistry
 
     registry = AgentRegistry.load()
-    return [_entry_to_spec(e) for e in registry.filter_by_mode("sworm")]
+    return [_entry_to_spec(e) for e in registry.filter_by_mode("default")]
 
 
 AGENT_CATALOG: list[AgentSpec] = _build_catalog()
@@ -120,8 +120,8 @@ def filter_agents(
     stacks = {t.value for t in detected_types}
     registry = AgentRegistry.load()
     entries = registry.filter_by_stack(stacks, enabled_phases=enabled_phases)
-    sworm = [e for e in entries if "sworm" in e.orchestration_modes]
-    return [_entry_to_spec(e) for e in sworm]
+    default_agents = [e for e in entries if "default" in e.orchestration_modes]
+    return [_entry_to_spec(e) for e in default_agents]
 
 
 def filter_skills(

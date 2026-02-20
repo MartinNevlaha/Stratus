@@ -131,9 +131,7 @@ class TestMergeHooks:
 
     def test_empty_stratus_preserves_user_hooks(self) -> None:
         user = {
-            "MyEvent": [
-                {"matcher": ".*", "hooks": [{"type": "command", "command": "my-tool"}]}
-            ]
+            "MyEvent": [{"matcher": ".*", "hooks": [{"type": "command", "command": "my-tool"}]}]
         }
         result = _merge_hooks(user, {})
         assert result == user
@@ -503,9 +501,7 @@ class TestIsFrameworkRepo:
     def test_is_framework_repo_true(self, tmp_path: Path) -> None:
         from stratus.bootstrap.registration import _is_framework_repo
 
-        (tmp_path / "pyproject.toml").write_text(
-            '[project]\nname = "stratus"\nversion = "0.1.0"\n'
-        )
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "stratus"\nversion = "0.1.0"\n')
         assert _is_framework_repo(tmp_path) is True
 
     def test_is_framework_repo_false(self, tmp_path: Path) -> None:
@@ -689,11 +685,12 @@ class TestRegisterAgents:
         result = register_agents(tmp_path, config, frozenset())  # type: ignore[arg-type]
 
         # Core skills (spec, sync-stratus) should NOT be in register_agents output
-        assert not any("spec" in p for p in result), (
+        # Check for skill directories, not agent files that might contain "spec" in name
+        assert not any("/skills/spec/" in p for p in result), (
             "spec skill should not be installed by register_agents()"
         )
-        assert not any("sync-stratus" in p for p in result), (
-            "sync-stratus should not be installed by register_agents()"
+        assert not any("/skills/sync-stratus/" in p for p in result), (
+            "sync-stratus skill should not be installed by register_agents()"
         )
 
 
