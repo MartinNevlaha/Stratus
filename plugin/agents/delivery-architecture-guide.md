@@ -1,5 +1,5 @@
 ---
-name: architecture-guide
+name: delivery-architecture-guide
 description: "Expert on the project's architecture. Use this agent to answer questions about system design, components, and data flow."
 tools: Read, Grep, Glob, Bash
 model: opus

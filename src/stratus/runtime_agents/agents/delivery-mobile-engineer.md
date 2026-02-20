@@ -33,6 +33,24 @@ codebase while respecting platform conventions.
 - Images: use `expo-image` (not bare RN Image) for caching and performance
 - Permissions: always request contextually, explain why before system prompt appears
 
+## Task Ownership
+
+- Only create **subtasks** under TPM-created parent tasks (use `addBlockedBy`/`addBlocks` to link)
+- Never create top-level tasks — that is TPM's responsibility
+- Update task status via TaskUpdate as work progresses
+
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find mobile patterns:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar screen patterns | `"code"` | `"React Native navigation"` |
+| Find state management | `"code"` | `"Redux Zustand store"` |
+| Check mobile conventions | `"governance"` | `"mobile development standards"` |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches.
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

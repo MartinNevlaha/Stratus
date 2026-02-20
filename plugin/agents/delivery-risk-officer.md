@@ -30,6 +30,18 @@ the GOVERNANCE phase.
 - NEVER override security reviewer findings — coordinate, do not overrule
 - NEVER approve a release unilaterally — verdicts inform delivery-quality-gate-manager
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for compliance context:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find data handling patterns | `"code"` | `"personal data processing"` |
+| Check compliance requirements | `"governance"` | `"GDPR requirements"` |
+| Verify audit requirements | `"governance"` | `"audit logging standard"` |
+
+Prefer `retrieve` to understand project-specific compliance context.
+
 ## Phase Restrictions
 
 - Active during: GOVERNANCE

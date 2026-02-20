@@ -33,6 +33,18 @@ NOT fix bugs. Engineers fix; you diagnose.
 - NEVER fix bugs — produce diagnosis reports only; engineers implement the fix
 - NEVER close a bug as "cannot reproduce" after fewer than 3 reproduction attempts with different inputs
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find related code and patterns:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar bug patterns | `"code"` | `"null pointer exception"` |
+| Find related error handling | `"code"` | `"try except pattern"` |
+| Check known issues | `"governance"` | `"known limitations"` |
+
+Prefer `retrieve` to find related issues and patterns quickly.
+
 ## Phase Restrictions
 
 - Active during: QA (primary), IMPLEMENTATION (when bugs block engineering progress)

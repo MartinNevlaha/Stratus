@@ -215,7 +215,7 @@ class DeliveryDispatcher:
         desc = task.get("description", "")
 
         lines = [
-            f"Delegate to agent `{agent}` (subagent_type: framework-expert).",
+            f"Delegate to agent `{agent}` (subagent_type: delivery-implementation-expert).",
             "",
             f"**Task {tid}:** {desc}",
             f"**Spec slug:** {state.slug}",

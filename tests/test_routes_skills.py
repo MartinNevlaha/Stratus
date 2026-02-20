@@ -24,7 +24,7 @@ def _make_skill(name: str, phase: str | None = None) -> SkillManifest:
     return SkillManifest(
         name=name,
         description=f"Desc for {name}",
-        agent="framework-expert",
+        agent="delivery-implementation-expert",
         context="fork",
         requires_phase=phase,
         content_hash="abc123",

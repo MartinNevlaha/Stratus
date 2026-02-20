@@ -28,6 +28,7 @@ class CompactionEvent:
     timestamp: str
     trigger: str
     pre_tokens: int
+    summary: str | None = None
 
 
 @dataclass
@@ -117,6 +118,57 @@ def find_compaction_events(path: Path) -> list[CompactionEvent]:
                         pre_tokens=metadata.get("preTokens", 0),
                     )
                 )
+    return events
+
+
+def extract_compact_summaries(path: Path) -> list[CompactionEvent]:
+    """Extract compact_boundary events with their summary content.
+
+    The summary is in the user message immediately following the compact_boundary.
+    """
+    events: list[CompactionEvent] = []
+    entries: list[dict] = []
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            entries.append(json.loads(line))
+
+    for i, entry in enumerate(entries):
+        if entry.get("type") != "system" or entry.get("subtype") != "compact_boundary":
+            continue
+
+        metadata = entry.get("compactMetadata", {})
+        summary: str | None = None
+
+        if i + 1 < len(entries):
+            next_entry = entries[i + 1]
+            if next_entry.get("type") == "user":
+                msg = next_entry.get("message", {})
+                content = msg.get("content")
+                if isinstance(content, str):
+                    summary = content
+                elif isinstance(content, list):
+                    parts = []
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            parts.append(part.get("text", ""))
+                        elif isinstance(part, str):
+                            parts.append(part)
+                    if parts:
+                        summary = "\n".join(parts)
+
+        events.append(
+            CompactionEvent(
+                timestamp=entry.get("timestamp", ""),
+                trigger=metadata.get("trigger", "unknown"),
+                pre_tokens=metadata.get("preTokens", 0),
+                summary=summary,
+            )
+        )
+
     return events
 
 

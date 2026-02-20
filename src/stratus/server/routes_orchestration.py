@@ -6,6 +6,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from stratus.orchestration.coordinator import assess_complexity, should_skip_governance
+from stratus.orchestration.models import SpecComplexity
+
 
 async def get_state(request: Request) -> JSONResponse:
     """GET /api/orchestration/state — current SpecState + backend info."""
@@ -19,12 +22,35 @@ async def get_state(request: Request) -> JSONResponse:
             "active": state.phase != "learn",
             "phase": state.phase,
             "slug": state.slug,
+            "complexity": state.complexity,
             "current_task": state.current_task,
             "total_tasks": state.total_tasks,
             "completed_tasks": state.completed_tasks,
             "review_iteration": state.review_iteration,
             "plan_status": state.plan_status,
+            "skipped_phases": state.skipped_phases,
             "backend": coordinator._mode,
+        }
+    )
+
+
+async def assess_complexity_endpoint(request: Request) -> JSONResponse:
+    """POST /api/orchestration/assess-complexity — assess spec complexity."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=422)
+
+    spec = body.get("spec", "")
+    affected_files = body.get("affected_files")
+
+    complexity = assess_complexity(spec, affected_files)
+    skip_gov = should_skip_governance(spec)
+
+    return JSONResponse(
+        {
+            "complexity": complexity.value,
+            "skip_governance": skip_gov,
         }
     )
 
@@ -40,11 +66,18 @@ async def start_spec(request: Request) -> JSONResponse:
     if not slug:
         return JSONResponse({"error": "slug is required"}, status_code=422)
 
+    complexity_str = body.get("complexity", "simple")
+    try:
+        complexity = SpecComplexity(complexity_str)
+    except ValueError:
+        complexity = SpecComplexity.SIMPLE
+
     coordinator = request.app.state.coordinator
     try:
         state = coordinator.start_spec(
             slug=slug,
             plan_path=body.get("plan_path"),
+            complexity=complexity,
         )
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
@@ -52,6 +85,131 @@ async def start_spec(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "slug": state.slug,
+            "phase": state.phase,
+            "complexity": state.complexity,
+            "plan_status": state.plan_status,
+        }
+    )
+
+
+async def complete_discovery(request: Request) -> JSONResponse:
+    """POST /api/orchestration/complete-discovery — transition from discovery to design."""
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.complete_discovery()
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
+            "phase": state.phase,
+        }
+    )
+
+
+async def complete_design(request: Request) -> JSONResponse:
+    """POST /api/orchestration/complete-design — transition from design to governance."""
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.complete_design()
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
+            "phase": state.phase,
+        }
+    )
+
+
+async def complete_governance(request: Request) -> JSONResponse:
+    """POST /api/orchestration/complete-governance — transition from governance to plan."""
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.complete_governance()
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
+            "phase": state.phase,
+        }
+    )
+
+
+async def skip_governance_endpoint(request: Request) -> JSONResponse:
+    """POST /api/orchestration/skip-governance — skip governance phase."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.skip_governance(reason=body.get("reason", "No security/data impact"))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
+            "phase": state.phase,
+            "skipped_phases": state.skipped_phases,
+        }
+    )
+
+
+async def start_accept(request: Request) -> JSONResponse:
+    """POST /api/orchestration/start-accept — transition from plan to accept."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=422)
+
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.start_accept(total_tasks=body.get("total_tasks", 0))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
+            "phase": state.phase,
+            "total_tasks": state.total_tasks,
+        }
+    )
+
+
+async def approve_accept(request: Request) -> JSONResponse:
+    """POST /api/orchestration/approve-accept — approve and move to implement."""
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.approve_accept()
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
+            "phase": state.phase,
+            "plan_status": state.plan_status,
+        }
+    )
+
+
+async def reject_accept(request: Request) -> JSONResponse:
+    """POST /api/orchestration/reject-accept — reject and return to plan."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.reject_accept(reason=body.get("reason", "User rejected"))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse(
+        {
             "phase": state.phase,
             "plan_status": state.plan_status,
         }
@@ -258,7 +416,15 @@ async def get_team(request: Request) -> JSONResponse:
 
 routes = [
     Route("/api/orchestration/state", get_state),
+    Route("/api/orchestration/assess-complexity", assess_complexity_endpoint, methods=["POST"]),
     Route("/api/orchestration/start", start_spec, methods=["POST"]),
+    Route("/api/orchestration/complete-discovery", complete_discovery, methods=["POST"]),
+    Route("/api/orchestration/complete-design", complete_design, methods=["POST"]),
+    Route("/api/orchestration/complete-governance", complete_governance, methods=["POST"]),
+    Route("/api/orchestration/skip-governance", skip_governance_endpoint, methods=["POST"]),
+    Route("/api/orchestration/start-accept", start_accept, methods=["POST"]),
+    Route("/api/orchestration/approve-accept", approve_accept, methods=["POST"]),
+    Route("/api/orchestration/reject-accept", reject_accept, methods=["POST"]),
     Route("/api/orchestration/approve-plan", approve_plan, methods=["POST"]),
     Route("/api/orchestration/start-task", start_task, methods=["POST"]),
     Route("/api/orchestration/complete-task", complete_task, methods=["POST"]),

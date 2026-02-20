@@ -13,11 +13,9 @@ from stratus.registry.validation import (
 
 @pytest.mark.unit
 def test_validate_team_all_exist():
-    # Both framework-expert and spec-reviewer-compliance have verify/implement phases.
-    # Use agents that both exist in the same phase.
-    # spec-reviewer-compliance and spec-reviewer-quality are both in "verify".
+    # delivery-spec-reviewer-compliance and delivery-spec-reviewer-quality are both in "verify".
     warnings = validate_team_composition(
-        ["spec-reviewer-compliance", "spec-reviewer-quality"], phase="verify"
+        ["delivery-spec-reviewer-compliance", "delivery-spec-reviewer-quality"], phase="verify"
     )
     assert warnings == []
 
@@ -32,10 +30,10 @@ def test_validate_team_unknown_agent():
 
 @pytest.mark.unit
 def test_validate_team_wrong_phase():
-    # framework-expert is in phases=["implement"], not "plan"
-    warnings = validate_team_composition(["framework-expert"], phase="plan")
+    # delivery-implementation-expert is in phases=["implement"], not "plan"
+    warnings = validate_team_composition(["delivery-implementation-expert"], phase="plan")
     assert len(warnings) == 1
-    assert "framework-expert" in warnings[0].message
+    assert "delivery-implementation-expert" in warnings[0].message
     assert "plan" in warnings[0].message
 
 
@@ -61,17 +59,17 @@ def test_validate_mode_unknown_warns():
 
 @pytest.mark.unit
 def test_validate_write_in_verify():
-    # qa-engineer has can_write=True and is assigned to verify
-    warnings = validate_write_permissions(["qa-engineer"], phase="verify")
+    # delivery-qa-engineer has can_write=True and is assigned to verify
+    warnings = validate_write_permissions(["delivery-qa-engineer"], phase="verify")
     assert len(warnings) == 1
-    assert "qa-engineer" in warnings[0].message
+    assert "delivery-qa-engineer" in warnings[0].message
     assert "verify" in warnings[0].message
 
 
 @pytest.mark.unit
 def test_validate_write_in_implement():
     # implement is not a review phase -> no warnings regardless of can_write
-    warnings = validate_write_permissions(["framework-expert"], phase="implement")
+    warnings = validate_write_permissions(["delivery-implementation-expert"], phase="implement")
     assert warnings == []
 
 

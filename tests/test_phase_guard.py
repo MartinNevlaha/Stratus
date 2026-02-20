@@ -10,28 +10,28 @@ class TestEvaluatePhaseConsistency:
         assert evaluate_phase_consistency(None, "verify") == ""
 
     def test_no_phase_returns_empty(self):
-        assert evaluate_phase_consistency("framework-expert", None) == ""
+        assert evaluate_phase_consistency("delivery-implementation-expert", None) == ""
 
     def test_implement_agent_in_verify_warns(self):
-        msg = evaluate_phase_consistency("framework-expert", "verify")
+        msg = evaluate_phase_consistency("delivery-implementation-expert", "verify")
         assert "phase inconsistency" in msg.lower()
         assert "implementation agent" in msg.lower()
 
     def test_review_agent_in_implement_warns(self):
-        msg = evaluate_phase_consistency("spec-reviewer-compliance", "implement")
+        msg = evaluate_phase_consistency("delivery-spec-reviewer-compliance", "implement")
         assert "phase inconsistency" in msg.lower()
         assert "review agent" in msg.lower()
 
     def test_review_agent_in_implementation_warns(self):
-        msg = evaluate_phase_consistency("qa-engineer", "implementation")
+        msg = evaluate_phase_consistency("delivery-qa-engineer", "implementation")
         assert "phase inconsistency" in msg.lower()
 
     def test_correct_agent_in_implement(self):
-        msg = evaluate_phase_consistency("framework-expert", "implement")
+        msg = evaluate_phase_consistency("delivery-implementation-expert", "implement")
         assert msg == ""
 
     def test_correct_agent_in_verify(self):
-        msg = evaluate_phase_consistency("spec-reviewer-compliance", "verify")
+        msg = evaluate_phase_consistency("delivery-spec-reviewer-compliance", "verify")
         assert msg == ""
 
     def test_unknown_agent_no_warning(self):
@@ -47,5 +47,5 @@ class TestEvaluatePhaseConsistency:
         assert "phase inconsistency" in msg.lower()
 
     def test_plan_phase_no_warnings(self):
-        msg = evaluate_phase_consistency("framework-expert", "plan")
+        msg = evaluate_phase_consistency("delivery-implementation-expert", "plan")
         assert msg == ""

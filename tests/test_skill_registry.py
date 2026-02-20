@@ -68,7 +68,7 @@ class TestSkillRegistryDiscover:
         fm = {
             "name": "my-skill",
             "description": "Does something useful",
-            "agent": "framework-expert",
+            "agent": "delivery-implementation-expert",
             "context": "inline",
             "priority": "3",
             "tags": "python, testing",
@@ -81,7 +81,7 @@ class TestSkillRegistryDiscover:
         s = skills[0]
         assert s.name == "my-skill"
         assert s.description == "Does something useful"
-        assert s.agent == "framework-expert"
+        assert s.agent == "delivery-implementation-expert"
         assert s.context == "inline"
         assert s.priority == 3
         assert s.tags == ["python", "testing"]
@@ -307,8 +307,8 @@ class TestSkillRegistryValidateAll:
         skills_dir = tmp_path / "skills"
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
-        (agents_dir / "qa-engineer.md").write_text("# QA Engineer")
-        fm = {"name": "run-tests", "description": "Tests", "agent": "qa-engineer"}
+        (agents_dir / "delivery-qa-engineer.md").write_text("# QA Engineer")
+        fm = {"name": "run-tests", "description": "Tests", "agent": "delivery-qa-engineer"}
         _write_skill(skills_dir, "run-tests", fm)
         reg = SkillRegistry(skills_dir=skills_dir, agents_dir=agents_dir)
         reg.discover()

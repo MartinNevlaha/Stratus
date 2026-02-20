@@ -16,6 +16,7 @@ from stratus.orchestration.models import (
     OrchestratorMode,
     PlanStatus,
     ReviewVerdict,
+    SpecComplexity,
     SpecPhase,
     SpecState,
     WorktreeInfo,
@@ -30,6 +31,54 @@ from stratus.orchestration.spec_state import (
     transition_phase,
     write_spec_state,
 )
+
+COMPLEXITY_KEYWORDS = {
+    "security": [
+        "auth",
+        "authentication",
+        "authorization",
+        "security",
+        "password",
+        "token",
+        "jwt",
+        "oauth",
+        "encrypt",
+    ],
+    "data": ["database", "migration", "schema", "sql", "orm", "table", "query", "data"],
+    "api": ["api", "endpoint", "route", "handler", "controller", "rest", "graphql"],
+    "integration": ["integration", "external", "third-party", "webhook", "callback", "sync"],
+    "infra": ["deploy", "docker", "kubernetes", "infrastructure", "ci", "cd", "pipeline"],
+}
+
+
+def assess_complexity(spec: str, affected_files: list[str] | None = None) -> SpecComplexity:
+    """Assess spec complexity based on keywords and file count."""
+    spec_lower = spec.lower()
+
+    has_security = any(kw in spec_lower for kw in COMPLEXITY_KEYWORDS["security"])
+    has_data = any(kw in spec_lower for kw in COMPLEXITY_KEYWORDS["data"])
+    has_api = any(kw in spec_lower for kw in COMPLEXITY_KEYWORDS["api"])
+    has_integration = any(kw in spec_lower for kw in COMPLEXITY_KEYWORDS["integration"])
+    has_infra = any(kw in spec_lower for kw in COMPLEXITY_KEYWORDS["infra"])
+
+    if affected_files and len(affected_files) > 3:
+        return SpecComplexity.COMPLEX
+
+    if has_security or has_data or has_integration or has_infra:
+        return SpecComplexity.COMPLEX
+
+    if has_api and len(spec_lower) > 200:
+        return SpecComplexity.COMPLEX
+
+    return SpecComplexity.SIMPLE
+
+
+def should_skip_governance(spec: str) -> bool:
+    """Determine if governance phase can be skipped."""
+    spec_lower = spec.lower()
+    security_keywords = COMPLEXITY_KEYWORDS["security"]
+    data_keywords = COMPLEXITY_KEYWORDS["data"]
+    return not any(kw in spec_lower for kw in security_keywords + data_keywords)
 
 
 class SpecCoordinator:
@@ -69,19 +118,122 @@ class SpecCoordinator:
         slug: str,
         plan_path: str | None = None,
         base_branch: str = "main",
+        complexity: SpecComplexity = SpecComplexity.SIMPLE,
     ) -> SpecState:
         if self.get_state() is not None:
             existing = self.get_state()
             if existing and existing.phase != SpecPhase.LEARN:
                 raise ValueError(f"Spec '{existing.slug}' already active in {existing.phase} phase")
 
+        initial_phase = (
+            SpecPhase.DISCOVERY if complexity == SpecComplexity.COMPLEX else SpecPhase.PLAN
+        )
         state = SpecState(
-            phase=SpecPhase.PLAN,
+            phase=initial_phase,
             slug=slug,
+            complexity=complexity,
             plan_path=plan_path,
         )
         self._save(state)
-        self._send_memory_event("spec_started", {"slug": slug})
+        self._send_memory_event("spec_started", {"slug": slug, "complexity": complexity.value})
+        return state
+
+    def set_complexity(self, complexity: SpecComplexity) -> SpecState:
+        state = self._require_state()
+        state = state.model_copy(update={"complexity": complexity})
+        self._save(state)
+        return state
+
+    # -- Discovery phase (complex only) -------------------------------------
+
+    def start_discovery(self) -> SpecState:
+        state = self._require_state()
+        state = transition_phase(state, SpecPhase.DISCOVERY)
+        self._save(state)
+        return state
+
+    def complete_discovery(self) -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.DISCOVERY:
+            raise ValueError(
+                f"Cannot complete discovery: not in discovery phase (in {state.phase})"
+            )
+        state = transition_phase(state, SpecPhase.DESIGN)
+        self._save(state)
+        return state
+
+    # -- Design phase (complex only) ----------------------------------------
+
+    def start_design(self) -> SpecState:
+        state = self._require_state()
+        state = transition_phase(state, SpecPhase.DESIGN)
+        self._save(state)
+        return state
+
+    def complete_design(self) -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.DESIGN:
+            raise ValueError(f"Cannot complete design: not in design phase (in {state.phase})")
+        state = transition_phase(state, SpecPhase.GOVERNANCE)
+        self._save(state)
+        return state
+
+    # -- Governance phase (complex only) ------------------------------------
+
+    def start_governance(self) -> SpecState:
+        state = self._require_state()
+        state = transition_phase(state, SpecPhase.GOVERNANCE)
+        self._save(state)
+        return state
+
+    def complete_governance(self) -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.GOVERNANCE:
+            raise ValueError(
+                f"Cannot complete governance: not in governance phase (in {state.phase})"
+            )
+        state = transition_phase(state, SpecPhase.PLAN)
+        self._save(state)
+        return state
+
+    def skip_governance(self, reason: str = "No security/data impact") -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.DESIGN and state.phase != SpecPhase.GOVERNANCE:
+            raise ValueError(f"Cannot skip governance from {state.phase}")
+        skipped = list(state.skipped_phases) + [SpecPhase.GOVERNANCE.value]
+        state = transition_phase(state, SpecPhase.PLAN)
+        state = state.model_copy(update={"skipped_phases": skipped})
+        self._save(state)
+        return state
+
+    # -- Accept phase (complex only) ----------------------------------------
+
+    def start_accept(self, total_tasks: int) -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.PLAN:
+            raise ValueError(f"Cannot start accept: not in plan phase (in {state.phase})")
+        state = transition_phase(state, SpecPhase.ACCEPT)
+        state = state.model_copy(update={"total_tasks": total_tasks, "current_task": 1})
+        self._save(state)
+        return state
+
+    def approve_accept(self) -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.ACCEPT:
+            raise ValueError(f"Cannot approve accept: not in accept phase (in {state.phase})")
+        state = transition_phase(state, SpecPhase.IMPLEMENT)
+        state = state.model_copy(update={"plan_status": PlanStatus.APPROVED})
+        self._save(state)
+        return state
+
+    def reject_accept(self, reason: str) -> SpecState:
+        state = self._require_state()
+        if state.phase != SpecPhase.ACCEPT:
+            raise ValueError(f"Cannot reject accept: not in accept phase (in {state.phase})")
+        state = transition_phase(state, SpecPhase.PLAN)
+        state = state.model_copy(update={"plan_status": PlanStatus.FAILED})
+        self._save(state)
+        self._send_memory_event("plan_rejected", {"slug": state.slug, "reason": reason})
         return state
 
     # -- Plan phase ---------------------------------------------------------

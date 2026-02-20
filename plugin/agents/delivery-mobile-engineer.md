@@ -39,6 +39,18 @@ codebase while respecting platform conventions.
 - Never create top-level tasks — that is TPM's responsibility
 - Update task status via TaskUpdate as work progresses
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find mobile patterns:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar screen patterns | `"code"` | `"React Native navigation"` |
+| Find state management | `"code"` | `"Redux Zustand store"` |
+| Check mobile conventions | `"governance"` | `"mobile development standards"` |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches.
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

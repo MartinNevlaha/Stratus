@@ -7,6 +7,7 @@ import pytest
 from stratus.transcript import (
     TokenUsage,
     estimate_context_pct,
+    extract_compact_summaries,
     find_compaction_events,
     parse_transcript,
     to_effective_pct,
@@ -110,6 +111,113 @@ class TestFindCompactionEvents:
 
     def test_find_compaction_events_no_compaction(self, simple_transcript: Path):
         events = find_compaction_events(simple_transcript)
+        assert events == []
+
+
+class TestExtractCompactSummaries:
+    def test_extracts_summary_from_following_user_message(self, tmp_path: Path):
+        from tests.conftest import _make_compact_boundary, _write_jsonl
+
+        entries = [
+            _make_compact_boundary(pre_tokens=167000, timestamp="2026-02-15T12:10:00.000Z"),
+            {
+                "type": "user",
+                "uuid": "u1",
+                "timestamp": "2026-02-15T12:10:01.000Z",
+                "message": {
+                    "role": "user",
+                    "content": "This session is being continued...\n## Key Decisions\n- Use SQLite",
+                },
+            },
+        ]
+        transcript = _write_jsonl(tmp_path / "compact.jsonl", entries)
+
+        events = extract_compact_summaries(transcript)
+        assert len(events) == 1
+        assert events[0].summary is not None
+        assert "Key Decisions" in events[0].summary
+        assert events[0].pre_tokens == 167000
+
+    def test_handles_structured_content_list(self, tmp_path: Path):
+        from tests.conftest import _make_compact_boundary, _write_jsonl
+
+        entries = [
+            _make_compact_boundary(pre_tokens=150000),
+            {
+                "type": "user",
+                "uuid": "u1",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Summary part 1"},
+                        {"type": "text", "text": "Summary part 2"},
+                    ],
+                },
+            },
+        ]
+        transcript = _write_jsonl(tmp_path / "compact.jsonl", entries)
+
+        events = extract_compact_summaries(transcript)
+        assert len(events) == 1
+        assert events[0].summary is not None
+        assert "Summary part 1" in events[0].summary
+        assert "Summary part 2" in events[0].summary
+
+    def test_returns_none_summary_when_no_following_user_message(self, tmp_path: Path):
+        from tests.conftest import _make_compact_boundary, _write_jsonl
+
+        entries = [
+            _make_compact_boundary(pre_tokens=167000),
+        ]
+        transcript = _write_jsonl(tmp_path / "compact.jsonl", entries)
+
+        events = extract_compact_summaries(transcript)
+        assert len(events) == 1
+        assert events[0].summary is None
+
+    def test_returns_none_summary_when_next_is_not_user(self, tmp_path: Path):
+        from tests.conftest import _make_assistant_message, _make_compact_boundary, _write_jsonl
+
+        entries = [
+            _make_compact_boundary(pre_tokens=167000),
+            _make_assistant_message(uuid="a1"),
+        ]
+        transcript = _write_jsonl(tmp_path / "compact.jsonl", entries)
+
+        events = extract_compact_summaries(transcript)
+        assert len(events) == 1
+        assert events[0].summary is None
+
+    def test_handles_multiple_compaction_events(self, tmp_path: Path):
+        from tests.conftest import _make_compact_boundary, _write_jsonl
+
+        entries = [
+            _make_compact_boundary(
+                pre_tokens=167000, timestamp="2026-02-15T12:00:00.000Z", uuid="c1"
+            ),
+            {
+                "type": "user",
+                "uuid": "u1",
+                "message": {"role": "user", "content": "First summary"},
+            },
+            _make_compact_boundary(
+                pre_tokens=168000, timestamp="2026-02-15T13:00:00.000Z", uuid="c2"
+            ),
+            {
+                "type": "user",
+                "uuid": "u2",
+                "message": {"role": "user", "content": "Second summary"},
+            },
+        ]
+        transcript = _write_jsonl(tmp_path / "compact.jsonl", entries)
+
+        events = extract_compact_summaries(transcript)
+        assert len(events) == 2
+        assert events[0].summary == "First summary"
+        assert events[1].summary == "Second summary"
+
+    def test_empty_transcript_returns_empty_list(self, empty_transcript: Path):
+        events = extract_compact_summaries(empty_transcript)
         assert events == []
 
 

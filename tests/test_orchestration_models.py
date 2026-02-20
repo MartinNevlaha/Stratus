@@ -291,10 +291,10 @@ class TestTeammateInfo:
     def test_creation(self):
         ti = TeammateInfo(
             name="reviewer-1",
-            agent_type="spec-reviewer-compliance",
+            agent_type="delivery-spec-reviewer-compliance",
         )
         assert ti.name == "reviewer-1"
-        assert ti.agent_type == "spec-reviewer-compliance"
+        assert ti.agent_type == "delivery-spec-reviewer-compliance"
         assert ti.agent_id is None
         assert ti.status == TeammateStatus.IDLE
         assert ti.current_task is None

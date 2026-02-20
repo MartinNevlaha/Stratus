@@ -37,6 +37,18 @@ have the authority to block progression when quality thresholds are not met.
 - NEVER approve a gate when CRITICAL findings are open
 - Bash is for reading CI/CD output, coverage reports, and test results only
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to check quality standards:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find quality thresholds | `"governance"` | `"coverage threshold"` |
+| Check gate requirements | `"governance"` | `"quality gate criteria"` |
+| Verify review standards | `"governance"` | `"review checklist"` |
+
+Prefer `retrieve` to understand project-specific quality requirements.
+
 ## Phase Restrictions
 
 - Active during: QA (primary), GOVERNANCE (final release gate)

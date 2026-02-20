@@ -38,6 +38,19 @@ You produce accessible, performant, and well-tested UI components that match des
 - Never create top-level tasks — that is TPM's responsibility
 - Update task status via TaskUpdate as work progresses
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find existing patterns before implementing:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar component patterns | `"code"` | `"React form component"` |
+| Find data fetching patterns | `"code"` | `"SWR useQuery pattern"` |
+| Check accessibility standards | `"governance"` | `"WCAG accessibility"` |
+| Verify component conventions | `"governance"` | `"React component structure"` |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches. Use `Grep` for exact strings.
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

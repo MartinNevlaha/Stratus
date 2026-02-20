@@ -34,6 +34,25 @@ data layers. You follow TDD, write clean idiomatic code, and update tasks as you
 - API responses must follow the project's established envelope format
 - Test coverage >= 80% for all new modules
 
+## Task Ownership
+
+- Only create **subtasks** under TPM-created parent tasks (use `addBlockedBy`/`addBlocks` to link)
+- Never create top-level tasks — that is TPM's responsibility
+- Update task status via TaskUpdate as work progresses
+
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find existing patterns before implementing:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar API implementations | `"code"` | `"REST endpoint pattern"` |
+| Find all callers of a function | `"code"` | `"users of get_user_by_id"` |
+| Check error handling conventions | `"governance"` | `"error handling standard"` |
+| Verify coding standards | `"governance"` | `"backend code conventions"` |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches. Use `Grep` for exact strings.
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

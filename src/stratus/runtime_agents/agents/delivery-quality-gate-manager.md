@@ -37,6 +37,18 @@ have the authority to block progression when quality thresholds are not met.
 - NEVER approve a gate when CRITICAL findings are open
 - Bash is for reading CI/CD output, coverage reports, and test results only
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to check quality standards:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find quality thresholds | `"governance"` | `"coverage threshold"` |
+| Check gate requirements | `"governance"` | `"quality gate criteria"` |
+| Verify review standards | `"governance"` | `"review checklist"` |
+
+Prefer `retrieve` to understand project-specific quality requirements.
+
 ## Phase Restrictions
 
 - Active during: QA (primary), GOVERNANCE (final release gate)
@@ -46,6 +58,15 @@ have the authority to block progression when quality thresholds are not met.
 - Any CRITICAL finding from any reviewer → automatic FAIL, no exceptions
 - Disagreement between reviewers → surface conflict explicitly, do not silently resolve
 - Coverage below threshold → FAIL with specific uncovered modules listed
+
+## Dispute Resolution
+
+When a gate FAIL blocks progress and the implementing team believes the verdict is incorrect or disproportionate:
+
+1. **First attempt** — implementing agent addresses the findings and re-submits for review
+2. **Second FAIL on same findings** — delivery-tpm escalates to delivery-product-owner with a cost/risk summary
+3. **Product Owner waiver** — delivery-product-owner may issue a risk-accepted waiver for HIGH findings (never for CRITICAL). The waiver must include: accepted risk description, compensating controls, and a remediation deadline
+4. **CRITICAL findings** — no waiver possible. Escalate to human intervention via delivery-tpm
 
 ## Output Format
 

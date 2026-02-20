@@ -12,7 +12,11 @@ from stratus.orchestration.models import SpecPhase, SpecState
 _SPEC_STATE_FILE = "spec-state.json"
 
 VALID_TRANSITIONS: dict[SpecPhase, set[SpecPhase]] = {
-    SpecPhase.PLAN: {SpecPhase.IMPLEMENT},
+    SpecPhase.PLAN: {SpecPhase.IMPLEMENT, SpecPhase.ACCEPT},
+    SpecPhase.DISCOVERY: {SpecPhase.DESIGN},
+    SpecPhase.DESIGN: {SpecPhase.GOVERNANCE, SpecPhase.PLAN},
+    SpecPhase.GOVERNANCE: {SpecPhase.PLAN},
+    SpecPhase.ACCEPT: {SpecPhase.IMPLEMENT},
     SpecPhase.IMPLEMENT: {SpecPhase.VERIFY},
     SpecPhase.VERIFY: {SpecPhase.IMPLEMENT, SpecPhase.LEARN},
     SpecPhase.LEARN: set(),
@@ -80,6 +84,4 @@ def mark_task_complete(state: SpecState, task_num: int) -> SpecState:
     """Return updated SpecState with completed_tasks incremented and current_task advanced."""
     new_completed = state.completed_tasks + 1
     new_current = min(state.current_task + 1, state.total_tasks)
-    return state.model_copy(
-        update={"completed_tasks": new_completed, "current_task": new_current}
-    )
+    return state.model_copy(update={"completed_tasks": new_completed, "current_task": new_current})

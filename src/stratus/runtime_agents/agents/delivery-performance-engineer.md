@@ -30,6 +30,18 @@ performance issues during IMPLEMENTATION.
 - Recommend caching strategies: in-memory, Redis, CDN, HTTP cache headers
 - Identify memory leaks and unbounded growth patterns
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find performance patterns:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find caching patterns | `"code"` | `"Redis caching"` |
+| Find query optimization | `"code"` | `"database index"` |
+| Check performance standards | `"governance"` | `"SLA requirements"` |
+
+Prefer `retrieve` to understand existing performance patterns before optimizing.
+
 ## Phase Restrictions
 
 - Active during: PERFORMANCE (primary), IMPLEMENTATION (on-demand for flagged bottlenecks)

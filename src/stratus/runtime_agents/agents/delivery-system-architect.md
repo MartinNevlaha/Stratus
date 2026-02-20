@@ -32,6 +32,19 @@ ARCHITECTURE and PLANNING phases, producing the technical blueprint that enginee
 - NEVER make product scope decisions — defer to delivery-product-owner
 - NEVER approve governance gates — that is delivery-quality-gate-manager's role
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for design discovery:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find existing component patterns | `"code"` | `"service layer pattern"` |
+| Find API contract examples | `"code"` | `"REST endpoint schema"` |
+| Check architecture conventions | `"governance"` | `"API design standard"` |
+| Verify existing patterns | `"governance"` | `"component structure"` |
+
+Prefer `retrieve` to understand existing patterns before designing.
+
 ## Phase Restrictions
 
 - Active during: ARCHITECTURE (primary), PLANNING (estimation support)

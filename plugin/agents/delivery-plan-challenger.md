@@ -1,5 +1,5 @@
 ---
-name: plan-challenger
+name: delivery-plan-challenger
 description: "Adversarial reviewer that challenges implementation plans for weaknesses, risks, and missing considerations."
 tools: Read, Grep, Glob
 model: opus
@@ -18,7 +18,7 @@ Given a plan file path, challenge it:
    - **Missing edge cases**: What happens with empty inputs, concurrent access, network failures?
    - **Breaking changes**: Will this break existing functionality? Check all callers.
    - **Performance**: Are there O(n^2) patterns, unbounded queries, or memory leaks?
-   - **Security**: SQL injection, path traversal, command injection, untrusted input?
+   - **Security**: SQL injection, path traversal, command injections, untrusted input?
    - **Scope creep**: Is the plan doing more than what was asked?
    - **Dependencies**: Are new dependencies justified? Could stdlib handle it?
 

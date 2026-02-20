@@ -31,6 +31,24 @@ and LEARNING phases and hand off to the TPM once scope is defined.
 - NEVER commit to delivery timelines — defer to delivery-tpm
 - NEVER edit implementation files
 
+## Task Ownership
+
+- May create tasks **only during DISCOVERY** for requirement clarifications and user stories
+- Top-level task breakdown for implementation is TPM's responsibility
+- Use TaskCreate for backlog items; TPM converts them to engineering tasks
+
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) for requirements discovery:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find existing features | `"code"` | `"user authentication"` |
+| Check product conventions | `"governance"` | `"product requirements"` |
+| Verify acceptance criteria | `"governance"` | `"definition of done"` |
+
+Prefer `retrieve` to understand existing product context.
+
 ## Phase Restrictions
 
 - Active during: DISCOVERY (primary), LEARNING (retrospective review)

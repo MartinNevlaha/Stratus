@@ -34,6 +34,19 @@ fix anything yourself.
 - NEVER approve changes with CRITICAL or HIGH issues open
 - Bash is for running linters and grep only — no code execution that modifies state
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find code quality patterns and conventions:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar code patterns | `"code"` | `"error handling pattern"` |
+| Find test examples | `"code"` | `"unit test structure"` |
+| Check coding standards | `"governance"` | `"code style conventions"` |
+| Verify review criteria | `"governance"` | `"code review checklist"` |
+
+Prefer `retrieve` to ground findings in actual codebase conventions.
+
 ## Phase Restrictions
 
 - Active during: QA

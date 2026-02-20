@@ -40,21 +40,16 @@ class TeamManager:
 
     # -- Prompt generation --------------------------------------------------
 
-    def build_team_prompt(
-        self, spec_state: SpecState, agents: list[str]
-    ) -> str:
+    def build_team_prompt(self, spec_state: SpecState, agents: list[str]) -> str:
         lines = [
             f"Create a team for spec '{spec_state.slug}'.",
             f"Teammates: {', '.join(agents)}.",
         ]
         if self._config.delegate_mode:
-            lines.append(
-                "Enter delegate mode: restrict the lead to coordination-only tools."
-            )
+            lines.append("Enter delegate mode: restrict the lead to coordination-only tools.")
         if self._config.require_plan_approval:
             lines.append(
-                "Require plan approval: teammates must get their plan approved "
-                "before implementing."
+                "Require plan approval: teammates must get their plan approved before implementing."
             )
         if spec_state.plan_path:
             lines.append(f"Plan path: {spec_state.plan_path}")
@@ -74,8 +69,8 @@ class TeamManager:
 
     def build_review_team_prompt(self, spec_state: SpecState) -> str:
         reviewers = [
-            "spec-reviewer-compliance",
-            "spec-reviewer-quality",
+            "delivery-spec-reviewer-compliance",
+            "delivery-spec-reviewer-quality",
         ]
         lines = [
             f"Create a review team for spec '{spec_state.slug}'.",
@@ -85,14 +80,11 @@ class TeamManager:
         ]
         if self._config.require_plan_approval:
             lines.append(
-                "Require plan approval: reviewers must get their plan approved "
-                "before executing."
+                "Require plan approval: reviewers must get their plan approved before executing."
             )
         return "\n".join(lines)
 
-    def build_implement_team_prompt(
-        self, spec_state: SpecState, tasks: list[dict]
-    ) -> str:
+    def build_implement_team_prompt(self, spec_state: SpecState, tasks: list[dict]) -> str:
         lines = [
             f"Create an implementation team for spec '{spec_state.slug}'.",
             "Tasks:",
@@ -100,16 +92,13 @@ class TeamManager:
         for task in tasks:
             lines.append(f"  - Task {task.get('id', '?')}: {task.get('description', '')}")
         lines.append(
-            "Each teammate should own non-overlapping files. "
-            "Run tests after completing each task."
+            "Each teammate should own non-overlapping files. Run tests after completing each task."
         )
         return "\n".join(lines)
 
     # -- Team state reading -------------------------------------------------
 
-    def read_team_state(
-        self, team_name: str, *, teams_dir: Path | None = None
-    ) -> TeamState | None:
+    def read_team_state(self, team_name: str, *, teams_dir: Path | None = None) -> TeamState | None:
         if teams_dir is None:
             teams_dir = Path.home() / ".claude" / "teams"
         config_path = teams_dir / team_name / "config.json"
@@ -136,8 +125,7 @@ class TeamManager:
         env_val = os.environ.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS")
         if env_val != "1":
             return False, (
-                "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 must be set "
-                "to use Agent Teams backend"
+                "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 must be set to use Agent Teams backend"
             )
 
         if self._config.teammate_mode not in _VALID_TEAMMATE_MODES:
@@ -155,9 +143,7 @@ class TeamManager:
             return True, "Verdict found"
         return False, "Output must contain 'Verdict: PASS' or 'Verdict: FAIL'"
 
-    def validate_task_completion(
-        self, task_id: str, output: str
-    ) -> tuple[bool, str]:
+    def validate_task_completion(self, task_id: str, output: str) -> tuple[bool, str]:
         if not output.strip():
             return False, f"Task {task_id} produced empty output"
         return True, "Task output is non-empty"

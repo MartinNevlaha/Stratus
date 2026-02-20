@@ -34,6 +34,19 @@ safely evolvable.
 - Soft deletes via `deleted_at` nullable timestamp (not hard deletes for audit trails)
 - Never store passwords in plaintext — that is application layer responsibility
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find existing patterns before implementing:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find similar migration patterns | `"code"` | `"Alembic migration example"` |
+| Find ORM usage patterns | `"code"` | `"SQLAlchemy relationship"` |
+| Check database conventions | `"governance"` | `"migration naming convention"` |
+| Verify index strategies | `"governance"` | `"index best practices"` |
+
+Prefer `retrieve` over `Grep` for open-ended pattern searches. Use `Grep` for exact strings.
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION

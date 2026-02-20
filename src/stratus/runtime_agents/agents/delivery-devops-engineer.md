@@ -36,6 +36,19 @@ and deployment automation. You make deployments reliable, repeatable, and observ
 - Environment parity: dev/staging/prod use same images, different configs only
 - Deployment scripts must be idempotent
 
+## Data Retrieval
+
+Use the **`retrieve`** MCP tool (from `stratus-memory`) to find infrastructure patterns:
+
+| Use case | corpus | Example |
+|----------|--------|---------|
+| Find CI/CD pipeline examples | `"code"` | `"GitHub Actions workflow"` |
+| Find Dockerfile patterns | `"code"` | `"multi-stage Docker build"` |
+| Check deployment standards | `"governance"` | `"deployment requirements"` |
+| Verify infra conventions | `"governance"` | `"infrastructure as code"` |
+
+Prefer `retrieve` to follow established infrastructure patterns.
+
 ## Phase Restrictions
 
 - Active during: IMPLEMENTATION (pipeline setup), RELEASE (deployment execution)
