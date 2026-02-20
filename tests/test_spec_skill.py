@@ -4,7 +4,15 @@ from pathlib import Path
 
 import pytest
 
-SKILL_PATH = Path(__file__).parent.parent / ".claude" / "skills" / "spec" / "SKILL.md"
+SKILL_PATH = (
+    Path(__file__).parent.parent
+    / "src"
+    / "stratus"
+    / "runtime_agents"
+    / "skills"
+    / "spec"
+    / "SKILL.md"
+)
 
 
 def _parse_frontmatter(content: str) -> dict[str, str]:
@@ -49,13 +57,21 @@ class TestSpecSkill:
 
     def test_references_task_tool(self) -> None:
         content = SKILL_PATH.read_text()
-        assert "Task tool" in content or "Task" in content
+        assert "Task tool" in content
 
     def test_references_delegation(self) -> None:
         content = SKILL_PATH.read_text()
         assert "delegate" in content.lower()
 
-    def test_references_both_modes(self) -> None:
+    def test_references_spec_complex(self) -> None:
         content = SKILL_PATH.read_text()
-        assert "Default" in content
-        assert "Sworm" in content
+        assert "spec-complex" in content
+
+    def test_has_four_phases(self) -> None:
+        content = SKILL_PATH.read_text()
+        phases = [
+            line
+            for line in content.splitlines()
+            if line.startswith("## Phase") and "Context" not in line
+        ]
+        assert len(phases) == 4

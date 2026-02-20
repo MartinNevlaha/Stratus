@@ -55,6 +55,7 @@ AGENT_CATALOG: list[AgentSpec] = _build_catalog()
 CORE_SKILL_DIRNAMES: list[str] = [
     # Coordinator skills
     "spec",
+    "spec-complex",
     "sync-stratus",
     # Testing & debugging
     "webapp-testing",
