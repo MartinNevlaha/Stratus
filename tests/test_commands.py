@@ -277,12 +277,12 @@ class TestCmdInit:
             cmd_init(ns)
         mock_register.assert_not_called()
 
-    def test_cmd_init_default_no_agents(
+    def test_cmd_init_default_installs_agents(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Without any delivery flags, register_agents is NOT called."""
+        """With delivery_framework.enabled=True by default, register_agents IS called."""
         monkeypatch.setenv("AI_FRAMEWORK_DATA_DIR", str(tmp_path / "data"))
         ns = argparse.Namespace(
             dry_run=False,
@@ -300,7 +300,7 @@ class TestCmdInit:
             ),
         ):
             cmd_init(ns)
-        mock_register.assert_not_called()
+        mock_register.assert_called_once()
 
     def test_cmd_init_delivery_enabled_via_config(
         self,
