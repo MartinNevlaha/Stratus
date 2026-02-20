@@ -70,7 +70,10 @@ def update_ai_framework_config(root: Path, updates: dict) -> Path | None:
 
 
 def _build_default_config(
-    root: Path, graph: ProjectGraph, *, retrieval_config: dict | None = None,
+    root: Path,
+    graph: ProjectGraph,
+    *,
+    retrieval_config: dict | None = None,
 ) -> dict[str, object]:
     """Build full .ai-framework.json with detected values."""
     lang_counts: dict[str, int] = {}
@@ -88,7 +91,9 @@ def _build_default_config(
             "primary_language": primary_lang,
             "package_managers": sorted(pms),
         },
-        "retrieval": retrieval_config if retrieval_config is not None else {
+        "retrieval": retrieval_config
+        if retrieval_config is not None
+        else {
             "vexor": {
                 "enabled": True,
                 "project_root": str(root),
@@ -98,10 +103,14 @@ def _build_default_config(
             },
         },
         "learning": {
-            "global_enabled": False,
+            "global_enabled": True,
             "sensitivity": "conservative",
             "cooldown_days": 7,
             "max_proposals_per_session": 3,
+        },
+        "delivery_framework": {
+            "enabled": True,
+            "orchestration_mode": "classic",
         },
         "agent_teams": {
             "enabled": False,

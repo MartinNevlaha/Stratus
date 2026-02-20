@@ -335,7 +335,11 @@ class TestCmdLearningProposals:
 
             cmd_learning(_make_args(learning_action="proposals", min_confidence=0.6))
 
-        db_mock.list_proposals.assert_called_once_with(min_confidence=0.6, limit=10)
+        db_mock.list_proposals.assert_called_once_with(
+            status=ProposalStatus.PENDING,
+            min_confidence=0.6,
+            limit=10,
+        )
 
     def test_proposals_passes_max_count(self) -> None:
         config = _make_config()
@@ -346,7 +350,11 @@ class TestCmdLearningProposals:
 
             cmd_learning(_make_args(learning_action="proposals", max_count=5))
 
-        db_mock.list_proposals.assert_called_once_with(min_confidence=0.0, limit=5)
+        db_mock.list_proposals.assert_called_once_with(
+            status=ProposalStatus.PENDING,
+            min_confidence=0.0,
+            limit=5,
+        )
 
     def test_proposals_shows_confidence(self, capsys: pytest.CaptureFixture[str]) -> None:
         proposal = self._make_proposal()
@@ -380,11 +388,21 @@ class TestCmdLearningProposals:
 
 @pytest.mark.unit
 class TestCmdLearningDecide:
-    def test_decide_calls_db(self) -> None:
+    def test_decide_calls_watcher(self) -> None:
         config = _make_config()
         db_mock = _make_db_mock()
+        watcher_mock = MagicMock()
+        watcher_mock.decide_proposal.return_value = {
+            "proposal_id": "some-uuid-1234",
+            "decision": "accept",
+            "artifact_path": None,
+        }
 
-        with patch(_CONFIG_PATH, return_value=config), patch(_DB_PATH, return_value=db_mock):
+        with (
+            patch(_CONFIG_PATH, return_value=config),
+            patch(_DB_PATH, return_value=db_mock),
+            patch(_WATCHER_PATH, return_value=watcher_mock),
+        ):
             from stratus.learning.commands import cmd_learning
 
             cmd_learning(
@@ -395,13 +413,23 @@ class TestCmdLearningDecide:
                 )
             )
 
-        db_mock.decide_proposal.assert_called_once_with("some-uuid-1234", Decision.ACCEPT)
+        watcher_mock.decide_proposal.assert_called_once_with("some-uuid-1234", Decision.ACCEPT)
 
-    def test_decide_reject_calls_db(self) -> None:
+    def test_decide_reject_calls_watcher(self) -> None:
         config = _make_config()
         db_mock = _make_db_mock()
+        watcher_mock = MagicMock()
+        watcher_mock.decide_proposal.return_value = {
+            "proposal_id": "pid-xyz",
+            "decision": "reject",
+            "artifact_path": None,
+        }
 
-        with patch(_CONFIG_PATH, return_value=config), patch(_DB_PATH, return_value=db_mock):
+        with (
+            patch(_CONFIG_PATH, return_value=config),
+            patch(_DB_PATH, return_value=db_mock),
+            patch(_WATCHER_PATH, return_value=watcher_mock),
+        ):
             from stratus.learning.commands import cmd_learning
 
             cmd_learning(
@@ -412,13 +440,23 @@ class TestCmdLearningDecide:
                 )
             )
 
-        db_mock.decide_proposal.assert_called_once_with("pid-xyz", Decision.REJECT)
+        watcher_mock.decide_proposal.assert_called_once_with("pid-xyz", Decision.REJECT)
 
     def test_decide_prints_decided(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_config()
         db_mock = _make_db_mock()
+        watcher_mock = MagicMock()
+        watcher_mock.decide_proposal.return_value = {
+            "proposal_id": "pid-abc",
+            "decision": "accept",
+            "artifact_path": None,
+        }
 
-        with patch(_CONFIG_PATH, return_value=config), patch(_DB_PATH, return_value=db_mock):
+        with (
+            patch(_CONFIG_PATH, return_value=config),
+            patch(_DB_PATH, return_value=db_mock),
+            patch(_WATCHER_PATH, return_value=watcher_mock),
+        ):
             from stratus.learning.commands import cmd_learning
 
             cmd_learning(
@@ -437,8 +475,18 @@ class TestCmdLearningDecide:
     def test_decide_ignore(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_config()
         db_mock = _make_db_mock()
+        watcher_mock = MagicMock()
+        watcher_mock.decide_proposal.return_value = {
+            "proposal_id": "pid-ignore",
+            "decision": "ignore",
+            "artifact_path": None,
+        }
 
-        with patch(_CONFIG_PATH, return_value=config), patch(_DB_PATH, return_value=db_mock):
+        with (
+            patch(_CONFIG_PATH, return_value=config),
+            patch(_DB_PATH, return_value=db_mock),
+            patch(_WATCHER_PATH, return_value=watcher_mock),
+        ):
             from stratus.learning.commands import cmd_learning
 
             cmd_learning(
@@ -449,15 +497,54 @@ class TestCmdLearningDecide:
                 )
             )
 
-        db_mock.decide_proposal.assert_called_once_with("pid-ignore", Decision.IGNORE)
+        watcher_mock.decide_proposal.assert_called_once_with("pid-ignore", Decision.IGNORE)
         out = capsys.readouterr().out
         assert "ignore" in out
+
+    def test_decide_accept_shows_artifact_path(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = _make_config()
+        db_mock = _make_db_mock()
+        watcher_mock = MagicMock()
+        watcher_mock.decide_proposal.return_value = {
+            "proposal_id": "pid-artifact",
+            "decision": "accept",
+            "artifact_path": "/path/to/.claude/rules/new-rule.md",
+        }
+
+        with (
+            patch(_CONFIG_PATH, return_value=config),
+            patch(_DB_PATH, return_value=db_mock),
+            patch(_WATCHER_PATH, return_value=watcher_mock),
+        ):
+            from stratus.learning.commands import cmd_learning
+
+            cmd_learning(
+                _make_args(
+                    learning_action="decide",
+                    proposal_id="pid-artifact",
+                    decision="accept",
+                )
+            )
+
+        out = capsys.readouterr().out
+        assert "Created" in out
+        assert "/path/to/.claude/rules/new-rule.md" in out
 
     def test_decide_calls_db_close(self) -> None:
         config = _make_config()
         db_mock = _make_db_mock()
+        watcher_mock = MagicMock()
+        watcher_mock.decide_proposal.return_value = {
+            "proposal_id": "pid",
+            "decision": "accept",
+            "artifact_path": None,
+        }
 
-        with patch(_CONFIG_PATH, return_value=config), patch(_DB_PATH, return_value=db_mock):
+        with (
+            patch(_CONFIG_PATH, return_value=config),
+            patch(_DB_PATH, return_value=db_mock),
+            patch(_WATCHER_PATH, return_value=watcher_mock),
+        ):
             from stratus.learning.commands import cmd_learning
 
             cmd_learning(

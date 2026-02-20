@@ -203,6 +203,7 @@ tests/
     explain-architecture/    # Delegates to architecture-guide
     implement-mcp/           # Delegates to framework-expert
     spec/                    # /spec coordinator skill (context: fork, no agent)
+    learn/                   # /learn coordinator skill for learning proposals
 
 scripts/
   install.sh          # POSIX installer (pipx or venv fallback, no sudo)
@@ -321,7 +322,7 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 
 ### Phase 5: Adaptive Learning
 
-- Ships **disabled by default** (`global_enabled: false`), conservative thresholds
+- Ships **enabled by default** (`global_enabled: true`), conservative thresholds
 - Sensitivity enum maps to min_confidence: conservative=0.7, moderate=0.5, aggressive=0.3
 - Anti-annoyance controls: max 3 proposals/session, 7-day cooldown, 24h warmup
 - No LLM API calls — generates prompt templates only; actual interpretation via agents/manual
@@ -384,7 +385,7 @@ See `docs/architecture/framework-architecture.md` for the full framework design 
 - `phase_guard` PostToolUse hook: warns on phase-inconsistent agent spawning (informational only, exit 0)
 - Platform limitation: hooks do NOT receive caller identity — cannot distinguish coordinator from agent
 - Agent `tools` frontmatter provides hard enforcement on spawned agents (Claude Code enforces)
-- `registry/agent-registry.json` is single source of truth for all 26 agents (7 core + 19 delivery)
+- `registry/agent-registry.json` is single source of truth for all 26 agents (12 engineering + 14 process)
 - `AgentRegistry` loaded via `importlib.resources` (bundled package data)
 - `can_write` is metadata — enforced by agent `tools` frontmatter, not runtime
 - Routing table resolves 4 overlapping agent pairs (qa, architecture, implementation, review)

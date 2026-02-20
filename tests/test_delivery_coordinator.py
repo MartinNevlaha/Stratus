@@ -8,8 +8,10 @@ import pytest
 
 from stratus.orchestration.delivery_config import DeliveryConfig
 from stratus.orchestration.delivery_models import (
+    DEFAULT_ACTIVE_PHASES,
     DeliveryPhase,
     DeliveryState,
+    OrchestrationMode,
     PhaseResult,
 )
 
@@ -27,12 +29,22 @@ def session_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def classic_config() -> DeliveryConfig:
-    return DeliveryConfig(orchestration_mode="classic", max_review_iterations=3)
+    phases = [p.value for p in DEFAULT_ACTIVE_PHASES[OrchestrationMode.CLASSIC]]
+    return DeliveryConfig(
+        orchestration_mode="classic",
+        max_review_iterations=3,
+        active_phases=phases,
+    )
 
 
 @pytest.fixture
 def swarm_config() -> DeliveryConfig:
-    return DeliveryConfig(orchestration_mode="swarm", max_review_iterations=3)
+    phases = [p.value for p in DEFAULT_ACTIVE_PHASES[OrchestrationMode.SWARM]]
+    return DeliveryConfig(
+        orchestration_mode="swarm",
+        max_review_iterations=3,
+        active_phases=phases,
+    )
 
 
 @pytest.fixture
@@ -195,7 +207,8 @@ class TestAdvancePhase:
         from stratus.orchestration.delivery_coordinator import DeliveryCoordinator
         from stratus.orchestration.delivery_state import write_delivery_state
 
-        config = DeliveryConfig(orchestration_mode="classic")
+        phases = [p.value for p in DEFAULT_ACTIVE_PHASES[OrchestrationMode.CLASSIC]]
+        config = DeliveryConfig(orchestration_mode="classic", active_phases=phases)
         coord = DeliveryCoordinator(session_dir, config)
         # Manually put coordinator in LEARNING (terminal)
         state = DeliveryState(delivery_phase=DeliveryPhase.LEARNING, slug="feat")
@@ -463,7 +476,8 @@ class TestGetNextPhase:
         from stratus.orchestration.delivery_coordinator import DeliveryCoordinator
         from stratus.orchestration.delivery_state import write_delivery_state
 
-        config = DeliveryConfig(orchestration_mode="classic")
+        phases = [p.value for p in DEFAULT_ACTIVE_PHASES[OrchestrationMode.CLASSIC]]
+        config = DeliveryConfig(orchestration_mode="classic", active_phases=phases)
         coord = DeliveryCoordinator(session_dir, config)
         state = DeliveryState(delivery_phase=DeliveryPhase.LEARNING, slug="feat")
         write_delivery_state(session_dir, state)

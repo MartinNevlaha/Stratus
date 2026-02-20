@@ -73,6 +73,15 @@ def create_app(
             / "default"
         )
         session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Always initialize SpecCoordinator for /spec and /spec-complex
+        app.state.coordinator = SpecCoordinator(
+            session_dir=session_dir,
+            project_root=Path.cwd(),
+            api_url=f"http://127.0.0.1:{os.environ.get('AI_FRAMEWORK_PORT', '41777')}",
+        )
+
+        # Additionally initialize DeliveryCoordinator if delivery framework is enabled
         delivery_config = load_delivery_config()
         if delivery_config.enabled:
             from stratus.orchestration.delivery_coordinator import DeliveryCoordinator
@@ -81,13 +90,7 @@ def create_app(
                 session_dir=session_dir,
                 config=delivery_config,
             )
-            app.state.coordinator = None
         else:
-            app.state.coordinator = SpecCoordinator(
-                session_dir=session_dir,
-                project_root=Path.cwd(),
-                api_url=f"http://127.0.0.1:{os.environ.get('AI_FRAMEWORK_PORT', '41777')}",
-            )
             app.state.delivery_coordinator = None
         app.state.team_config = TeamConfig()
 

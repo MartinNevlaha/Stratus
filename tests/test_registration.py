@@ -848,7 +848,7 @@ class TestRegisterCoreSkills:
         (spec_dir / "SKILL.md").write_text("# My custom spec skill")
         written = register_core_skills(git_root)
         # spec should be skipped since user owns it
-        assert not any("spec" in w for w in written)
+        assert not any(w.endswith("spec/SKILL.md") for w in written)
 
     def test_force_overwrites_unmanaged(self, tmp_path: Path) -> None:
         """force=True overwrites user-owned skill files."""

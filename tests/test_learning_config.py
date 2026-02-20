@@ -9,9 +9,9 @@ from stratus.learning.models import Sensitivity
 
 
 class TestLearningConfigDefaults:
-    def test_disabled_by_default(self):
+    def test_enabled_by_default(self):
         cfg = LearningConfig()
-        assert cfg.global_enabled is False
+        assert cfg.global_enabled is True
 
     def test_conservative_sensitivity(self):
         cfg = LearningConfig()
@@ -59,25 +59,29 @@ class TestSensitivityMapping:
 class TestLoadLearningConfig:
     def test_returns_defaults_no_file(self, tmp_path):
         cfg = load_learning_config(tmp_path / "nonexistent.json")
-        assert cfg.global_enabled is False
+        assert cfg.global_enabled is True
         assert cfg.sensitivity == Sensitivity.CONSERVATIVE
 
     def test_returns_defaults_none_path(self):
         cfg = load_learning_config(None)
-        assert cfg.global_enabled is False
+        assert cfg.global_enabled is True
 
     def test_loads_from_json(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
-        config_file.write_text(json.dumps({
-            "learning": {
-                "global_enabled": True,
-                "sensitivity": "moderate",
-                "max_proposals_per_session": 5,
-                "cooldown_days": 14,
-                "commit_batch_threshold": 10,
-                "min_age_hours": 48,
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "learning": {
+                        "global_enabled": True,
+                        "sensitivity": "moderate",
+                        "max_proposals_per_session": 5,
+                        "cooldown_days": 14,
+                        "commit_batch_threshold": 10,
+                        "min_age_hours": 48,
+                    }
+                }
+            )
+        )
         cfg = load_learning_config(config_file)
         assert cfg.global_enabled is True
         assert cfg.sensitivity == Sensitivity.MODERATE
@@ -89,11 +93,15 @@ class TestLoadLearningConfig:
 
     def test_partial_config(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
-        config_file.write_text(json.dumps({
-            "learning": {
-                "global_enabled": True,
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "learning": {
+                        "global_enabled": True,
+                    }
+                }
+            )
+        )
         cfg = load_learning_config(config_file)
         assert cfg.global_enabled is True
         assert cfg.sensitivity == Sensitivity.CONSERVATIVE
@@ -103,27 +111,31 @@ class TestLoadLearningConfig:
         config_file = tmp_path / ".ai-framework.json"
         config_file.write_text(json.dumps({"retrieval": {}}))
         cfg = load_learning_config(config_file)
-        assert cfg.global_enabled is False
+        assert cfg.global_enabled is True
 
     def test_empty_file(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
         config_file.write_text("")
         cfg = load_learning_config(config_file)
-        assert cfg.global_enabled is False
+        assert cfg.global_enabled is True
 
     def test_invalid_json(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
         config_file.write_text("not json")
         cfg = load_learning_config(config_file)
-        assert cfg.global_enabled is False
+        assert cfg.global_enabled is True
 
     def test_batch_frequency_from_file(self, tmp_path):
         config_file = tmp_path / ".ai-framework.json"
-        config_file.write_text(json.dumps({
-            "learning": {
-                "batch_frequency": "on_commit",
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "learning": {
+                        "batch_frequency": "on_commit",
+                    }
+                }
+            )
+        )
         cfg = load_learning_config(config_file)
         assert cfg.batch_frequency == "on_commit"
 
@@ -136,9 +148,7 @@ class TestEnvVarOverrides:
 
     def test_env_disables_learning(self, tmp_path, monkeypatch):
         config_file = tmp_path / ".ai-framework.json"
-        config_file.write_text(json.dumps({
-            "learning": {"global_enabled": True}
-        }))
+        config_file.write_text(json.dumps({"learning": {"global_enabled": True}}))
         monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "false")
         cfg = load_learning_config(config_file)
         assert cfg.global_enabled is False
@@ -150,9 +160,7 @@ class TestEnvVarOverrides:
 
     def test_env_overrides_file(self, tmp_path, monkeypatch):
         config_file = tmp_path / ".ai-framework.json"
-        config_file.write_text(json.dumps({
-            "learning": {"global_enabled": False}
-        }))
-        monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "true")
+        config_file.write_text(json.dumps({"learning": {"global_enabled": True}}))
+        monkeypatch.setenv("AI_FRAMEWORK_LEARNING_ENABLED", "false")
         cfg = load_learning_config(config_file)
-        assert cfg.global_enabled is True
+        assert cfg.global_enabled is False

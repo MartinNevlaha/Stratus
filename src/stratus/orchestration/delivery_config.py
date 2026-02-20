@@ -7,14 +7,16 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from stratus.orchestration.delivery_models import OrchestrationMode
+from stratus.orchestration.delivery_models import DEFAULT_ACTIVE_PHASES, OrchestrationMode
+
+ALL_PHASES = [p.value for p in DEFAULT_ACTIVE_PHASES[OrchestrationMode.SWARM]]
 
 
 @dataclass
 class DeliveryConfig:
-    enabled: bool = False
+    enabled: bool = True
     orchestration_mode: str = "classic"
-    active_phases: list[str] = field(default_factory=list)
+    active_phases: list[str] = field(default_factory=lambda: ALL_PHASES.copy())
     disabled_invariants: list[str] = field(default_factory=list)
     disabled_agents: list[str] = field(default_factory=list)
     max_review_iterations: int = 3

@@ -18,7 +18,7 @@ SENSITIVITY_CONFIDENCE_MAP: dict[Sensitivity, float] = {
 
 @dataclass
 class LearningConfig:
-    global_enabled: bool = False
+    global_enabled: bool = True
     sensitivity: Sensitivity = Sensitivity.CONSERVATIVE
     max_proposals_per_session: int = 3
     cooldown_days: int = 7
