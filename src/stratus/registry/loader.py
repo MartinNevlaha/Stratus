@@ -78,17 +78,17 @@ class AgentRegistry:
     def get_phase_roles(self, phase: str) -> list[str]:
         """Get agent names for a delivery phase (short names without 'delivery-' prefix)."""
         agents = self.filter_by_phase(phase)
-        swords_agents = [a for a in agents if "swords" in a.orchestration_modes]
+        sworm_agents = [a for a in agents if "sworm" in a.orchestration_modes]
         result = []
-        for a in swords_agents:
+        for a in sworm_agents:
             name = a.name
             if name.startswith("delivery-"):
-                name = name[len("delivery-"):]
+                name = name[len("delivery-") :]
             result.append(name)
         return result
 
     def get_phase_lead(self, phase: str) -> str | None:
         lead = self._phase_leads.get(phase)
         if lead and lead.startswith("delivery-"):
-            return lead[len("delivery-"):]
+            return lead[len("delivery-") :]
         return lead

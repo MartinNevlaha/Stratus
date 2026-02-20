@@ -112,3 +112,198 @@ class TestTeamEndpoint:
         resp = client.get("/api/orchestration/team")
         data = resp.json()
         assert data["mode"] == "task-tool"
+
+
+def _start_and_approve(client: TestClient, slug: str = "feat", total_tasks: int = 3) -> None:
+    """Helper: start a spec and approve the plan so we are in implement phase."""
+    client.post("/api/orchestration/start", json={"slug": slug})
+    client.post("/api/orchestration/approve-plan", json={"total_tasks": total_tasks})
+
+
+class TestStartTask:
+    def test_start_task(self, client: TestClient):
+        _start_and_approve(client)
+        resp = client.post("/api/orchestration/start-task", json={"task_num": 2})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "implement"
+        assert data["current_task"] == 2
+
+    def test_start_task_no_spec(self, client: TestClient):
+        resp = client.post("/api/orchestration/start-task", json={"task_num": 1})
+        assert resp.status_code == 409
+
+    def test_start_task_missing_task_num(self, client: TestClient):
+        _start_and_approve(client)
+        resp = client.post("/api/orchestration/start-task", json={})
+        assert resp.status_code == 422
+
+    def test_start_task_invalid_json(self, client: TestClient):
+        resp = client.post(
+            "/api/orchestration/start-task",
+            content="not-json",
+            headers={"content-type": "application/json"},
+        )
+        assert resp.status_code == 422
+
+
+class TestCompleteTask:
+    def test_complete_task(self, client: TestClient):
+        _start_and_approve(client, total_tasks=3)
+        resp = client.post("/api/orchestration/complete-task", json={"task_num": 1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "implement"
+        assert data["completed_tasks"] == 1
+        assert "current_task" in data
+        assert data["all_done"] is False
+
+    def test_complete_all_tasks(self, client: TestClient):
+        _start_and_approve(client, total_tasks=1)
+        resp = client.post("/api/orchestration/complete-task", json={"task_num": 1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["all_done"] is True
+
+    def test_complete_task_no_spec(self, client: TestClient):
+        resp = client.post("/api/orchestration/complete-task", json={"task_num": 1})
+        assert resp.status_code == 409
+
+    def test_complete_task_missing_task_num(self, client: TestClient):
+        _start_and_approve(client)
+        resp = client.post("/api/orchestration/complete-task", json={})
+        assert resp.status_code == 422
+
+
+class TestStartVerify:
+    def test_start_verify(self, client: TestClient):
+        _start_and_approve(client)
+        resp = client.post("/api/orchestration/start-verify")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "verify"
+        assert data["plan_status"] == "verifying"
+
+    def test_start_verify_no_spec(self, client: TestClient):
+        resp = client.post("/api/orchestration/start-verify")
+        assert resp.status_code == 409
+
+    def test_start_verify_wrong_phase(self, client: TestClient):
+        # Cannot transition from plan directly to verify
+        client.post("/api/orchestration/start", json={"slug": "feat"})
+        resp = client.post("/api/orchestration/start-verify")
+        assert resp.status_code == 409
+
+
+class TestRecordVerdicts:
+    def _passing_verdict(self) -> dict:
+        return {
+            "reviewer": "spec-reviewer-quality",
+            "verdict": "pass",
+            "findings": [],
+            "raw_output": "Verdict: PASS",
+        }
+
+    def _failing_verdict(self) -> dict:
+        return {
+            "reviewer": "spec-reviewer-compliance",
+            "verdict": "fail",
+            "findings": [
+                {
+                    "file_path": "src/app.py",
+                    "line": 10,
+                    "severity": "must_fix",
+                    "description": "Missing type hint",
+                }
+            ],
+            "raw_output": "Verdict: FAIL\n- must_fix: src/app.py:10 — Missing type hint",
+        }
+
+    def test_record_passing_verdicts(self, client: TestClient):
+        resp = client.post(
+            "/api/orchestration/record-verdicts",
+            json={"verdicts": [self._passing_verdict()]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["all_passed"] is True
+        assert data["needs_fix"] is False
+        assert data["total_findings"] == 0
+
+    def test_record_failing_verdicts(self, client: TestClient):
+        _start_and_approve(client)
+        client.post("/api/orchestration/start-verify")
+        resp = client.post(
+            "/api/orchestration/record-verdicts",
+            json={"verdicts": [self._failing_verdict()]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["all_passed"] is False
+        assert data["failed_reviewers"] == ["spec-reviewer-compliance"]
+        assert data["must_fix_count"] == 1
+        assert "needs_fix" in data
+
+    def test_record_verdicts_missing_verdicts_key(self, client: TestClient):
+        resp = client.post("/api/orchestration/record-verdicts", json={})
+        assert resp.status_code == 422
+
+    def test_record_verdicts_invalid_json(self, client: TestClient):
+        resp = client.post(
+            "/api/orchestration/record-verdicts",
+            content="bad",
+            headers={"content-type": "application/json"},
+        )
+        assert resp.status_code == 422
+
+    def test_record_verdicts_invalid_verdict_object(self, client: TestClient):
+        resp = client.post(
+            "/api/orchestration/record-verdicts",
+            json={"verdicts": [{"bad": "data"}]},
+        )
+        assert resp.status_code == 409
+
+
+class TestStartFixLoop:
+    def test_start_fix_loop(self, client: TestClient):
+        _start_and_approve(client)
+        client.post("/api/orchestration/start-verify")
+        resp = client.post("/api/orchestration/start-fix-loop")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "implement"
+        assert data["review_iteration"] == 1
+
+    def test_start_fix_loop_no_spec(self, client: TestClient):
+        resp = client.post("/api/orchestration/start-fix-loop")
+        assert resp.status_code == 409
+
+
+class TestStartLearn:
+    def test_start_learn(self, client: TestClient):
+        _start_and_approve(client)
+        client.post("/api/orchestration/start-verify")
+        resp = client.post("/api/orchestration/start-learn")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "learn"
+
+    def test_start_learn_no_spec(self, client: TestClient):
+        resp = client.post("/api/orchestration/start-learn")
+        assert resp.status_code == 409
+
+
+class TestCompleteSpec:
+    def test_complete_spec(self, client: TestClient):
+        _start_and_approve(client)
+        client.post("/api/orchestration/start-verify")
+        client.post("/api/orchestration/start-learn")
+        resp = client.post("/api/orchestration/complete")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "learn"
+        assert data["plan_status"] == "complete"
+
+    def test_complete_spec_no_spec(self, client: TestClient):
+        resp = client.post("/api/orchestration/complete")
+        assert resp.status_code == 409

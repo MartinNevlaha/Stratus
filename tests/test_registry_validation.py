@@ -46,8 +46,8 @@ def test_validate_mode_default_has_agents():
 
 
 @pytest.mark.unit
-def test_validate_mode_swords_has_agents():
-    warnings = validate_mode_agents("swords")
+def test_validate_mode_sworm_has_agents():
+    warnings = validate_mode_agents("sworm")
     assert warnings == []
 
 

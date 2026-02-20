@@ -481,9 +481,12 @@
     var results = data && data.results ? data.results : [];
     if (results.length === 0) {
       el.innerHTML = '<span class="muted">No results.</span>';
+      // Remove any lingering click handler before returning
+      el.onclick = null;
       return;
     }
-    el.innerHTML = results.map(function(r) {
+
+    el.innerHTML = results.map(function(r, idx) {
       var score = r.score !== undefined ? (r.score * 100).toFixed(0) + '%' : '';
       var title = escHtml(r.title || r.file_path || 'Result');
       var pathText = r.file_path || '';
@@ -491,62 +494,230 @@
       var path = pathText ? '<div class="result-path">' + escHtml(pathText) + '</div>' : '';
       var snippet = escHtml((r.excerpt || r.content || r.snippet || '').substring(0, 200));
       var docType = r.doc_type ? '<span class="tag ' + r.doc_type + '">' + r.doc_type + '</span>' : '';
-      return '<div class="result-card">' +
-        '<div class="result-header"><span class="result-title">' + title + '</span><span class="result-score">' + score + '</span></div>' +
+
+      // Detail section — full excerpt + metadata grid
+      var fullExcerpt = r.excerpt || r.content || r.snippet || '';
+      var metaRows = '';
+      if (r.language) metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Language</span><span>' + escHtml(r.language) + '</span></div>';
+      if (r.corpus)   metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Corpus</span><span>' + escHtml(r.corpus) + '</span></div>';
+      if (r.rank !== undefined) metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Rank</span><span>' + escHtml(String(r.rank)) + '</span></div>';
+      if (r.chunk_index !== undefined) metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Chunk</span><span>' + escHtml(String(r.chunk_index)) + '</span></div>';
+      if (r.line_start !== undefined) {
+        var lineRange = String(r.line_start) + (r.line_end ? '–' + r.line_end : '');
+        metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Lines</span><span>' + escHtml(lineRange) + '</span></div>';
+      }
+      if (r.file_path) metaRows += '<div class="result-detail-meta-row result-detail-meta-full"><span class="result-detail-meta-label">Path</span><span>' + escHtml(r.file_path) + '</span></div>';
+
+      var detailHtml =
+        '<div class="result-detail">' +
+          (metaRows ? '<div class="result-detail-meta">' + metaRows + '</div>' : '') +
+          '<pre class="result-detail-excerpt">' + escHtml(fullExcerpt) + '</pre>' +
+        '</div>';
+
+      return '<div class="result-card" data-result-idx="' + idx + '">' +
+        '<div class="result-header">' +
+          '<span class="result-title">' + title + '</span>' +
+          '<span class="result-header-right">' +
+            '<span class="result-score">' + score + '</span>' +
+            '<span class="result-chevron" aria-hidden="true">&#9654;</span>' +
+          '</span>' +
+        '</div>' +
         path +
         (docType ? '<div style="margin-bottom:0.3rem">' + docType + '</div>' : '') +
         '<div class="result-snippet">' + snippet + '</div>' +
+        detailHtml +
         '</div>';
     }).join('');
+
+    // Event delegation — one listener per container, replaces previous one
+    el.onclick = function(evt) {
+      var card = evt.target.closest('.result-card');
+      if (!card) return;
+      var isExpanded = card.classList.contains('expanded');
+      // Collapse all cards in this container
+      el.querySelectorAll('.result-card.expanded').forEach(function(c) {
+        c.classList.remove('expanded');
+      });
+      // If the clicked card was not already expanded, expand it
+      if (!isExpanded) {
+        card.classList.add('expanded');
+      }
+    };
   }
 
   // --- Memory tab ---
 
   function loadRecentMemory() {
-    fetchMemory('');
+    fetchRecentMemory();
+    fetchSessions();
+
     document.getElementById('memory-btn').addEventListener('click', function() {
       var q = document.getElementById('memory-query').value.trim();
-      fetchMemory(q);
+      if (q) {
+        fetchMemorySearch(q);
+      } else {
+        fetchRecentMemory();
+      }
     });
     document.getElementById('memory-query').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         var q = document.getElementById('memory-query').value.trim();
-        fetchMemory(q);
+        if (q) {
+          fetchMemorySearch(q);
+        } else {
+          fetchRecentMemory();
+        }
       }
     });
   }
 
-  function fetchMemory(query) {
-    var url = '/api/search?limit=20&query=' + encodeURIComponent(query);
-    fetch(url)
+  function fetchRecentMemory() {
+    fetch('/api/memory/recent?limit=20')
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(data) {
         var results = data && data.results ? data.results : [];
-        renderMemoryEvents(results);
+        renderMemoryEvents(results, 'Recent Memories');
       })
       .catch(function() {});
   }
 
-  function renderMemoryEvents(events) {
+  function fetchMemorySearch(query) {
+    fetch('/api/search?limit=20&query=' + encodeURIComponent(query))
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        var results = data && data.results ? data.results : [];
+        renderMemoryEvents(results, 'Search Results');
+      })
+      .catch(function() {});
+  }
+
+  function fetchSessions() {
+    fetch('/api/sessions?limit=10')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        var sessions = data && data.sessions ? data.sessions : [];
+        renderSessions(sessions);
+      })
+      .catch(function() {});
+  }
+
+  function renderMemoryEvents(events, heading) {
     var el = document.getElementById('memory-results');
     if (!el) return;
+
+    var headingHtml = heading
+      ? '<h3 class="memory-section-heading">' + escHtml(heading) + '</h3>'
+      : '';
+
     if (!events.length) {
-      el.innerHTML = '<span class="muted">No events found.</span>';
+      el.innerHTML = headingHtml + '<span class="muted">No events found.</span>';
+      // Remove any lingering click handler before returning
+      el.onclick = null;
       return;
     }
-    el.innerHTML = events.map(function(ev) {
+    el.innerHTML = headingHtml + events.map(function(ev, idx) {
       var title = escHtml(ev.title || ev.text.substring(0, 60));
-      var text = escHtml(ev.text ? ev.text.substring(0, 120) : '');
+      var text = escHtml(ev.text ? ev.text.substring(0, 200) : '');
       var ts = ev.ts ? new Date(ev.ts).toLocaleString() : '';
       var type = ev.type || 'event';
       var imp = ev.importance !== undefined ? ev.importance : 0.5;
-      return '<div class="event-card">' +
+
+      var typeBadge = '<span class="tag">' + escHtml(type) + '</span>';
+      var scopeBadge = ev.scope
+        ? ' <span class="tag tag-scope">' + escHtml(ev.scope) + '</span>'
+        : '';
+      var actorBadge = ev.actor
+        ? ' <span class="tag tag-actor">' + escHtml(ev.actor) + '</span>'
+        : '';
+
+      var tagPills = '';
+      if (ev.tags && ev.tags.length) {
+        tagPills = '<div class="event-tag-pills">' +
+          ev.tags.map(function(t) {
+            return '<span class="tag-pill">' + escHtml(t) + '</span>';
+          }).join('') +
+          '</div>';
+      }
+
+      // Detail section — full text + metadata grid
+      var metaRows = '';
+      if (ev.id)         metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">ID</span><span>' + escHtml(String(ev.id)) + '</span></div>';
+      if (ev.project)    metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Project</span><span>' + escHtml(ev.project) + '</span></div>';
+      if (ev.session_id) metaRows += '<div class="result-detail-meta-row result-detail-meta-full"><span class="result-detail-meta-label">Session</span><span>' + escHtml(ev.session_id) + '</span></div>';
+      if (ev.dedupe_key) metaRows += '<div class="result-detail-meta-row result-detail-meta-full"><span class="result-detail-meta-label">Dedupe key</span><span>' + escHtml(ev.dedupe_key) + '</span></div>';
+      if (ev.ttl != null) metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">TTL</span><span>' + escHtml(String(ev.ttl)) + '</span></div>';
+      if (ev.importance !== undefined) metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Importance</span><span>' + escHtml(String(ev.importance)) + '</span></div>';
+      if (ev.created_at_epoch != null) {
+        var createdAt = new Date(ev.created_at_epoch * 1000).toLocaleString();
+        metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Created at</span><span>' + escHtml(createdAt) + '</span></div>';
+      }
+
+      var refsRows = '';
+      if (ev.refs && typeof ev.refs === 'object' && Object.keys(ev.refs).length > 0) {
+        refsRows = Object.keys(ev.refs).map(function(k) {
+          return '<div class="result-detail-meta-row result-detail-meta-full"><span class="result-detail-meta-label">' + escHtml(k) + '</span><span>' + escHtml(String(ev.refs[k])) + '</span></div>';
+        }).join('');
+      }
+
+      var detailHtml =
+        '<div class="event-detail">' +
+          (metaRows || refsRows ? '<div class="result-detail-meta">' + metaRows + refsRows + '</div>' : '') +
+          '<pre class="event-detail-text">' + escHtml(ev.text || '') + '</pre>' +
+        '</div>';
+
+      return '<div class="event-card" data-event-idx="' + idx + '">' +
         '<div class="event-header">' +
-        '<span class="event-title">' + title + ' <span class="tag">' + escHtml(type) + '</span></span>' +
-        '<span class="event-time">' + ts + '</span>' +
+          '<span class="event-title">' + title + '</span>' +
+          '<span class="event-header-right">' +
+            '<span class="event-time">' + escHtml(ts) + '</span>' +
+            '<span class="result-chevron" aria-hidden="true">&#9654;</span>' +
+          '</span>' +
         '</div>' +
+        '<div class="event-badges">' + typeBadge + scopeBadge + actorBadge + '</div>' +
+        (tagPills ? tagPills : '') +
         '<div class="event-text">' + text + '</div>' +
         '<div class="importance-bar"><div class="importance-fill" style="width:' + Math.round(imp * 100) + '%"></div></div>' +
+        detailHtml +
+        '</div>';
+    }).join('');
+
+    // Event delegation — one listener per container, replaces previous one
+    el.onclick = function(evt) {
+      var card = evt.target.closest('.event-card');
+      if (!card) return;
+      var isExpanded = card.classList.contains('expanded');
+      // Collapse all cards in this container
+      el.querySelectorAll('.event-card.expanded').forEach(function(c) {
+        c.classList.remove('expanded');
+      });
+      // If the clicked card was not already expanded, expand it
+      if (!isExpanded) {
+        card.classList.add('expanded');
+      }
+    };
+  }
+
+  function renderSessions(sessions) {
+    var el = document.getElementById('sessions-list');
+    if (!el) return;
+    if (!sessions.length) {
+      el.innerHTML = '<span class="muted">No sessions found.</span>';
+      return;
+    }
+    el.innerHTML = sessions.map(function(s) {
+      var sessionId = escHtml((s.content_session_id || '').substring(0, 20));
+      if ((s.content_session_id || '').length > 20) sessionId += '\u2026';
+      var project = escHtml(s.project || '');
+      var prompt = s.initial_prompt ? escHtml(s.initial_prompt.substring(0, 100)) : '';
+      if (s.initial_prompt && s.initial_prompt.length > 100) prompt += '\u2026';
+      var ts = s.started_at ? new Date(s.started_at).toLocaleString() : '';
+      return '<div class="session-card">' +
+        '<div class="session-header">' +
+        '<span class="session-id" title="' + escHtml(s.content_session_id || '') + '">' + sessionId + '</span>' +
+        '<span class="session-time">' + escHtml(ts) + '</span>' +
+        '</div>' +
+        (project ? '<div class="session-project">' + project + '</div>' : '') +
+        (prompt ? '<div class="session-prompt">' + prompt + '</div>' : '') +
         '</div>';
     }).join('');
   }
@@ -559,7 +730,7 @@
       .then(function(data) {
         if (!data) return;
         renderAgentsTable(data.agents || []);
-        renderChipsList(data.skills || [], 'skills-list');
+        renderSkillsList(data.skills || []);
         renderChipsList(data.rules || [], 'rules-list');
       })
       .catch(function() {});
@@ -570,16 +741,135 @@
     if (!el) return;
     if (!agents.length) {
       el.innerHTML = '<span class="muted">No agents found.</span>';
+      el.onclick = null;
       return;
     }
-    var rows = agents.map(function(a) {
-      var phases = Array.isArray(a.phases) ? a.phases.join(', ') : (a.phases || '');
+
+    el.innerHTML = agents.map(function(a, idx) {
       var model = a.model ? '<span class="tag">' + escHtml(a.model) + '</span>' : '';
       var layer = a.layer ? '<span class="tag agent">' + escHtml(a.layer) + '</span>' : '';
-      var write = a.can_write ? '<span class="tag yes">write</span>' : '<span class="tag no">read-only</span>';
-      return '<tr><td><strong>' + escHtml(a.name) + '</strong></td><td>' + model + '</td><td>' + layer + '</td><td>' + escHtml(phases) + '</td><td>' + write + '</td></tr>';
+      var write = a.can_write
+        ? '<span class="tag yes">write</span>'
+        : '<span class="tag no">read-only</span>';
+
+      // Detail metadata
+      var phases = Array.isArray(a.phases) ? a.phases.join(', ') : (a.phases || '—');
+      var metaRows = '';
+      metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Filename</span><span>' + escHtml(a.filename || '—') + '</span></div>';
+      metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Phases</span><span>' + escHtml(phases) + '</span></div>';
+
+      var taskTypes = Array.isArray(a.task_types) && a.task_types.length
+        ? a.task_types.map(function(t) { return '<span class="tag">' + escHtml(t) + '</span>'; }).join('')
+        : '';
+      if (taskTypes) {
+        metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Task types</span><span>' + taskTypes + '</span></div>';
+      }
+
+      var stacks = Array.isArray(a.applicable_stacks) && a.applicable_stacks.length
+        ? a.applicable_stacks.map(function(s) { return '<span class="tag">' + escHtml(s) + '</span>'; }).join('')
+        : '<span class="muted">universal</span>';
+      metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Stacks</span><span>' + stacks + '</span></div>';
+
+      var modes = Array.isArray(a.orchestration_modes) && a.orchestration_modes.length
+        ? a.orchestration_modes.map(function(m) { return '<span class="tag">' + escHtml(m) + '</span>'; }).join('')
+        : '—';
+      metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Modes</span><span>' + modes + '</span></div>';
+
+      metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Optional</span><span>' + (a.optional ? 'yes' : 'no') + '</span></div>';
+
+      var keywords = Array.isArray(a.keywords) && a.keywords.length
+        ? a.keywords.map(function(k) { return '<span class="tag">' + escHtml(k) + '</span>'; }).join('')
+        : '';
+      if (keywords) {
+        metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Keywords</span><span>' + keywords + '</span></div>';
+      }
+
+      return '<div class="agent-card" data-agent-idx="' + idx + '">' +
+        '<div class="agent-card-header">' +
+          '<span class="agent-card-name">' + escHtml(a.name) + '</span>' +
+          '<span class="agent-card-tags">' + model + layer + write + '</span>' +
+          '<span class="agent-card-chevron"><span class="result-chevron" aria-hidden="true">&#9654;</span></span>' +
+        '</div>' +
+        '<div class="agent-detail">' +
+          '<div class="result-detail-meta">' + metaRows + '</div>' +
+        '</div>' +
+        '</div>';
     }).join('');
-    el.innerHTML = '<table><thead><tr><th>Name</th><th>Model</th><th>Layer</th><th>Phases</th><th>Write</th></tr></thead><tbody>' + rows + '</tbody></table>';
+
+    el.onclick = function(evt) {
+      var card = evt.target.closest('.agent-card');
+      if (!card) return;
+      var isExpanded = card.classList.contains('expanded');
+      el.querySelectorAll('.agent-card.expanded').forEach(function(c) {
+        c.classList.remove('expanded');
+      });
+      if (!isExpanded) {
+        card.classList.add('expanded');
+      }
+    };
+  }
+
+  function renderSkillsList(skills) {
+    var el = document.getElementById('skills-list');
+    if (!el) return;
+    if (!skills.length) {
+      el.innerHTML = '<span class="muted">None found.</span>';
+      el.onclick = null;
+      return;
+    }
+
+    el.innerHTML = skills.map(function(s, idx) {
+      var desc = s.description || '';
+      var descShort = desc.length > 80 ? desc.substring(0, 80) + '\u2026' : desc;
+      var agentTag = s.agent
+        ? '<span class="tag agent">' + escHtml(s.agent) + '</span>'
+        : '';
+      var contextTag = s.context
+        ? '<span class="tag">' + escHtml(s.context) + '</span>'
+        : '';
+
+      // Detail metadata
+      var metaRows = '';
+      if (desc) {
+        metaRows += '<div class="result-detail-meta-row result-detail-meta-full"><span class="result-detail-meta-label">Description</span><span>' + escHtml(desc) + '</span></div>';
+      }
+      if (s.agent) {
+        metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Agent</span><span>' + escHtml(s.agent) + '</span></div>';
+      }
+      if (s.context) {
+        metaRows += '<div class="result-detail-meta-row"><span class="result-detail-meta-label">Context</span><span>' + escHtml(s.context) + '</span></div>';
+      }
+      metaRows += '<div class="result-detail-meta-row result-detail-meta-full"><span class="result-detail-meta-label">Path</span><span>' + escHtml(s.path || '—') + '</span></div>';
+
+      var bodyHtml = s.body
+        ? '<pre class="skill-detail-body">' + escHtml(s.body) + '</pre>'
+        : '';
+
+      return '<div class="skill-card" data-skill-idx="' + idx + '">' +
+        '<div class="skill-card-header">' +
+          '<span class="skill-card-name">' + escHtml(s.name) + '</span>' +
+          (descShort ? '<span class="skill-card-desc">' + escHtml(descShort) + '</span>' : '') +
+          '<span class="skill-card-tags">' + agentTag + contextTag + '</span>' +
+          '<span class="skill-card-chevron"><span class="result-chevron" aria-hidden="true">&#9654;</span></span>' +
+        '</div>' +
+        '<div class="skill-detail">' +
+          (metaRows ? '<div class="result-detail-meta">' + metaRows + '</div>' : '') +
+          bodyHtml +
+        '</div>' +
+        '</div>';
+    }).join('');
+
+    el.onclick = function(evt) {
+      var card = evt.target.closest('.skill-card');
+      if (!card) return;
+      var isExpanded = card.classList.contains('expanded');
+      el.querySelectorAll('.skill-card.expanded').forEach(function(c) {
+        c.classList.remove('expanded');
+      });
+      if (!isExpanded) {
+        card.classList.add('expanded');
+      }
+    };
   }
 
   function renderChipsList(items, elId) {
@@ -674,7 +964,7 @@
     el.innerHTML = spots.map(function(h) {
       var parts = h.file_path.split('/');
       var shortPath = parts.slice(-2).join('/');
-      return '<div class="hotspot-item"><span title="' + escHtml(h.file_path) + '">' + escHtml(shortPath) + '</span><span class="hotspot-count">' + h.failure_count + '</span></div>';
+      return '<div class="hotspot-item"><span title="' + escHtml(h.file_path) + '">' + escHtml(shortPath) + '</span><span class="hotspot-count">' + h.total_failures + '</span></div>';
     }).join('');
   }
 

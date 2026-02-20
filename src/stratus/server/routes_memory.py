@@ -125,8 +125,27 @@ async def observations_batch(request: Request) -> JSONResponse:
     return JSONResponse({"events": [e.model_dump() for e in events]})
 
 
+async def recent_memory(request: Request) -> JSONResponse:
+    try:
+        limit = int(request.query_params.get("limit", "20"))
+    except ValueError:
+        return JSONResponse({"error": "limit must be an integer"}, status_code=400)
+    limit = min(max(limit, 0), 100)
+    project = request.query_params.get("project")
+
+    db = request.app.state.db
+    events = db.recent_events(project=project, limit=limit)
+    return JSONResponse(
+        {
+            "results": [e.model_dump() for e in events],
+            "count": len(events),
+        }
+    )
+
+
 routes = [
     Route("/api/memory/save", save_memory, methods=["POST"]),
+    Route("/api/memory/recent", recent_memory),
     Route("/api/search", search),
     Route("/api/timeline", timeline),
     Route("/api/observations", observations),

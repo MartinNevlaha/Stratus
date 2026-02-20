@@ -102,7 +102,7 @@ For each command:
 
 Read `.ai-framework.json` if present. Determine:
 - Is Stratus initialized (`stratus init` was run)?
-- Is Swords/delivery mode enabled, disabled, or opt-in?
+- Is Sworm/delivery mode enabled, disabled, or opt-in?
 - Which phases are active?
 
 Read the project name from `.ai-framework.json` field `project.name` (fallback: directory name). Use this in the Environment Summary.
@@ -134,7 +134,7 @@ Propose a safe integration plan. In report-only mode (no `--apply`), describe wh
 - Rename conflicting agents (proposal)
 - Merge or split responsibilities
 - Ensure single registry authority (`src/stratus/registry/agent-registry.json` is the source of truth)
-- Verify compatibility with Default mode and Swords mode
+- Verify compatibility with Default mode and Sworm mode
 
 ### Skill Layer
 - Identify skills that need refactoring to use `context: fork`

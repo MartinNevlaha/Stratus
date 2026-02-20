@@ -11,8 +11,8 @@ from stratus.registry.loader import AgentRegistry
 from stratus.registry.models import AgentEntry
 
 TOTAL_AGENTS = 26
-CORE_AGENTS = 7   # orchestration_modes == ["default"]
-SWORDS_AGENTS = 19  # orchestration_modes includes "swords"
+CORE_AGENTS = 7  # orchestration_modes == ["default"]
+SWORM_AGENTS = 19  # orchestration_modes includes "sworm"
 
 
 @pytest.mark.unit
@@ -62,13 +62,13 @@ def test_filter_by_mode_default():
 
 
 @pytest.mark.unit
-def test_filter_by_mode_swords():
-    """filter_by_mode('swords') returns exactly 19 delivery agents."""
+def test_filter_by_mode_sworm():
+    """filter_by_mode('sworm') returns exactly 19 delivery agents."""
     registry = AgentRegistry.load()
-    agents = registry.filter_by_mode("swords")
-    assert len(agents) == SWORDS_AGENTS
+    agents = registry.filter_by_mode("sworm")
+    assert len(agents) == SWORM_AGENTS
     for agent in agents:
-        assert "swords" in agent.orchestration_modes
+        assert "sworm" in agent.orchestration_modes
 
 
 @pytest.mark.unit
@@ -191,11 +191,11 @@ def test_phase_roles():
 
 @pytest.mark.unit
 def test_phase_roles_discovery():
-    """get_phase_roles('discovery') returns swords-mode agents for discovery."""
+    """get_phase_roles('discovery') returns sworm-mode agents for discovery."""
     registry = AgentRegistry.load()
     roles = registry.get_phase_roles("discovery")
     assert len(roles) >= 1
-    # All results should be from swords-mode agents
+    # All results should be from sworm-mode agents
     for role in roles:
         assert not role.startswith("delivery-")
 
@@ -290,8 +290,8 @@ def test_filter_by_stack_excludes_optional_by_default():
 def test_delivery_agent_names_consistent():
     """All delivery agents have 'delivery-' prefix in their name."""
     registry = AgentRegistry.load()
-    swords = registry.filter_by_mode("swords")
-    for agent in swords:
+    sworm = registry.filter_by_mode("sworm")
+    for agent in sworm:
         assert agent.name.startswith("delivery-"), f"{agent.name} should start with delivery-"
 
 

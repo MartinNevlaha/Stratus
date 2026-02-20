@@ -606,6 +606,69 @@ class TestContextOverflowRecording:
         assert payload["category"] == "context_overflow"
         assert "detail" in payload
 
+    def _get_payload(self, mock_httpx: MagicMock) -> dict:
+        """Extract the JSON payload from the most recent httpx.post call."""
+        call = mock_httpx.post.call_args
+        return call.kwargs.get("json") or call[1].get("json")
+
+    def _patch_api_url(self):
+        return patch(
+            "stratus.hooks.context_monitor.get_api_url",
+            return_value="http://127.0.0.1:41777",
+            create=True,
+        )
+
+    def test_record_context_overflow_warning_detail_is_normalized(self):
+        """Non-CRITICAL warning produces 'context_warning' (not a raw percentage string)."""
+        from stratus.hooks.context_monitor import _record_context_overflow
+
+        warning_text = (
+            "⚡ Context at 67.5% raw (80.8% effective)."
+            " Consider saving important findings to memory."
+        )
+
+        with patch("stratus.hooks.context_monitor.httpx") as mock_httpx:
+            with self._patch_api_url():
+                _record_context_overflow(warning_text)
+
+        mock_httpx.post.assert_called_once()
+        assert self._get_payload(mock_httpx)["detail"] == "context_warning"
+
+    def test_record_context_overflow_critical_detail_is_normalized(self):
+        """CRITICAL warning produces 'context_critical' (not a raw percentage string)."""
+        from stratus.hooks.context_monitor import _record_context_overflow
+
+        warning_text = (
+            "⚠ CONTEXT CRITICAL: 85.2% raw (102.0% effective)."
+            " Compaction imminent at 83.5%. Save important context now."
+        )
+
+        with patch("stratus.hooks.context_monitor.httpx") as mock_httpx:
+            with self._patch_api_url():
+                _record_context_overflow(warning_text)
+
+        mock_httpx.post.assert_called_once()
+        assert self._get_payload(mock_httpx)["detail"] == "context_critical"
+
+    def test_record_context_overflow_detail_never_contains_percentage(self):
+        """The posted detail must not contain '%' — that would break dedup."""
+        from stratus.hooks.context_monitor import _record_context_overflow
+
+        warn = (
+            "⚡ Context at 72.3% raw (86.6% effective)."
+            " Consider saving important findings to memory."
+        )
+        critical = (
+            "⚠ CONTEXT CRITICAL: 90.1% raw (107.9% effective)."
+            " Compaction imminent at 83.5%. Save important context now."
+        )
+        for warning_text in [warn, critical]:
+            with patch("stratus.hooks.context_monitor.httpx") as mock_httpx:
+                with self._patch_api_url():
+                    _record_context_overflow(warning_text)
+
+            assert "%" not in self._get_payload(mock_httpx)["detail"]
+
 
 class TestPostCompactRestoreMain:
     def test_restores_state_to_stdout(self, monkeypatch, tmp_path, capsys):

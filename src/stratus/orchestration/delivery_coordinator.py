@@ -112,7 +112,7 @@ class DeliveryCoordinator:
 
             from stratus.registry.validation import validate_mode_agents
 
-            warnings = validate_mode_agents("swords")
+            warnings = validate_mode_agents("sworm")
             for w in warnings:
                 print(f"Registry warning: {w.message}", file=sys.stderr)
         except ImportError:

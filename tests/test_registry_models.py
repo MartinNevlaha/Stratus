@@ -107,7 +107,7 @@ def test_agent_entry_applicable_stacks_list():
         can_write=True,
         layer="engineering",
         phases=["implementation"],
-        orchestration_modes=["swords"],
+        orchestration_modes=["sworm"],
         applicable_stacks=["nestjs", "python", "go", "rust"],
     )
     assert entry.applicable_stacks == ["nestjs", "python", "go", "rust"]
@@ -123,10 +123,10 @@ def test_agent_entry_multiple_orchestration_modes():
         can_write=True,
         layer="core",
         phases=["implement"],
-        orchestration_modes=["default", "swords"],
+        orchestration_modes=["default", "sworm"],
     )
     assert "default" in entry.orchestration_modes
-    assert "swords" in entry.orchestration_modes
+    assert "sworm" in entry.orchestration_modes
 
 
 @pytest.mark.unit
@@ -139,7 +139,7 @@ def test_agent_entry_multiple_phases():
         can_write=False,
         layer="process",
         phases=["discovery", "planning", "implementation", "learning"],
-        orchestration_modes=["swords"],
+        orchestration_modes=["sworm"],
     )
     assert len(entry.phases) == 4
     assert "planning" in entry.phases

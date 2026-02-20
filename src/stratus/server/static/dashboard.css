@@ -268,12 +268,96 @@ header {
   border-radius: 6px;
   padding: 0.85rem 1rem;
   margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
-.result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.3rem; }
+.result-card:hover {
+  border-color: #4fc3f7;
+}
+.result-card.expanded {
+  border-color: #4fc3f7;
+  border-left: 3px solid #4fc3f7;
+  background: #1e2f52;
+}
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+}
+.result-header-right {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
 .result-title { font-weight: bold; font-size: 0.9rem; color: #e0e0e0; }
 .result-score { color: #4fc3f7; font-size: 0.8rem; }
 .result-path { font-size: 0.78rem; color: #888; margin-bottom: 0.35rem; }
 .result-snippet { font-size: 0.82rem; color: #bbb; white-space: pre-wrap; overflow: hidden; max-height: 72px; line-height: 1.4; }
+
+/* Expand/collapse chevron */
+.result-chevron {
+  font-size: 0.6rem;
+  color: #556;
+  display: inline-block;
+  transition: transform 0.15s;
+  user-select: none;
+}
+.result-card.expanded .result-chevron {
+  transform: rotate(90deg);
+  color: #4fc3f7;
+}
+
+/* Detail panel — hidden until card is expanded */
+.result-detail {
+  display: none;
+  margin-top: 0.75rem;
+  border-top: 1px solid #2a3f6f;
+  padding-top: 0.75rem;
+}
+.result-card.expanded .result-detail {
+  display: block;
+}
+
+/* Metadata grid inside detail panel */
+.result-detail-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.75rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.8rem;
+}
+.result-detail-meta-row {
+  display: contents;
+}
+.result-detail-meta-full {
+  /* full-width pair — span both columns via display:contents child trick */
+}
+.result-detail-meta-label {
+  color: #888;
+  white-space: nowrap;
+}
+.result-detail-meta-row > span:last-child {
+  color: #ccc;
+  word-break: break-all;
+}
+
+/* Full excerpt block */
+.result-detail-excerpt {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #ccc;
+  background: #111827;
+  border: 1px solid #2a3f6f;
+  border-radius: 4px;
+  padding: 0.65rem 0.85rem;
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
 
 /* ===== Tags ===== */
 .tag {
@@ -296,19 +380,128 @@ header {
 .tab-inner { padding: 1.5rem; }
 .tab-inner h3 { color: #4fc3f7; font-size: 1rem; margin: 0 0 0.75rem; }
 
+.memory-section-heading {
+  color: #4fc3f7;
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
 .event-card {
   background: #1a2744;
   border: 1px solid #2a3f6f;
   border-radius: 6px;
   padding: 0.75rem 1rem;
   margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
-.event-header { display: flex; justify-content: space-between; margin-bottom: 0.3rem; }
+.event-card:hover {
+  border-color: #4fc3f7;
+}
+.event-card.expanded {
+  border-color: #4fc3f7;
+  border-left: 3px solid #4fc3f7;
+  background: #1e2f52;
+}
+.event-card.expanded .result-chevron {
+  transform: rotate(90deg);
+  color: #4fc3f7;
+}
+.event-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem; }
+.event-header-right {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
 .event-title { font-weight: bold; font-size: 0.88rem; }
-.event-time { font-size: 0.78rem; color: #888; }
-.event-text { font-size: 0.82rem; color: #bbb; margin-top: 0.2rem; }
+.event-time { font-size: 0.78rem; color: #888; flex-shrink: 0; margin-left: 0.5rem; }
+
+/* Expand/collapse detail panel for event cards */
+.event-detail {
+  display: none;
+  margin-top: 0.75rem;
+  border-top: 1px solid #2a3f6f;
+  padding-top: 0.75rem;
+}
+.event-card.expanded .event-detail {
+  display: block;
+}
+.event-detail-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #ccc;
+  background: #111827;
+  border: 1px solid #2a3f6f;
+  border-radius: 4px;
+  padding: 0.65rem 0.85rem;
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+.event-badges { margin-bottom: 0.25rem; }
+.event-text { font-size: 0.82rem; color: #bbb; margin-top: 0.25rem; }
 .importance-bar { height: 3px; background: #1e2d4a; border-radius: 2px; margin: 0.4rem 0 0; }
 .importance-fill { height: 100%; background: #4fc3f7; border-radius: 2px; }
+
+.tag-scope {
+  background: rgba(102, 187, 106, 0.12);
+  color: #81c784;
+}
+.tag-actor {
+  background: rgba(171, 71, 188, 0.12);
+  color: #ce93d8;
+}
+
+.event-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.tag-pill {
+  background: rgba(255, 255, 255, 0.07);
+  color: #aaa;
+  border-radius: 3px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.72rem;
+}
+
+/* ===== Session cards ===== */
+.session-card {
+  background: #1a2744;
+  border: 1px solid #2a3f6f;
+  border-radius: 6px;
+  padding: 0.65rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.2rem;
+}
+.session-id {
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #4fc3f7;
+  font-family: monospace;
+}
+.session-time { font-size: 0.78rem; color: #888; flex-shrink: 0; margin-left: 0.5rem; }
+.session-project {
+  font-size: 0.8rem;
+  color: #81c784;
+  margin-bottom: 0.15rem;
+}
+.session-prompt {
+  font-size: 0.8rem;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ===== Agents tab ===== */
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -330,6 +523,140 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   padding: 0.25rem 0.65rem;
   font-size: 0.82rem;
   color: #ccc;
+}
+
+/* ===== Agent expandable cards ===== */
+.agent-card {
+  background: #1a2744;
+  border: 1px solid #2a3f6f;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.agent-card:hover {
+  border-color: #4fc3f7;
+}
+.agent-card.expanded {
+  border-color: #4fc3f7;
+  border-left: 3px solid #4fc3f7;
+  background: #1e2f52;
+}
+.agent-card.expanded .result-chevron {
+  transform: rotate(90deg);
+  color: #4fc3f7;
+}
+.agent-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.agent-card-name {
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: #e0e0e0;
+  margin-right: 0.25rem;
+}
+.agent-card-tags {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  flex: 1;
+}
+.agent-card-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.agent-detail {
+  display: none;
+  margin-top: 0.75rem;
+  border-top: 1px solid #2a3f6f;
+  padding-top: 0.75rem;
+}
+.agent-card.expanded .agent-detail {
+  display: block;
+}
+
+/* ===== Skill expandable cards ===== */
+.skill-card {
+  background: #1a2744;
+  border: 1px solid #2a3f6f;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.skill-card:hover {
+  border-color: #4fc3f7;
+}
+.skill-card.expanded {
+  border-color: #4fc3f7;
+  border-left: 3px solid #4fc3f7;
+  background: #1e2f52;
+}
+.skill-card.expanded .result-chevron {
+  transform: rotate(90deg);
+  color: #4fc3f7;
+}
+.skill-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.skill-card-name {
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: #e0e0e0;
+  margin-right: 0.25rem;
+  flex-shrink: 0;
+}
+.skill-card-desc {
+  font-size: 0.82rem;
+  color: #8899aa;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.skill-card-tags {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.skill-card-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.skill-detail {
+  display: none;
+  margin-top: 0.75rem;
+  border-top: 1px solid #2a3f6f;
+  padding-top: 0.75rem;
+}
+.skill-card.expanded .skill-detail {
+  display: block;
+}
+.skill-detail-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #ccc;
+  background: #111827;
+  border: 1px solid #2a3f6f;
+  border-radius: 4px;
+  padding: 0.65rem 0.85rem;
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: 1.5;
+  margin-top: 0.5rem;
 }
 
 /* ===== Learning tab ===== */

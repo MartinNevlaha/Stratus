@@ -1,0 +1,25 @@
+{
+  "name": "stratus-plugins",
+  "owner": {
+    "name": "Better Claude Contributors"
+  },
+  "metadata": {
+    "description": "Stratus framework plugins for Claude Code — persistent memory, retrieval, adaptive learning, and spec-driven orchestration",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "stratus",
+      "source": "./plugin",
+      "description": "Persistent memory, retrieval, adaptive learning, and spec-driven orchestration for Claude Code",
+      "author": {
+        "name": "Better Claude Contributors"
+      },
+      "homepage": "https://github.com/MartinNevlaha/stratus",
+      "repository": "https://github.com/MartinNevlaha/stratus",
+      "license": "Apache-2.0",
+      "keywords": ["memory", "retrieval", "learning", "orchestration", "agents", "mcp"],
+      "category": "development-workflows"
+    }
+  ]
+}

@@ -10,10 +10,20 @@ from __future__ import annotations
 import sys
 
 # File extensions that are always allowed (docs, config)
-_ALLOWED_EXTENSIONS = frozenset({
-    ".md", ".json", ".yaml", ".yml", ".toml", ".cfg", ".txt",
-    ".gitignore", ".env", ".env.example",
-})
+_ALLOWED_EXTENSIONS = frozenset(
+    {
+        ".md",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".cfg",
+        ".txt",
+        ".gitignore",
+        ".env",
+        ".env.example",
+    }
+)
 
 
 def _get_active_phase() -> str | None:
@@ -28,15 +38,17 @@ def _get_active_phase() -> str | None:
         # Check spec state first (default mode)
         try:
             from stratus.orchestration.spec_state import read_spec_state
+
             state = read_spec_state(session_dir)
             if state is not None:
                 return state.phase
         except ImportError:
             pass
 
-        # Check delivery state (swords mode)
+        # Check delivery state (sworm mode)
         try:
             from stratus.orchestration.delivery_state import read_delivery_state
+
             state = read_delivery_state(session_dir)
             if state is not None:
                 return state.delivery_phase.value

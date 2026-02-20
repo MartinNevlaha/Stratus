@@ -126,6 +126,104 @@ class TestDashboardRegistry:
         assert "can_write" in agent
 
 
+class TestParseSkillFrontmatter:
+    def test_parses_all_fields(self):
+        from stratus.server.routes_dashboard import _parse_skill_frontmatter
+
+        content = (
+            "---\nname: run-tests\ndescription: Run the test suite\n"
+            "agent: qa-engineer\ncontext: fork\n---\nInstructions body here."
+        )
+        result = _parse_skill_frontmatter(content)
+        assert result["name"] == "run-tests"
+        assert result["description"] == "Run the test suite"
+        assert result["agent"] == "qa-engineer"
+        assert result["context"] == "fork"
+        assert result["body"] == "Instructions body here."
+
+    def test_no_frontmatter_returns_body(self):
+        from stratus.server.routes_dashboard import _parse_skill_frontmatter
+
+        content = "Just plain content with no frontmatter."
+        result = _parse_skill_frontmatter(content)
+        assert result == {"body": content}
+
+    def test_incomplete_frontmatter_returns_body(self):
+        from stratus.server.routes_dashboard import _parse_skill_frontmatter
+
+        content = "---\nonly one delimiter"
+        result = _parse_skill_frontmatter(content)
+        assert result == {"body": content}
+
+    def test_empty_frontmatter_values_ignored(self):
+        from stratus.server.routes_dashboard import _parse_skill_frontmatter
+
+        content = "---\ndescription: My skill\nagent:\n---\nBody text."
+        result = _parse_skill_frontmatter(content)
+        assert result["description"] == "My skill"
+        assert result["agent"] == ""
+        assert result["body"] == "Body text."
+
+    def test_colon_in_value_preserved(self):
+        from stratus.server.routes_dashboard import _parse_skill_frontmatter
+
+        content = "---\ndescription: Run tests: unit and integration\n---\nBody."
+        result = _parse_skill_frontmatter(content)
+        assert result["description"] == "Run tests: unit and integration"
+
+
+class TestRegistrySkillsFrontmatter:
+    def test_skill_with_skill_md_includes_parsed_fields(
+        self, client: TestClient, tmp_path: Path, monkeypatch
+    ):
+
+        skills_dir = tmp_path / ".claude" / "skills" / "run-tests"
+        skills_dir.mkdir(parents=True)
+        skill_md = skills_dir / "SKILL.md"
+        skill_md.write_text(
+            "---\nname: run-tests\ndescription: Runs the project test suite\n"
+            "agent: qa-engineer\ncontext: fork\n---\nRun all tests.\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        resp = client.get("/api/dashboard/registry")
+        assert resp.status_code == 200
+        skills = resp.json()["skills"]
+        assert len(skills) == 1
+        skill = skills[0]
+        assert skill["name"] == "run-tests"
+        assert skill["description"] == "Runs the project test suite"
+        assert skill["agent"] == "qa-engineer"
+        assert skill["context"] == "fork"
+        assert "body" in skill
+
+    def test_skill_without_skill_md_returns_name_and_path(
+        self, client: TestClient, tmp_path: Path, monkeypatch
+    ):
+
+        skills_dir = tmp_path / ".claude" / "skills" / "my-skill"
+        skills_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        resp = client.get("/api/dashboard/registry")
+        skills = resp.json()["skills"]
+        assert len(skills) == 1
+        assert skills[0]["name"] == "my-skill"
+        assert "description" not in skills[0]
+
+    def test_skill_with_malformed_skill_md_still_returns_entry(
+        self, client: TestClient, tmp_path: Path, monkeypatch
+    ):
+        skills_dir = tmp_path / ".claude" / "skills" / "broken-skill"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "SKILL.md").write_text("not frontmatter at all")
+        monkeypatch.chdir(tmp_path)
+
+        resp = client.get("/api/dashboard/registry")
+        skills = resp.json()["skills"]
+        assert any(s["name"] == "broken-skill" for s in skills)
+
+
 class TestDashboardPage:
     def test_dashboard_page_returns_html(self, client: TestClient):
         resp = client.get("/dashboard")
