@@ -21,6 +21,17 @@ Use `/spec-complex` for **complex** tasks:
 
 For simple tasks (bug fixes, small refactorings), use `/spec`.
 
+## Phase Context
+
+Use the **`delivery_dispatch`** MCP tool as an alternative to curl API calls:
+
+```python
+delivery_dispatch()
+# Returns: {"phase": "planning", "lead_agent": "delivery-tpm", "agents": [...], "objectives": [...]}
+```
+
+This provides the current phase briefing without making HTTP calls directly.
+
 ## Orchestration API Integration
 
 All calls are fire-and-forget via Bash + curl. The slug is a kebab-case identifier derived from `$ARGUMENTS`.

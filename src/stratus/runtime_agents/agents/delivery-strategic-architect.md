@@ -44,6 +44,29 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) for architectural discov
 
 Prefer `retrieve` to understand existing architecture before proposing changes.
 
+## Memory Capture
+
+Use **`save_memory`** MCP tool for architecture decisions:
+
+| Type | When to use |
+|------|-------------|
+| `decision` | Architecture decisions (ADRs) |
+| `pattern_candidate` | Architectural patterns worth reusing |
+| `rejected_pattern` | Approaches that didn't work |
+
+Example:
+```
+save_memory(
+  text="ADR-042: Use asyncpg over psycopg for high-throughput DB access",
+  type="decision",
+  tags=["architecture", "database", "performance"],
+  importance=0.8,
+  refs={"adr_path": "docs/decisions/adr-042-asyncpg.md"}
+)
+```
+
+Save sparingly — only genuinely reusable knowledge.
+
 ## Phase Restrictions
 
 - Active during: ARCHITECTURE (primary), DISCOVERY (feasibility analysis)

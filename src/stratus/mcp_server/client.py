@@ -79,3 +79,8 @@ class MemoryClient:
         resp = await self._client.post("/api/memory/save", json=kwargs)
         resp.raise_for_status()
         return resp.json()
+
+    async def delivery_dispatch(self) -> dict:
+        resp = await self._client.get("/api/delivery/dispatch")
+        resp.raise_for_status()
+        return resp.json()

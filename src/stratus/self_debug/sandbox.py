@@ -29,7 +29,6 @@ _GOVERNANCE_DENYLIST: frozenset[str] = frozenset(
     {
         ".claude/",
         ".ai-framework.json",
-        "plugin/hooks/",
         ".github/",
     }
 )

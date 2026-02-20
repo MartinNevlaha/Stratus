@@ -403,7 +403,6 @@ docker run -p 41777:41777 -v ~/.ai-framework:/root/.ai-framework stratus
 ```
 src/stratus/       # Framework source
 tests/             # Test suite (100+ test files)
-plugin/            # Claude Code plugin
 scripts/           # Install/uninstall helpers
 docs/              # Architecture & design docs
 ```

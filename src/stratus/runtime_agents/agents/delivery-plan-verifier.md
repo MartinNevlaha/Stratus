@@ -51,4 +51,22 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) to verify plans against 
 
 Use `retrieve` before concluding that something is missing or new — it may already exist elsewhere in the codebase.
 
+## Historical Context
+
+Use **`search`** MCP tool to find historical decisions and similar issues:
+
+| Use case | Example |
+|----------|---------|
+| Similar architectural decisions | `search("database selection decision")` |
+| Past lessons learned | `search("lesson learned authentication")` |
+| Rejected approaches | `search("rejected_pattern singleton")` |
+
+Use **`get_observations`** for full details after search:
+```
+results = search("decision", limit=5)
+full = get_observations([r["id"] for r in results])
+```
+
+This helps avoid repeating past mistakes and reinventing approved patterns.
+
 You are READ-ONLY. You analyze and report. You do not modify any files.

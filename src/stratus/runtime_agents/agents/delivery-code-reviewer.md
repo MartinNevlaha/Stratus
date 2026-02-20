@@ -47,6 +47,28 @@ Use the **`retrieve`** MCP tool (from `stratus-memory`) to find code quality pat
 
 Prefer `retrieve` to ground findings in actual codebase conventions.
 
+## Memory Capture
+
+Use **`save_memory`** MCP tool for important findings:
+
+| Type | When to use |
+|------|-------------|
+| `pattern_candidate` | Good patterns worth reusing |
+| `rejected_pattern` | Anti-patterns or code smells found repeatedly |
+| `discovery` | Lessons about code quality |
+
+Example:
+```
+save_memory(
+  text="Bare except blocks common in legacy code — flag for cleanup",
+  type="rejected_pattern",
+  tags=["code-smell", "error-handling"],
+  importance=0.5
+)
+```
+
+Save sparingly — only genuinely reusable knowledge.
+
 ## Phase Restrictions
 
 - Active during: QA

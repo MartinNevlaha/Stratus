@@ -1,10 +1,12 @@
-"""MCP stdio server with 6 tool handlers proxying to the memory HTTP API."""
+"""MCP stdio server with 7 tool handlers proxying to the memory HTTP API."""
 
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 
 import anyio
+import httpx
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
@@ -126,6 +128,31 @@ SAVE_MEMORY_SCHEMA = {
 }
 
 
+@contextmanager
+def _get_retriever_context():
+    """Context manager for retrieve/index_status with automatic cleanup."""
+    from stratus.hooks._common import get_git_root
+    from stratus.retrieval.config import load_retrieval_config
+    from stratus.retrieval.governance_store import GovernanceStore
+    from stratus.retrieval.unified import UnifiedRetriever
+    from stratus.session.config import get_data_dir
+
+    git_root = get_git_root()
+    ai_path = (git_root / ".ai-framework.json") if git_root else None
+    config = load_retrieval_config(ai_path)
+    project_root_str = str(git_root.resolve()) if git_root else None
+    gov_db_path = str(get_data_dir() / "governance.db")
+
+    gov_store = GovernanceStore(gov_db_path)
+    try:
+        retriever = UnifiedRetriever(config=config, governance=gov_store)
+        if project_root_str and gov_store.needs_reindex(project_root_str):
+            gov_store.index_project(project_root_str)
+        yield retriever
+    finally:
+        gov_store.close()
+
+
 def create_mcp_server() -> Server:
     """Create and configure the MCP server with 6 tool handlers."""
     server = Server("stratus-memory", "0.1.0")
@@ -186,87 +213,51 @@ def create_mcp_server() -> Server:
         args = arguments or {}
         client = MemoryClient()
         try:
-            if name == "search":
-                result = await client.search(
-                    query=args["query"],
-                    limit=args.get("limit", 20),
-                    type=args.get("type"),
-                    scope=args.get("scope"),
-                    project=args.get("project"),
-                    date_start=args.get("dateStart"),
-                    date_end=args.get("dateEnd"),
-                    offset=args.get("offset", 0),
-                )
-            elif name == "timeline":
-                result = await client.timeline(
-                    anchor_id=args.get("anchor_id"),
-                    query=args.get("query"),
-                    depth_before=args.get("depth_before", 10),
-                    depth_after=args.get("depth_after", 10),
-                    project=args.get("project"),
-                )
-            elif name == "get_observations":
-                result = await client.get_observations(ids=args["ids"])
-            elif name == "save_memory":
-                result = await client.save_memory(**args)
-            elif name == "retrieve":
-                from stratus.hooks._common import get_git_root
-                from stratus.retrieval.config import load_retrieval_config
-                from stratus.retrieval.governance_store import GovernanceStore
-                from stratus.retrieval.unified import UnifiedRetriever
-                from stratus.session.config import get_data_dir
-
-                git_root = get_git_root()
-                ai_path = (git_root / ".ai-framework.json") if git_root else None
-                config = load_retrieval_config(ai_path)
-                project_root_str = str(git_root.resolve()) if git_root else None
-                gov_db_path = str(get_data_dir() / "governance.db")
-                gov_store = GovernanceStore(gov_db_path)
-                retriever = UnifiedRetriever(
-                    config=config, governance=gov_store
-                )
-                if project_root_str:
-                    gov_store.index_project(project_root_str)
-                resp = retriever.retrieve(
-                    args["query"],
-                    corpus=args.get("corpus"),
-                    top_k=args.get("top_k", 10),
-                )
-                result = resp.model_dump()
-                gov_store.close()
-            elif name == "index_status":
-                from stratus.hooks._common import get_git_root
-                from stratus.retrieval.config import load_retrieval_config
-                from stratus.retrieval.governance_store import GovernanceStore
-                from stratus.retrieval.unified import UnifiedRetriever
-                from stratus.session.config import get_data_dir
-
-                git_root = get_git_root()
-                ai_path = (git_root / ".ai-framework.json") if git_root else None
-                config = load_retrieval_config(ai_path)
-                project_root_str = str(git_root.resolve()) if git_root else None
-                gov_db_path = str(get_data_dir() / "governance.db")
-                gov_store = GovernanceStore(gov_db_path)
-                retriever = UnifiedRetriever(
-                    config=config, governance=gov_store
-                )
-                if project_root_str:
-                    gov_store.index_project(project_root_str)
-                result = retriever.status()
-                gov_store.close()
-            elif name == "delivery_dispatch":
-                import httpx as _httpx
-
-                from stratus.hooks._common import get_api_url
-
-                api_url = get_api_url()
-                resp = _httpx.get(
-                    f"{api_url}/api/delivery/dispatch",
-                    timeout=5.0,
-                )
-                result = resp.json()
-            else:
-                return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+            try:
+                if name == "search":
+                    result = await client.search(
+                        query=args["query"],
+                        limit=args.get("limit", 20),
+                        type=args.get("type"),
+                        scope=args.get("scope"),
+                        project=args.get("project"),
+                        date_start=args.get("dateStart"),
+                        date_end=args.get("dateEnd"),
+                        offset=args.get("offset", 0),
+                    )
+                elif name == "timeline":
+                    result = await client.timeline(
+                        anchor_id=args.get("anchor_id"),
+                        query=args.get("query"),
+                        depth_before=args.get("depth_before", 10),
+                        depth_after=args.get("depth_after", 10),
+                        project=args.get("project"),
+                    )
+                elif name == "get_observations":
+                    result = await client.get_observations(ids=args["ids"])
+                elif name == "save_memory":
+                    result = await client.save_memory(**args)
+                elif name == "retrieve":
+                    with _get_retriever_context() as retriever:
+                        resp = retriever.retrieve(
+                            args["query"],
+                            corpus=args.get("corpus"),
+                            top_k=args.get("top_k", 10),
+                        )
+                        result = resp.model_dump()
+                elif name == "index_status":
+                    with _get_retriever_context() as retriever:
+                        result = retriever.status()
+                elif name == "delivery_dispatch":
+                    result = await client.delivery_dispatch()
+                else:
+                    return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+            except httpx.HTTPStatusError as e:
+                result = {"error": f"HTTP {e.response.status_code}: {e.response.text[:200]}"}
+            except httpx.RequestError as e:
+                result = {"error": f"Request failed: {str(e)}"}
+            except Exception as e:
+                result = {"error": f"Unexpected error: {type(e).__name__}: {str(e)}"}
         finally:
             await client.close()
 

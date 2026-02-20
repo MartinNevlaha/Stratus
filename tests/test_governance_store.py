@@ -77,7 +77,7 @@ class TestGovernanceStoreSchema:
     def test_schema_version_recorded(self) -> None:
         store = GovernanceStore()
         row = store._conn.execute("SELECT MAX(version) FROM schema_versions").fetchone()
-        assert row[0] == 2
+        assert row[0] == 3
 
     def test_close(self) -> None:
         store = GovernanceStore()
@@ -247,8 +247,7 @@ class TestSearch:
         results = store.search("testing")
         assert len(results) >= 1
         assert any(
-            "testing" in r["content"].lower() or "testing" in r["title"].lower()
-            for r in results
+            "testing" in r["content"].lower() or "testing" in r["title"].lower() for r in results
         )
 
     def test_bm25_scoring_order(self, tmp_path: Path) -> None:
@@ -660,4 +659,73 @@ class TestTransactionHandling:
 
         # After rollback, no data should be persisted (transaction rolled back)
         assert store.stats()["total_files"] == 0
+        store.close()
+
+
+class TestNeedsReindex:
+    def test_needs_reindex_returns_true_for_never_indexed_project(self, tmp_path: Path) -> None:
+        store = GovernanceStore()
+        project = tmp_path / "new-project"
+        project.mkdir()
+
+        assert store.needs_reindex(str(project)) is True
+        store.close()
+
+    def test_needs_reindex_returns_true_for_empty_index(self, tmp_path: Path) -> None:
+        store = GovernanceStore()
+        project = tmp_path / "project"
+        project.mkdir()
+
+        store._update_index_timestamp(str(project))
+        assert store.needs_reindex(str(project)) is True
+        store.close()
+
+    def test_needs_reindex_returns_false_after_fresh_index(self, tmp_path: Path) -> None:
+        store = GovernanceStore()
+        project = tmp_path / "project"
+        project.mkdir()
+        rules_dir = project / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "test-rule.md").write_text("# Test Rule\n\nContent here.")
+
+        store.index_project(str(project))
+        assert store.needs_reindex(str(project)) is False
+        store.close()
+
+    def test_needs_reindex_returns_true_after_ttl_expired(self, tmp_path: Path) -> None:
+        store = GovernanceStore()
+        project = tmp_path / "project"
+        project.mkdir()
+        rules_dir = project / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "test-rule.md").write_text("# Test Rule\n\nContent here.")
+
+        store.index_project(str(project))
+
+        store._conn.execute("UPDATE index_metadata SET indexed_at = datetime('now', '-10 minutes')")
+        store._conn.commit()
+
+        assert store.needs_reindex(str(project), ttl_seconds=60) is True
+        store.close()
+
+    def test_needs_reindex_respects_ttl_parameter(self, tmp_path: Path) -> None:
+        store = GovernanceStore()
+        project = tmp_path / "project"
+        project.mkdir()
+        rules_dir = project / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "test-rule.md").write_text("# Test Rule\n\nContent here.")
+
+        store.index_project(str(project))
+
+        assert store.needs_reindex(str(project), ttl_seconds=300) is False
+        assert store.needs_reindex(str(project), ttl_seconds=0) is True
+        store.close()
+
+    def test_index_metadata_table_exists(self) -> None:
+        store = GovernanceStore()
+        tables = store._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='index_metadata'"
+        ).fetchall()
+        assert len(tables) == 1
         store.close()
