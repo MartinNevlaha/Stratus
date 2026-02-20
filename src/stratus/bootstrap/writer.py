@@ -108,6 +108,10 @@ def _build_default_config(
             "cooldown_days": 7,
             "max_proposals_per_session": 3,
         },
+        "delivery_framework": {
+            "enabled": True,
+            "orchestration_mode": "classic",
+        },
         "agent_teams": {
             "enabled": False,
         },
