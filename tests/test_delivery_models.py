@@ -222,7 +222,7 @@ def test_delivery_config_creation_with_defaults():
     from stratus.orchestration.delivery_config import ALL_PHASES, DeliveryConfig
 
     config = DeliveryConfig()
-    assert config.enabled is False
+    assert config.enabled is True
     assert config.orchestration_mode == "classic"
     assert config.active_phases == ALL_PHASES
     assert config.disabled_invariants == []
@@ -258,7 +258,7 @@ def test_load_delivery_config_returns_defaults_when_no_file(tmp_path):
     missing = tmp_path / "nonexistent.json"
     config = load_delivery_config(missing)
     assert isinstance(config, DeliveryConfig)
-    assert config.enabled is False
+    assert config.enabled is True
     assert config.orchestration_mode == "classic"
 
 
@@ -268,7 +268,7 @@ def test_load_delivery_config_returns_defaults_when_path_is_none():
 
     config = load_delivery_config(None)
     assert isinstance(config, DeliveryConfig)
-    assert config.enabled is False
+    assert config.enabled is True
 
 
 @pytest.mark.unit
@@ -311,7 +311,7 @@ def test_load_delivery_config_ignores_invalid_json(tmp_path):
 
     config = load_delivery_config(bad_file)
     # Should fall back to defaults silently
-    assert config.enabled is False
+    assert config.enabled is True
 
 
 @pytest.mark.unit
