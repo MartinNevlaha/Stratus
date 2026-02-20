@@ -64,15 +64,15 @@ class TestDashboardState:
         resp = client.get("/api/dashboard/state")
         plan_agents = resp.json()["agents"]
         plan_labels = {a["label"] for a in plan_agents}
-        assert "architecture-guide" in plan_labels
-        assert "plan-verifier" in plan_labels
+        assert "delivery-architecture-guide" in plan_labels
+        assert "delivery-plan-verifier" in plan_labels
 
         # Advance to implement
         client.post("/api/orchestration/approve-plan", json={"total_tasks": 3})
         resp = client.get("/api/dashboard/state")
         impl_agents = resp.json()["agents"]
         impl_labels = {a["label"] for a in impl_agents}
-        assert "framework-expert" in impl_labels
+        assert "delivery-implementation-expert" in impl_labels
 
     def test_dashboard_state_memory_section(self, client: TestClient):
         resp = client.get("/api/dashboard/state")
@@ -132,12 +132,12 @@ class TestParseSkillFrontmatter:
 
         content = (
             "---\nname: run-tests\ndescription: Run the test suite\n"
-            "agent: qa-engineer\ncontext: fork\n---\nInstructions body here."
+            "agent: delivery-qa-engineer\ncontext: fork\n---\nInstructions body here."
         )
         result = _parse_skill_frontmatter(content)
         assert result["name"] == "run-tests"
         assert result["description"] == "Run the test suite"
-        assert result["agent"] == "qa-engineer"
+        assert result["agent"] == "delivery-qa-engineer"
         assert result["context"] == "fork"
         assert result["body"] == "Instructions body here."
 
@@ -182,7 +182,7 @@ class TestRegistrySkillsFrontmatter:
         skill_md = skills_dir / "SKILL.md"
         skill_md.write_text(
             "---\nname: run-tests\ndescription: Runs the project test suite\n"
-            "agent: qa-engineer\ncontext: fork\n---\nRun all tests.\n"
+            "agent: delivery-qa-engineer\ncontext: fork\n---\nRun all tests.\n"
         )
         monkeypatch.chdir(tmp_path)
 
@@ -193,7 +193,7 @@ class TestRegistrySkillsFrontmatter:
         skill = skills[0]
         assert skill["name"] == "run-tests"
         assert skill["description"] == "Runs the project test suite"
-        assert skill["agent"] == "qa-engineer"
+        assert skill["agent"] == "delivery-qa-engineer"
         assert skill["context"] == "fork"
         assert "body" in skill
 

@@ -1,5 +1,5 @@
 ---
-name: spec-reviewer-compliance
+name: delivery-spec-reviewer-compliance
 description: "Validates implementation against its specification. Checks that code matches what was planned."
 tools: Read, Grep, Glob, Bash
 model: opus

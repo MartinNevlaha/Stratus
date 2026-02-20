@@ -8,11 +8,33 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
+class SpecComplexity(StrEnum):
+    SIMPLE = "simple"
+    COMPLEX = "complex"
+
+
 class SpecPhase(StrEnum):
     PLAN = "plan"
+    DISCOVERY = "discovery"
+    DESIGN = "design"
+    GOVERNANCE = "governance"
+    ACCEPT = "accept"
     IMPLEMENT = "implement"
     VERIFY = "verify"
     LEARN = "learn"
+
+
+SIMPLE_PHASES = [SpecPhase.PLAN, SpecPhase.IMPLEMENT, SpecPhase.VERIFY, SpecPhase.LEARN]
+COMPLEX_PHASES = [
+    SpecPhase.DISCOVERY,
+    SpecPhase.DESIGN,
+    SpecPhase.GOVERNANCE,
+    SpecPhase.PLAN,
+    SpecPhase.ACCEPT,
+    SpecPhase.IMPLEMENT,
+    SpecPhase.VERIFY,
+    SpecPhase.LEARN,
+]
 
 
 class PlanStatus(StrEnum):
@@ -99,6 +121,7 @@ class TeamState(BaseModel):
 class SpecState(BaseModel):
     phase: SpecPhase
     slug: str
+    complexity: SpecComplexity = SpecComplexity.SIMPLE
     plan_path: str | None = None
     plan_status: PlanStatus = PlanStatus.PENDING
     worktree: WorktreeInfo | None = None
@@ -107,4 +130,5 @@ class SpecState(BaseModel):
     completed_tasks: int = 0
     review_iteration: int = 0
     max_review_iterations: int = 3
+    skipped_phases: list[str] = Field(default_factory=list)
     last_updated: str = Field(default_factory=_now_iso)

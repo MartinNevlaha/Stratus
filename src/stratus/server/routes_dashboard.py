@@ -205,7 +205,9 @@ def _parse_skill_frontmatter(content: str) -> dict:
 
 def _build_registry() -> dict:
     """Build agents, skills, and rules for the registry endpoint."""
-    root = Path(os.getcwd())
+    from stratus.hooks._common import get_project_root
+
+    root = get_project_root() or Path(os.getcwd())
     claude_dir = root / ".claude"
 
     agents: list[dict] = []

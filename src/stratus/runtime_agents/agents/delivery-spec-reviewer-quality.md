@@ -1,5 +1,5 @@
 ---
-name: spec-reviewer-quality
+name: delivery-spec-reviewer-quality
 description: "Reviews code quality: style, patterns, maintainability, and adherence to project standards."
 tools: Read, Grep, Glob, Bash
 model: opus

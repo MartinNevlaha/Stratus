@@ -9,18 +9,25 @@ from __future__ import annotations
 import sys
 
 # Agents expected in each phase
-_IMPLEMENT_AGENTS = frozenset({
-    "framework-expert", "implementation-expert",
-    "delivery-backend-engineer", "delivery-frontend-engineer",
-    "delivery-mobile-engineer", "delivery-devops-engineer",
-    "delivery-database-engineer",
-})
+_IMPLEMENT_AGENTS = frozenset(
+    {
+        "delivery-implementation-expert",
+        "delivery-backend-engineer",
+        "delivery-frontend-engineer",
+        "delivery-mobile-engineer",
+        "delivery-devops-engineer",
+        "delivery-database-engineer",
+    }
+)
 
-_VERIFY_AGENTS = frozenset({
-    "spec-reviewer-compliance", "spec-reviewer-quality",
-    "qa-engineer", "delivery-qa-engineer",
-    "delivery-code-reviewer",
-})
+_VERIFY_AGENTS = frozenset(
+    {
+        "delivery-spec-reviewer-compliance",
+        "delivery-spec-reviewer-quality",
+        "delivery-qa-engineer",
+        "delivery-code-reviewer",
+    }
+)
 
 
 def evaluate_phase_consistency(
@@ -75,6 +82,7 @@ def main() -> None:
 
             try:
                 from stratus.orchestration.spec_state import read_spec_state
+
                 state = read_spec_state(session_dir)
                 if state is not None:
                     phase = state.phase
@@ -84,6 +92,7 @@ def main() -> None:
             if phase is None:
                 try:
                     from stratus.orchestration.delivery_state import read_delivery_state
+
                     state = read_delivery_state(session_dir)
                     if state is not None:
                         phase = state.delivery_phase.value

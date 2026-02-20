@@ -138,13 +138,13 @@ class TestLoadMerged:
     @pytest.mark.unit
     def test_load_merged_without_project_root(self) -> None:
         registry = AgentRegistry.load_merged(None)
-        assert len(registry.all_agents()) == 26
+        assert len(registry.all_agents()) == 25
 
     @pytest.mark.unit
     def test_load_merged_with_user_agents(self, user_agent_dir: Path) -> None:
         registry = AgentRegistry.load_merged(user_agent_dir)
         all_agents = registry.all_agents()
-        assert len(all_agents) == 27
+        assert len(all_agents) == 26
         assert registry.get("my-custom-backend") is not None
 
     @pytest.mark.unit
@@ -152,11 +152,11 @@ class TestLoadMerged:
         agents_dir = tmp_path / ".claude" / "agents"
         agents_dir.mkdir(parents=True)
 
-        override = agents_dir / "framework-expert.md"
+        override = agents_dir / "delivery-implementation-expert.md"
         override.write_text(
             """---
-name: framework-expert
-description: "My custom override of framework-expert"
+name: delivery-implementation-expert
+description: "My custom override of delivery-implementation-expert"
 tools: Bash, Read, Edit, Write
 model: opus
 ---
@@ -166,10 +166,10 @@ Custom override.
         )
 
         registry = AgentRegistry.load_merged(tmp_path)
-        agent = registry.get("framework-expert")
+        agent = registry.get("delivery-implementation-expert")
         assert agent is not None
         assert agent.model == "opus"
-        assert agent.layer == "user"
+        assert agent.layer == "engineering"  # User overrides keep the same layer
 
     @pytest.mark.unit
     def test_merged_registry_routes_to_user_agent(self, user_agent_dir: Path) -> None:

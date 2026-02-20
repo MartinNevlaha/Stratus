@@ -128,7 +128,7 @@ def test_role_assignment_creation():
 def test_role_assignment_is_lead_default():
     from stratus.orchestration.delivery_models import RoleAssignment
 
-    role = RoleAssignment(role="framework-expert", phase="implementation")
+    role = RoleAssignment(role="delivery-implementation-expert", phase="implementation")
     assert role.is_lead is False
 
 
@@ -177,8 +177,8 @@ def test_delivery_state_serialization_roundtrip():
         delivery_phase=DeliveryPhase.QA,
         slug="roundtrip-test",
         orchestration_mode="swarm",
-        active_roles=["qa-engineer", "framework-expert"],
-        phase_lead="qa-engineer",
+        active_roles=["delivery-qa-engineer", "delivery-implementation-expert"],
+        phase_lead="delivery-qa-engineer",
         skipped_phases=["performance"],
         phase_results={"implementation": PhaseResult(phase="implementation", status="passed")},
         review_iteration=1,

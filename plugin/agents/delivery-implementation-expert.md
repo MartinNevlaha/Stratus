@@ -1,5 +1,5 @@
 ---
-name: implementation-expert
+name: delivery-implementation-expert
 description: "Expert developer for implementing features following the project's architectural patterns."
 tools: Bash, Read, Edit, Write, Grep, Glob, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
 model: sonnet

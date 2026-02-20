@@ -41,17 +41,17 @@ class TestSkillManifest:
         m = SkillManifest(
             name="run-tests",
             description="Runs the project test suite.",
-            agent="qa-engineer",
+            agent="delivery-qa-engineer",
         )
         assert m.name == "run-tests"
         assert m.description == "Runs the project test suite."
-        assert m.agent == "qa-engineer"
+        assert m.agent == "delivery-qa-engineer"
 
     def test_all_fields(self):
         m = SkillManifest(
             name="my-skill",
             description="Does something",
-            agent="framework-expert",
+            agent="delivery-implementation-expert",
             context="inline",
             version="1.2.3",
             requires=["other-skill"],

@@ -36,7 +36,7 @@ def test_route_unknown_type_raises():
 @pytest.mark.unit
 def test_route_with_available_agents_filter():
     with pytest.raises(RoutingError):
-        route_task("test", available_agents=["framework-expert"])
+        route_task("test", available_agents=["delivery-implementation-expert"])
 
 
 @pytest.mark.unit
@@ -66,10 +66,10 @@ def test_route_test_with_write():
 @pytest.mark.unit
 def test_route_fallback_to_registry():
     result = route_task("bug-fix")
-    assert result in ("delivery-backend-engineer", "framework-expert")
+    assert result in ("delivery-backend-engineer", "delivery-implementation-expert")
 
 
 @pytest.mark.unit
 def test_route_prefer_delivery_false():
     result = route_task("test", prefer_delivery=False)
-    assert result == "qa-engineer"
+    assert result == "delivery-qa-engineer"

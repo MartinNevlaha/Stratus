@@ -11,11 +11,11 @@ from stratus.registry.models import AgentEntry
 def test_agent_entry_valid_data():
     """AgentEntry validates correctly with all fields."""
     entry = AgentEntry(
-        name="framework-expert",
-        filename="framework-expert.md",
+        name="delivery-implementation-expert",
+        filename="delivery-implementation-expert.md",
         model="sonnet",
         can_write=True,
-        layer="core",
+        layer="engineering",
         phases=["implement"],
         task_types=["implementation", "bug-fix"],
         applicable_stacks=None,
@@ -23,11 +23,11 @@ def test_agent_entry_valid_data():
         optional=False,
         keywords=["implement", "build"],
     )
-    assert entry.name == "framework-expert"
-    assert entry.filename == "framework-expert.md"
+    assert entry.name == "delivery-implementation-expert"
+    assert entry.filename == "delivery-implementation-expert.md"
     assert entry.model == "sonnet"
     assert entry.can_write is True
-    assert entry.layer == "core"
+    assert entry.layer == "engineering"
     assert entry.phases == ["implement"]
     assert entry.task_types == ["implementation", "bug-fix"]
     assert entry.applicable_stacks is None
@@ -149,16 +149,16 @@ def test_agent_entry_multiple_phases():
 def test_agent_entry_model_validate():
     """AgentEntry.model_validate works from dict."""
     data = {
-        "name": "qa-engineer",
-        "filename": "qa-engineer.md",
+        "name": "delivery-qa-engineer",
+        "filename": "delivery-qa-engineer.md",
         "model": "haiku",
         "can_write": True,
-        "layer": "core",
+        "layer": "engineering",
         "phases": ["verify"],
         "orchestration_modes": ["default"],
     }
     entry = AgentEntry.model_validate(data)
-    assert entry.name == "qa-engineer"
+    assert entry.name == "delivery-qa-engineer"
     assert entry.task_types == []
     assert entry.keywords == []
     assert entry.optional is False

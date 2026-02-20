@@ -82,10 +82,10 @@ class TestPromptGeneration:
     ):
         tm = TeamManager(agent_teams_config)
         prompt = tm.build_team_prompt(
-            spec_state, ["spec-reviewer-compliance", "spec-reviewer-quality"]
+            spec_state, ["delivery-spec-reviewer-compliance", "delivery-spec-reviewer-quality"]
         )
-        assert "spec-reviewer-compliance" in prompt
-        assert "spec-reviewer-quality" in prompt
+        assert "delivery-spec-reviewer-compliance" in prompt
+        assert "delivery-spec-reviewer-quality" in prompt
 
     def test_build_team_prompt_contains_slug(
         self, agent_teams_config: TeamConfig, spec_state: SpecState
@@ -94,9 +94,7 @@ class TestPromptGeneration:
         prompt = tm.build_team_prompt(spec_state, ["reviewer"])
         assert "my-feature" in prompt
 
-    def test_build_review_team_prompt(
-        self, agent_teams_config: TeamConfig, spec_state: SpecState
-    ):
+    def test_build_review_team_prompt(self, agent_teams_config: TeamConfig, spec_state: SpecState):
         tm = TeamManager(agent_teams_config)
         prompt = tm.build_review_team_prompt(spec_state)
         assert "review" in prompt.lower()
@@ -122,9 +120,7 @@ class TestPromptGeneration:
         prompt = tm.build_team_prompt(spec_state, ["reviewer"])
         assert "plan" in prompt.lower()
 
-    def test_build_team_prompt_no_plan_approval(
-        self, spec_state: SpecState
-    ):
+    def test_build_team_prompt_no_plan_approval(self, spec_state: SpecState):
         config = TeamConfig(
             name="no-plan",
             mode=OrchestratorMode.AGENT_TEAMS,
@@ -134,9 +130,7 @@ class TestPromptGeneration:
         prompt = tm.build_team_prompt(spec_state, ["reviewer"])
         assert "plan approval" not in prompt.lower()
 
-    def test_build_team_prompt_delegate_mode(
-        self, spec_state: SpecState
-    ):
+    def test_build_team_prompt_delegate_mode(self, spec_state: SpecState):
         config = TeamConfig(
             name="delegate",
             mode=OrchestratorMode.AGENT_TEAMS,
@@ -173,9 +167,7 @@ class TestTeamState:
         assert result.config.name == "my-team"
         assert len(result.teammates) == 1
 
-    def test_read_team_state_corrupt_json(
-        self, task_tool_config: TeamConfig, tmp_path: Path
-    ):
+    def test_read_team_state_corrupt_json(self, task_tool_config: TeamConfig, tmp_path: Path):
         team_dir = tmp_path / "teams" / "bad"
         team_dir.mkdir(parents=True)
         (team_dir / "config.json").write_text("not json")
@@ -203,9 +195,7 @@ class TestEnvironmentValidation:
         assert ok is False
         assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" in reason
 
-    @patch.dict(
-        "os.environ", {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}, clear=True
-    )
+    @patch.dict("os.environ", {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}, clear=True)
     def test_validate_env_var_present(self, agent_teams_config: TeamConfig):
         tm = TeamManager(agent_teams_config)
         ok, reason = tm.validate_team_environment()
@@ -216,9 +206,7 @@ class TestEnvironmentValidation:
         ok, reason = tm.validate_team_environment()
         assert ok is True
 
-    @patch.dict(
-        "os.environ", {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}, clear=True
-    )
+    @patch.dict("os.environ", {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}, clear=True)
     def test_validate_invalid_teammate_mode(self):
         config = TeamConfig(
             name="bad",
@@ -242,18 +230,14 @@ class TestQualityGateHelpers:
         ok, msg = tm.validate_verdict_output("Verdict: PASS\nNo issues found.")
         assert ok is True
 
-    def test_validate_verdict_output_fail_with_findings(
-        self, task_tool_config: TeamConfig
-    ):
+    def test_validate_verdict_output_fail_with_findings(self, task_tool_config: TeamConfig):
         tm = TeamManager(task_tool_config)
         ok, msg = tm.validate_verdict_output(
             "Verdict: FAIL\n- must_fix: src/main.py:10 — Missing validation"
         )
         assert ok is True
 
-    def test_validate_verdict_output_missing_verdict(
-        self, task_tool_config: TeamConfig
-    ):
+    def test_validate_verdict_output_missing_verdict(self, task_tool_config: TeamConfig):
         tm = TeamManager(task_tool_config)
         ok, msg = tm.validate_verdict_output("Some random text without verdict")
         assert ok is False
@@ -261,9 +245,7 @@ class TestQualityGateHelpers:
 
     def test_validate_task_completion_valid(self, task_tool_config: TeamConfig):
         tm = TeamManager(task_tool_config)
-        ok, msg = tm.validate_task_completion(
-            "task-1", "All tests pass.\n5 passed in 0.3s"
-        )
+        ok, msg = tm.validate_task_completion("task-1", "All tests pass.\n5 passed in 0.3s")
         assert ok is True
 
     def test_validate_task_completion_empty(self, task_tool_config: TeamConfig):

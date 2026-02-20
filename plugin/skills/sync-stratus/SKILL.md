@@ -51,9 +51,9 @@ For each skill check:
 - Does the skill body instruct direct implementation (bypasses Task tool)?
 - Does the skill encourage the main instance to write code?
 
-Detect **bypass patterns**: any skill that delegates implementation to `framework-expert` or similar via `agent:` field is fine; any skill that tells the coordinator to write code directly is a conflict.
+Detect **bypass patterns**: any skill that delegates implementation to `delivery-implementation-expert` or similar via `agent:` field is fine; any skill that tells the coordinator to write code directly is a conflict.
 
-**Agent resolution:** When a skill references an agent via `agent:` field, resolve it across ALL agent sources: `.claude/agents/`, `plugin/agents/`, and the agent registry. Stratus core agents (`qa-engineer`, `spec-reviewer-quality`, `framework-expert`, etc.) are provided by the framework and may only exist in `plugin/agents/` or the registry — they do not need a `.md` file in the project's `.claude/agents/` to be valid.
+**Agent resolution:** When a skill references an agent via `agent:` field, resolve it across ALL agent sources: `.claude/agents/`, `plugin/agents/`, and the agent registry. Stratus delivery agents (`delivery-qa-engineer`, `delivery-spec-reviewer-quality`, `delivery-implementation-expert`, etc.) are provided by the framework and may only exist in `plugin/agents/` or the registry — they do not need a `.md` file in the project's `.claude/agents/` to be valid.
 
 ### C) Rules
 

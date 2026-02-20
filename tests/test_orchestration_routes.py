@@ -198,7 +198,7 @@ class TestStartVerify:
 class TestRecordVerdicts:
     def _passing_verdict(self) -> dict:
         return {
-            "reviewer": "spec-reviewer-quality",
+            "reviewer": "delivery-spec-reviewer-quality",
             "verdict": "pass",
             "findings": [],
             "raw_output": "Verdict: PASS",
@@ -206,7 +206,7 @@ class TestRecordVerdicts:
 
     def _failing_verdict(self) -> dict:
         return {
-            "reviewer": "spec-reviewer-compliance",
+            "reviewer": "delivery-spec-reviewer-compliance",
             "verdict": "fail",
             "findings": [
                 {
@@ -240,7 +240,7 @@ class TestRecordVerdicts:
         assert resp.status_code == 200
         data = resp.json()
         assert data["all_passed"] is False
-        assert data["failed_reviewers"] == ["spec-reviewer-compliance"]
+        assert data["failed_reviewers"] == ["delivery-spec-reviewer-compliance"]
         assert data["must_fix_count"] == 1
         assert "needs_fix" in data
 

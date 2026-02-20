@@ -1,5 +1,5 @@
 ---
-name: plan-verifier
+name: delivery-plan-verifier
 description: "Validates spec plans against project rules and architecture. Produces PASS/FAIL verdicts."
 tools: Read, Grep, Glob
 model: opus
