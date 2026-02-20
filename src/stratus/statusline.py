@@ -19,6 +19,7 @@ GREEN = "\x1b[32m"
 YELLOW = "\x1b[33m"
 BLUE = "\x1b[34m"
 BRIGHT_WHITE = "\x1b[97m"
+RED = "\x1b[31m"
 
 NBSP = "\u00a0"
 
@@ -99,35 +100,47 @@ def format_context_segment(stdin_data: dict) -> str | None:
 
 
 def format_stratus_segment(stratus_state: dict | None) -> str:
-    """Format stratus status segment: ⚡ <state> in bright white."""
+    """Format stratus status segment with server avatar and state indicator."""
     if stratus_state is None:
-        label = "offline"
-    else:
-        orch = stratus_state.get("orchestration", {})
-        mode = orch.get("mode", "inactive")
-        if mode == "inactive":
-            label = "idle"
-        elif mode == "spec":
-            spec = orch.get("spec")
-            if spec:
-                phase = spec.get("phase", "?")
-                slug = spec.get("slug", "")
-                completed = spec.get("completed_tasks", 0)
-                total = spec.get("total_tasks", 0)
-                label = f"{phase} ({slug}) {completed}/{total}"
-            else:
-                label = mode
-        elif mode == "delivery":
-            delivery = orch.get("delivery")
-            if delivery:
-                phase = delivery.get("delivery_phase", "?")
-                slug = delivery.get("slug", "")
-                label = f"{phase} ({slug})"
-            else:
-                label = mode
+        icon = _colorize("◈", RED)
+        label = _colorize("offline", DIM)
+        return f"{icon} {label}"
+
+    icon = _colorize("◈", GREEN)
+    orch = stratus_state.get("orchestration", {})
+    mode = orch.get("mode", "inactive")
+
+    if mode == "inactive":
+        version = stratus_state.get("version", "")
+        label = "idle" + (f" v{version}" if version else "")
+    elif mode == "spec":
+        spec = orch.get("spec")
+        if spec:
+            phase = spec.get("phase", "?")
+            slug = spec.get("slug", "")
+            completed = spec.get("completed_tasks", 0)
+            total = spec.get("total_tasks", 0)
+            label = f"{phase} ({slug}) {completed}/{total}"
         else:
             label = mode
-    return _colorize(f"⚡ {label}", BRIGHT_WHITE)
+    elif mode == "delivery":
+        delivery = orch.get("delivery")
+        if delivery:
+            phase = delivery.get("delivery_phase", "?")
+            slug = delivery.get("slug", "")
+            label = f"{phase} ({slug})"
+        else:
+            label = mode
+    else:
+        label = mode
+
+    # Append active agent count if any
+    agents = stratus_state.get("agents", [])
+    active = [a for a in agents if isinstance(a, dict) and a.get("active")]
+    if active:
+        label += f" [{len(active)} agents]"
+
+    return f"{icon} {_colorize(label, BRIGHT_WHITE)}"
 
 
 def format_statusline(stdin_data: dict, stratus_state: dict | None) -> str:

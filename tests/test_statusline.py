@@ -185,7 +185,8 @@ class TestFormatStratusSegment:
         result = format_stratus_segment(state)
         stripped = _strip_ansi(result)
         assert "idle" in stripped
-        assert "⚡" in stripped
+        assert "◈" in stripped
+        assert "\x1b[32m" in result  # GREEN icon when online
 
     def test_shows_spec_phase_and_slug(self) -> None:
         state = {
@@ -201,6 +202,7 @@ class TestFormatStratusSegment:
         }
         result = format_stratus_segment(state)
         stripped = _strip_ansi(result)
+        assert "◈" in stripped
         assert "plan" in stripped
         assert "my-feat" in stripped
         assert "2/5" in stripped
@@ -214,16 +216,71 @@ class TestFormatStratusSegment:
         }
         result = format_stratus_segment(state)
         stripped = _strip_ansi(result)
+        assert "◈" in stripped
         assert "implement" in stripped
         assert "auth" in stripped
 
     def test_offline_when_none(self) -> None:
         result = format_stratus_segment(None)
-        assert "offline" in _strip_ansi(result)
+        stripped = _strip_ansi(result)
+        assert "◈" in stripped
+        assert "offline" in stripped
+        assert "\x1b[31m" in result  # RED icon when offline
 
-    def test_has_bright_white_color(self) -> None:
+    def test_has_red_color_when_offline(self) -> None:
         result = format_stratus_segment(None)
-        assert "\x1b[97m" in result
+        assert "\x1b[31m" in result  # RED for offline avatar icon
+
+    def test_shows_version_when_idle(self) -> None:
+        state = {
+            "orchestration": {"mode": "inactive", "spec": None},
+            "version": "0.8.0",
+        }
+        result = format_stratus_segment(state)
+        stripped = _strip_ansi(result)
+        assert "v0.8.0" in stripped
+
+    def test_shows_agent_count(self) -> None:
+        state = {
+            "orchestration": {
+                "mode": "spec",
+                "spec": {
+                    "phase": "implement",
+                    "slug": "feat",
+                    "completed_tasks": 1,
+                    "total_tasks": 3,
+                },
+            },
+            "agents": [
+                {"id": "a1", "active": True},
+                {"id": "a2", "active": True},
+            ],
+        }
+        result = format_stratus_segment(state)
+        stripped = _strip_ansi(result)
+        assert "[2 agents]" in stripped
+
+    def test_no_agent_count_when_none_active(self) -> None:
+        state = {
+            "orchestration": {
+                "mode": "spec",
+                "spec": {
+                    "phase": "implement",
+                    "slug": "feat",
+                    "completed_tasks": 1,
+                    "total_tasks": 3,
+                },
+            },
+            "agents": [],
+        }
+        result = format_stratus_segment(state)
+        stripped = _strip_ansi(result)
+        assert "[" not in stripped
+
+    def test_green_icon_when_online(self) -> None:
+        state = {"orchestration": {"mode": "inactive", "spec": None}}
+        result = format_stratus_segment(state)
+        assert "\x1b[32m" in result  # GREEN for online avatar icon
 
 
 class TestFormatStatusline:
@@ -250,7 +307,7 @@ class TestFormatStatusline:
         assert "$1.23" in stripped
         assert "1hr" in stripped
         assert "Ctx:" in stripped
-        assert "⚡" in stripped
+        assert "◈" in stripped
 
     def test_uses_nbsp(self) -> None:
         stdin_data = {
@@ -297,6 +354,7 @@ class TestFormatStatusline:
             result = format_statusline(stdin_data, None)
         stripped = _strip_ansi(result)
         assert "offline" in stripped
+        assert "◈" in stripped
         assert "Sonnet" in stripped
 
     def test_omits_segments_without_data(self) -> None:
@@ -306,7 +364,7 @@ class TestFormatStatusline:
             result = format_statusline(stdin_data, None)
         stripped = _strip_ansi(result)
         # Only stratus segment should remain (always present)
-        assert "⚡" in stripped
+        assert "◈" in stripped
         # Should not have multiple separators stacked
         assert "||" not in stripped
 
@@ -341,4 +399,4 @@ class TestRunStatusline:
         output = mock_print.call_args[0][0]
         stripped = _strip_ansi(output)
         assert "Opus" in stripped
-        assert "⚡" in stripped
+        assert "◈" in stripped
