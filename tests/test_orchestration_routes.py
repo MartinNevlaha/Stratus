@@ -301,8 +301,16 @@ class TestCompleteSpec:
         resp = client.post("/api/orchestration/complete")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["phase"] == "learn"
+        assert data["phase"] == "complete"
         assert data["plan_status"] == "complete"
+
+    def test_complete_spec_returns_inactive(self, client: TestClient):
+        _start_and_approve(client)
+        client.post("/api/orchestration/start-verify")
+        client.post("/api/orchestration/start-learn")
+        client.post("/api/orchestration/complete")
+        resp = client.get("/api/orchestration/state")
+        assert resp.json()["active"] is False
 
     def test_complete_spec_no_spec(self, client: TestClient):
         resp = client.post("/api/orchestration/complete")

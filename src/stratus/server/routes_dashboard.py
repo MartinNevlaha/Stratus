@@ -71,7 +71,7 @@ def _build_orchestration(request: Request) -> dict:
         coordinator = request.app.state.coordinator
         if coordinator is not None:
             state = coordinator.get_state()
-            if state is not None:
+            if state is not None and state.phase not in {"learn", "complete"}:
                 result["mode"] = "spec"
                 result["spec"] = {
                     "phase": state.phase,

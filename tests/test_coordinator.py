@@ -48,9 +48,7 @@ class TestStartSpec:
         assert state.plan_path == "/plan.md"
         assert state.plan_status == PlanStatus.PENDING
 
-    def test_persists_state_to_disk(
-        self, coordinator: SpecCoordinator, session_dir: Path
-    ):
+    def test_persists_state_to_disk(self, coordinator: SpecCoordinator, session_dir: Path):
         coordinator.start_spec("feat")
         path = session_dir / "spec-state.json"
         assert path.exists()
@@ -145,9 +143,7 @@ class TestVerifyPhase:
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="compliance", verdict=Verdict.PASS, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="compliance", verdict=Verdict.PASS, findings=[], raw_output="")
         result = coordinator.record_verdicts([v])
         assert result["all_passed"] is True
 
@@ -156,9 +152,7 @@ class TestVerifyPhase:
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="quality", verdict=Verdict.FAIL, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="quality", verdict=Verdict.FAIL, findings=[], raw_output="")
         result = coordinator.record_verdicts([v])
         assert result["all_passed"] is False
         assert "quality" in result["failed_reviewers"]
@@ -168,9 +162,7 @@ class TestVerifyPhase:
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output="")
         coordinator.record_verdicts([v])
         assert coordinator.needs_fix_loop() is True
 
@@ -179,30 +171,22 @@ class TestVerifyPhase:
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.PASS, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.PASS, findings=[], raw_output="")
         coordinator.record_verdicts([v])
         assert coordinator.needs_fix_loop() is False
 
-    def test_start_fix_loop_transitions_back_to_implement(
-        self, coordinator: SpecCoordinator
-    ):
+    def test_start_fix_loop_transitions_back_to_implement(self, coordinator: SpecCoordinator):
         coordinator.start_spec("feat")
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output="")
         coordinator.record_verdicts([v])
         state = coordinator.start_fix_loop()
         assert state.phase == SpecPhase.IMPLEMENT
         assert state.review_iteration == 1
 
-    def test_fix_loop_limited_by_max_iterations(
-        self, coordinator: SpecCoordinator
-    ):
+    def test_fix_loop_limited_by_max_iterations(self, coordinator: SpecCoordinator):
         coordinator.start_spec("feat")
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
@@ -210,17 +194,13 @@ class TestVerifyPhase:
         # Exhaust all 3 review iterations (max_review_iterations=3)
         for i in range(3):
             coordinator.start_verify()
-            v = ReviewVerdict(
-                reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output=""
-            )
+            v = ReviewVerdict(reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output="")
             coordinator.record_verdicts([v])
             coordinator.start_fix_loop()  # increments review_iteration
 
         # After 3 fix loops, review_iteration=3 which equals max, so no more
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output="")
         coordinator.record_verdicts([v])
         assert coordinator.needs_fix_loop() is False
 
@@ -236,9 +216,7 @@ class TestLearnPhase:
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.PASS, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.PASS, findings=[], raw_output="")
         coordinator.record_verdicts([v])
         state = coordinator.start_learn()
         assert state.phase == SpecPhase.LEARN
@@ -248,13 +226,25 @@ class TestLearnPhase:
         coordinator.approve_plan(total_tasks=1)
         coordinator.complete_task(1)
         coordinator.start_verify()
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.PASS, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.PASS, findings=[], raw_output="")
         coordinator.record_verdicts([v])
         coordinator.start_learn()
         state = coordinator.complete_spec()
+        assert state.phase == SpecPhase.COMPLETE
         assert state.plan_status == PlanStatus.COMPLETE
+
+    def test_can_start_new_spec_after_complete(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=1)
+        coordinator.complete_task(1)
+        coordinator.start_verify()
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.PASS, findings=[], raw_output="")
+        coordinator.record_verdicts([v])
+        coordinator.start_learn()
+        coordinator.complete_spec()
+        state = coordinator.start_spec("new-feature")
+        assert state.slug == "new-feature"
+        assert state.phase == SpecPhase.PLAN
 
 
 # ---------------------------------------------------------------------------
@@ -408,9 +398,7 @@ class TestReviewFailureRecording:
         coordinator.complete_task(1)
         coordinator.start_verify()
 
-        v = ReviewVerdict(
-            reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output=""
-        )
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output="")
         # Must not raise
         result = coordinator.record_verdicts([v])
         assert result["all_passed"] is False

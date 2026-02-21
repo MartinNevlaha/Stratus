@@ -77,6 +77,7 @@ class TestWriteSpecState:
 
     def test_write_updates_last_updated(self, tmp_path):
         import time
+
         state = _make_state()
         time.sleep(0.01)
         write_spec_state(tmp_path, state)
@@ -104,6 +105,7 @@ class TestWriteSpecState:
     def test_write_uses_os_and_tempfile(self, tmp_path):
         """Atomic write pattern uses os.replace internally (smoke test)."""
         import stratus.orchestration.spec_state as mod
+
         # Verify os and tempfile are importable from the module (used by atomic write)
         assert hasattr(mod, "os") or True  # os may be accessed via import in function
         state = _make_state()
@@ -172,6 +174,18 @@ class TestTransitionPhase:
         with pytest.raises(ValueError):
             transition_phase(state, SpecPhase.IMPLEMENT)
 
+    def test_learn_to_complete(self):
+        state = _make_state(phase=SpecPhase.LEARN)
+        result = transition_phase(state, SpecPhase.COMPLETE)
+        assert result.phase == SpecPhase.COMPLETE
+
+    def test_complete_to_any_is_invalid(self):
+        state = _make_state(phase=SpecPhase.COMPLETE)
+        with pytest.raises(ValueError):
+            transition_phase(state, SpecPhase.PLAN)
+        with pytest.raises(ValueError):
+            transition_phase(state, SpecPhase.LEARN)
+
     def test_transition_preserves_other_fields(self):
         state = _make_state(
             phase=SpecPhase.PLAN,
@@ -200,6 +214,10 @@ class TestIsSpecActive:
 
     def test_not_active_when_phase_is_learn(self, tmp_path):
         write_spec_state(tmp_path, _make_state(phase=SpecPhase.LEARN))
+        assert is_spec_active(tmp_path) is False
+
+    def test_not_active_when_phase_is_complete(self, tmp_path):
+        write_spec_state(tmp_path, _make_state(phase=SpecPhase.COMPLETE))
         assert is_spec_active(tmp_path) is False
 
     def test_not_active_when_no_file(self, tmp_path):
