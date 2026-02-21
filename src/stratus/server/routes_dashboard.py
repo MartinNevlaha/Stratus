@@ -81,6 +81,7 @@ def _build_orchestration(request: Request) -> dict:
                     "completed_tasks": state.completed_tasks,
                     "review_iteration": state.review_iteration,
                     "plan_status": state.plan_status,
+                    "active_agent_id": state.active_agent_id,
                 }
                 result["verdicts"] = {
                     "verdicts": [v.model_dump() for v in coordinator._last_verdicts],
@@ -115,6 +116,37 @@ def _get_agents(orchestration: dict) -> list[dict]:
     """Derive active agent list from orchestration state."""
     if orchestration["mode"] == "spec" and orchestration["spec"]:
         phase = orchestration["spec"]["phase"]
+        active_agent_id = orchestration["spec"].get("active_agent_id")
+
+        if active_agent_id:
+            from stratus.hooks._common import get_project_root
+
+            root = get_project_root()
+            if root:
+                try:
+                    from stratus.registry.loader import AgentRegistry
+
+                    registry = AgentRegistry.load_merged(root)
+                    agent = registry.get(active_agent_id)
+                    if agent:
+                        category = "implementation"
+                        if phase == "plan":
+                            category = "planning"
+                        elif phase == "verify":
+                            category = "review"
+                        return [
+                            {
+                                "id": agent.name,
+                                "label": agent.name,
+                                "category": category,
+                                "model": agent.model,
+                                "active": True,
+                                "role": "worker",
+                            }
+                        ]
+                except Exception:
+                    pass
+
         agents = SPEC_PHASE_AGENTS.get(phase, [])
         return [{**a, "active": True, "role": "worker"} for a in agents]
 

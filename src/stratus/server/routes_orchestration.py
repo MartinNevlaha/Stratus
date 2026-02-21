@@ -29,6 +29,7 @@ async def get_state(request: Request) -> JSONResponse:
             "review_iteration": state.review_iteration,
             "plan_status": state.plan_status,
             "skipped_phases": state.skipped_phases,
+            "active_agent_id": state.active_agent_id,
             "backend": coordinator._mode,
         }
     )
@@ -251,9 +252,11 @@ async def start_task(request: Request) -> JSONResponse:
     if task_num is None:
         return JSONResponse({"error": "task_num is required"}, status_code=422)
 
+    agent_id = body.get("agent_id")
+
     coordinator = request.app.state.coordinator
     try:
-        state = coordinator.start_task(task_num)
+        state = coordinator.start_task(task_num, agent_id=agent_id)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
 
@@ -261,6 +264,7 @@ async def start_task(request: Request) -> JSONResponse:
         {
             "phase": state.phase,
             "current_task": state.current_task,
+            "active_agent_id": state.active_agent_id,
         }
     )
 

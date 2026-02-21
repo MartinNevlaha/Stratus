@@ -256,9 +256,9 @@ class SpecCoordinator:
 
     # -- Implement phase ----------------------------------------------------
 
-    def start_task(self, task_num: int) -> SpecState:
+    def start_task(self, task_num: int, agent_id: str | None = None) -> SpecState:
         state = self._require_state()
-        state = state.model_copy(update={"current_task": task_num})
+        state = state.model_copy(update={"current_task": task_num, "active_agent_id": agent_id})
         self._save(state)
         return state
 
@@ -267,7 +267,11 @@ class SpecCoordinator:
         new_completed = state.completed_tasks + 1
         new_current = min(task_num + 1, state.total_tasks)
         state = state.model_copy(
-            update={"completed_tasks": new_completed, "current_task": new_current}
+            update={
+                "completed_tasks": new_completed,
+                "current_task": new_current,
+                "active_agent_id": None,
+            }
         )
         self._save(state)
         return state
@@ -281,7 +285,9 @@ class SpecCoordinator:
     def start_verify(self) -> SpecState:
         state = self._require_state()
         state = transition_phase(state, SpecPhase.VERIFY)
-        state = state.model_copy(update={"plan_status": PlanStatus.VERIFYING})
+        state = state.model_copy(
+            update={"plan_status": PlanStatus.VERIFYING, "active_agent_id": None}
+        )
         self._save(state)
         return state
 
@@ -322,7 +328,9 @@ class SpecCoordinator:
         state = self._require_state()
         state = advance_review_iteration(state)
         state = transition_phase(state, SpecPhase.IMPLEMENT)
-        state = state.model_copy(update={"plan_status": PlanStatus.IMPLEMENTING})
+        state = state.model_copy(
+            update={"plan_status": PlanStatus.IMPLEMENTING, "active_agent_id": None}
+        )
         self._save(state)
         return state
 
