@@ -19,7 +19,7 @@ async def get_state(request: Request) -> JSONResponse:
 
     return JSONResponse(
         {
-            "active": state.phase != "learn",
+            "active": state.phase not in {"learn", "complete"},
             "phase": state.phase,
             "slug": state.slug,
             "complexity": state.complexity,

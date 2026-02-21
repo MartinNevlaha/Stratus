@@ -122,7 +122,7 @@ class SpecCoordinator:
     ) -> SpecState:
         if self.get_state() is not None:
             existing = self.get_state()
-            if existing and existing.phase != SpecPhase.LEARN:
+            if existing and existing.phase not in {SpecPhase.LEARN, SpecPhase.COMPLETE}:
                 raise ValueError(f"Spec '{existing.slug}' already active in {existing.phase} phase")
 
         initial_phase = (
@@ -336,6 +336,7 @@ class SpecCoordinator:
 
     def complete_spec(self) -> SpecState:
         state = self._require_state()
+        state = transition_phase(state, SpecPhase.COMPLETE)
         state = state.model_copy(update={"plan_status": PlanStatus.COMPLETE})
         self._save(state)
         self._send_memory_event("spec_completed", {"slug": state.slug})

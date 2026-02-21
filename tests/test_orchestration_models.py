@@ -32,6 +32,7 @@ class TestSpecPhase:
         assert SpecPhase.IMPLEMENT == "implement"
         assert SpecPhase.VERIFY == "verify"
         assert SpecPhase.LEARN == "learn"
+        assert SpecPhase.COMPLETE == "complete"
 
     def test_is_str(self):
         assert isinstance(SpecPhase.PLAN, str)

@@ -19,7 +19,8 @@ VALID_TRANSITIONS: dict[SpecPhase, set[SpecPhase]] = {
     SpecPhase.ACCEPT: {SpecPhase.IMPLEMENT},
     SpecPhase.IMPLEMENT: {SpecPhase.VERIFY},
     SpecPhase.VERIFY: {SpecPhase.IMPLEMENT, SpecPhase.LEARN},
-    SpecPhase.LEARN: set(),
+    SpecPhase.LEARN: {SpecPhase.COMPLETE},
+    SpecPhase.COMPLETE: set(),
 }
 
 
@@ -65,11 +66,11 @@ def transition_phase(state: SpecState, new_phase: SpecPhase) -> SpecState:
 
 
 def is_spec_active(session_dir: Path) -> bool:
-    """Return True if a spec is in progress (phase is not learn and file exists)."""
+    """Return True if a spec is in progress (phase is not learn/complete and file exists)."""
     state = read_spec_state(session_dir)
     if state is None:
         return False
-    return state.phase != SpecPhase.LEARN
+    return state.phase not in {SpecPhase.LEARN, SpecPhase.COMPLETE}
 
 
 def is_verify_active(session_dir: Path) -> bool:

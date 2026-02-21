@@ -22,9 +22,16 @@ class SpecPhase(StrEnum):
     IMPLEMENT = "implement"
     VERIFY = "verify"
     LEARN = "learn"
+    COMPLETE = "complete"
 
 
-SIMPLE_PHASES = [SpecPhase.PLAN, SpecPhase.IMPLEMENT, SpecPhase.VERIFY, SpecPhase.LEARN]
+SIMPLE_PHASES = [
+    SpecPhase.PLAN,
+    SpecPhase.IMPLEMENT,
+    SpecPhase.VERIFY,
+    SpecPhase.LEARN,
+    SpecPhase.COMPLETE,
+]
 COMPLEX_PHASES = [
     SpecPhase.DISCOVERY,
     SpecPhase.DESIGN,
@@ -34,6 +41,7 @@ COMPLEX_PHASES = [
     SpecPhase.IMPLEMENT,
     SpecPhase.VERIFY,
     SpecPhase.LEARN,
+    SpecPhase.COMPLETE,
 ]
 
 
