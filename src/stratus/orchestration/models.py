@@ -139,4 +139,5 @@ class SpecState(BaseModel):
     review_iteration: int = 0
     max_review_iterations: int = 3
     skipped_phases: list[str] = Field(default_factory=list)
+    active_agent_id: str | None = None
     last_updated: str = Field(default_factory=_now_iso)

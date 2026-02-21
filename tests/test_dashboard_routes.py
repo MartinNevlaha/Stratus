@@ -74,6 +74,35 @@ class TestDashboardState:
         impl_labels = {a["label"] for a in impl_agents}
         assert "delivery-implementation-expert" in impl_labels
 
+    def test_dashboard_state_shows_active_agent_when_set(self, client: TestClient):
+        client.post("/api/orchestration/start", json={"slug": "dash-feat"})
+        client.post("/api/orchestration/approve-plan", json={"total_tasks": 3})
+        client.post(
+            "/api/orchestration/start-task",
+            json={"task_num": 1, "agent_id": "delivery-implementation-expert"},
+        )
+
+        resp = client.get("/api/dashboard/state")
+        data = resp.json()
+
+        assert data["orchestration"]["spec"]["active_agent_id"] == "delivery-implementation-expert"
+        agents = data["agents"]
+        assert len(agents) >= 1
+        assert agents[0]["label"] == "delivery-implementation-expert"
+        assert agents[0]["active"] is True
+
+    def test_dashboard_state_shows_default_agents_when_no_active_agent(self, client: TestClient):
+        client.post("/api/orchestration/start", json={"slug": "dash-feat"})
+        client.post("/api/orchestration/approve-plan", json={"total_tasks": 3})
+
+        resp = client.get("/api/dashboard/state")
+        data = resp.json()
+
+        assert data["orchestration"]["spec"]["active_agent_id"] is None
+        agents = data["agents"]
+        assert len(agents) >= 1
+        assert "delivery-implementation-expert" in {a["label"] for a in agents}
+
     def test_dashboard_state_memory_section(self, client: TestClient):
         resp = client.get("/api/dashboard/state")
         data = resp.json()

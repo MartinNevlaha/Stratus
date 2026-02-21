@@ -129,6 +129,28 @@ class TestStartTask:
         assert data["phase"] == "implement"
         assert data["current_task"] == 2
 
+    def test_start_task_with_agent_id(self, client: TestClient):
+        _start_and_approve(client)
+        resp = client.post(
+            "/api/orchestration/start-task",
+            json={"task_num": 2, "agent_id": "mobile-dev-specialist"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["phase"] == "implement"
+        assert data["current_task"] == 2
+        assert data["active_agent_id"] == "mobile-dev-specialist"
+
+    def test_start_task_with_agent_id_reflected_in_state(self, client: TestClient):
+        _start_and_approve(client)
+        client.post(
+            "/api/orchestration/start-task", json={"task_num": 1, "agent_id": "backend-dev"}
+        )
+        resp = client.get("/api/orchestration/state")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["active_agent_id"] == "backend-dev"
+
     def test_start_task_no_spec(self, client: TestClient):
         resp = client.post("/api/orchestration/start-task", json={"task_num": 1})
         assert resp.status_code == 409

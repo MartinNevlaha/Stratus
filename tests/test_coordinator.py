@@ -105,6 +105,33 @@ class TestTaskManagement:
         state = coordinator.start_task(2)
         assert state.current_task == 2
 
+    def test_start_task_with_agent_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        state = coordinator.start_task(2, agent_id="mobile-dev-specialist")
+        assert state.current_task == 2
+        assert state.active_agent_id == "mobile-dev-specialist"
+
+    def test_start_task_clears_previous_agent_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        coordinator.start_task(1, agent_id="agent-one")
+        state = coordinator.start_task(2, agent_id="agent-two")
+        assert state.active_agent_id == "agent-two"
+
+    def test_start_task_without_agent_id_keeps_none(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        state = coordinator.start_task(1)
+        assert state.active_agent_id is None
+
+    def test_complete_task_clears_agent_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        coordinator.start_task(1, agent_id="mobile-dev-specialist")
+        state = coordinator.complete_task(1)
+        assert state.active_agent_id is None
+
     def test_complete_task_increments_completed(self, coordinator: SpecCoordinator):
         coordinator.start_spec("feat")
         coordinator.approve_plan(total_tasks=3)
@@ -137,6 +164,16 @@ class TestVerifyPhase:
         state = coordinator.start_verify()
         assert state.phase == SpecPhase.VERIFY
         assert state.plan_status == PlanStatus.VERIFYING
+
+    def test_start_verify_clears_agent_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=2)
+        coordinator.start_task(1, agent_id="mobile-dev-specialist")
+        coordinator.complete_task(1)
+        coordinator.start_task(2, agent_id="backend-dev")
+        coordinator.complete_task(2)
+        state = coordinator.start_verify()
+        assert state.active_agent_id is None
 
     def test_record_verdicts_all_pass(self, coordinator: SpecCoordinator):
         coordinator.start_spec("feat")
@@ -185,6 +222,17 @@ class TestVerifyPhase:
         state = coordinator.start_fix_loop()
         assert state.phase == SpecPhase.IMPLEMENT
         assert state.review_iteration == 1
+
+    def test_start_fix_loop_clears_agent_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=1)
+        coordinator.start_task(1, agent_id="mobile-dev-specialist")
+        coordinator.complete_task(1)
+        coordinator.start_verify()
+        v = ReviewVerdict(reviewer="q", verdict=Verdict.FAIL, findings=[], raw_output="")
+        coordinator.record_verdicts([v])
+        state = coordinator.start_fix_loop()
+        assert state.active_agent_id is None
 
     def test_fix_loop_limited_by_max_iterations(self, coordinator: SpecCoordinator):
         coordinator.start_spec("feat")
