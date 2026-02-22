@@ -30,13 +30,15 @@ __all__ = [
 
 # (event_type, matcher, module_name)
 HOOK_SPECS: list[tuple[str, str, str]] = [
+    ("PreToolUse", "Task", "agent_tracker"),
+    ("PostToolUse", "Task", "agent_tracker"),
+    ("PostToolUse", "Task", "phase_guard"),
     ("PreToolUse", "WebSearch|WebFetch", "tool_redirect"),
     ("PreToolUse", "Write|Edit|NotebookEdit", "delegation_guard"),
     ("PostToolUse", ".*", "context_monitor"),
     ("PostToolUse", "Write|Edit", "file_checker"),
     ("PostToolUse", "Write|Edit", "tdd_enforcer"),
     ("PostToolUse", "Bash", "learning_trigger"),
-    ("PostToolUse", "Task", "phase_guard"),
     ("PreCompact", ".*", "pre_compact"),
     ("SessionStart", "compact", "post_compact_restore"),
     ("SessionEnd", ".*", "session_end"),

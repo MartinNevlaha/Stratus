@@ -116,12 +116,20 @@ def create_app(
         )
         app.state.rules_index = RulesIndex(project_root=project_root)
 
+        from stratus.terminal.config import load_terminal_config
+        from stratus.terminal.manager import TerminalManager
+
+        terminal_config = load_terminal_config(ai_framework_path)
+        app.state.terminal_config = terminal_config
+        app.state.terminal_manager = TerminalManager(config=terminal_config)
+
         yield
 
         app.state.governance_store.close()
         app.state.learning_db.close()
         app.state.embed_cache.close()
         app.state.db.close()
+        await app.state.terminal_manager.cleanup_all()
 
     from stratus.server.routes_analytics import routes as analytics_routes
     from stratus.server.routes_dashboard import routes as dashboard_routes
@@ -129,6 +137,7 @@ def create_app(
     from stratus.server.routes_learning import routes as learning_routes
     from stratus.server.routes_orchestration import routes as orchestration_routes
     from stratus.server.routes_skills import routes as skills_routes
+    from stratus.terminal.routes import routes as terminal_routes
 
     static_dir = Path(__file__).parent / "static"
     app = Starlette(
@@ -143,6 +152,7 @@ def create_app(
             + delivery_routes
             + skills_routes
             + dashboard_routes
+            + terminal_routes
             + [Mount("/dashboard/static", StaticFiles(directory=str(static_dir)))]
         ),
         lifespan=lifespan,

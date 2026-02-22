@@ -151,6 +151,32 @@ class TestTaskManagement:
         assert coordinator.all_tasks_done() is True
 
 
+class TestSetActiveAgent:
+    def test_set_active_agent_sets_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        state = coordinator.set_active_agent("mobile-dev-specialist")
+        assert state.active_agent_id == "mobile-dev-specialist"
+
+    def test_set_active_agent_clears_id(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        coordinator.set_active_agent("mobile-dev-specialist")
+        state = coordinator.set_active_agent(None)
+        assert state.active_agent_id is None
+
+    def test_set_active_agent_overwrites(self, coordinator: SpecCoordinator):
+        coordinator.start_spec("feat")
+        coordinator.approve_plan(total_tasks=3)
+        coordinator.set_active_agent("agent-one")
+        state = coordinator.set_active_agent("agent-two")
+        assert state.active_agent_id == "agent-two"
+
+    def test_set_active_agent_no_spec_raises(self, coordinator: SpecCoordinator):
+        with pytest.raises(ValueError, match="No active spec"):
+            coordinator.set_active_agent("some-agent")
+
+
 # ---------------------------------------------------------------------------
 # Verify phase
 # ---------------------------------------------------------------------------

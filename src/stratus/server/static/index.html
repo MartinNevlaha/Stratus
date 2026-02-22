@@ -17,6 +17,7 @@
       <button class="tab-btn" data-tab="memory">Memory</button>
       <button class="tab-btn" data-tab="agents">Agents</button>
       <button class="tab-btn" data-tab="learning">Learning</button>
+      <button class="tab-btn" data-tab="terminal">Terminal</button>
     </nav>
   </header>
 
@@ -114,8 +115,32 @@
         </div>
       </div>
     </section>
+
+    <!-- Tab: Terminal -->
+    <section class="tab-content" id="tab-terminal">
+      <div class="terminal-wrapper">
+        <div id="terminal-panel" class="terminal-panel"></div>
+      </div>
+    </section>
   </main>
 
   <script src="/dashboard/static/dashboard.js"></script>
+  <script src="/dashboard/static/terminal.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      let terminalPanel = null;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          if (this.dataset.tab === 'terminal') {
+            if (!terminalPanel) {
+              const container = document.getElementById('terminal-panel');
+              terminalPanel = new TerminalPanel(container);
+              terminalPanel.init();
+            }
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>
