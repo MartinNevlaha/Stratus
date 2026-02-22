@@ -103,6 +103,37 @@ class TestDashboardState:
         assert len(agents) >= 1
         assert "delivery-implementation-expert" in {a["label"] for a in agents}
 
+    def test_dashboard_state_shows_local_agent_when_set(
+        self, client: TestClient, tmp_path: Path, monkeypatch
+    ):
+        agents_dir = tmp_path / ".claude" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "mobile-dev-specialist.md").write_text(
+            "---\n"
+            "name: mobile-dev-specialist\n"
+            "description: Mobile development specialist\n"
+            "model: sonnet\n"
+            "---\n"
+            "You are a mobile development expert.\n"
+        )
+
+        client.post("/api/orchestration/start", json={"slug": "mobile-feat"})
+        client.post("/api/orchestration/approve-plan", json={"total_tasks": 2})
+        client.post(
+            "/api/orchestration/start-task",
+            json={"task_num": 1, "agent_id": "mobile-dev-specialist"},
+        )
+
+        resp = client.get("/api/dashboard/state")
+        data = resp.json()
+
+        assert data["orchestration"]["spec"]["active_agent_id"] == "mobile-dev-specialist"
+        agents = data["agents"]
+        assert len(agents) == 1
+        assert agents[0]["label"] == "mobile-dev-specialist"
+        assert agents[0]["model"] == "sonnet"
+        assert agents[0]["category"] == "implementation"
+
     def test_dashboard_state_memory_section(self, client: TestClient):
         resp = client.get("/api/dashboard/state")
         data = resp.json()

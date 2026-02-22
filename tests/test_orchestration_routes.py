@@ -197,6 +197,49 @@ class TestCompleteTask:
         assert resp.status_code == 422
 
 
+class TestSetActiveAgent:
+    def test_set_active_agent(self, client: TestClient):
+        _start_and_approve(client)
+        resp = client.post(
+            "/api/orchestration/set-active-agent",
+            json={"agent_id": "mobile-dev-specialist"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["active_agent_id"] == "mobile-dev-specialist"
+
+    def test_set_active_agent_clears(self, client: TestClient):
+        _start_and_approve(client)
+        client.post(
+            "/api/orchestration/set-active-agent",
+            json={"agent_id": "mobile-dev-specialist"},
+        )
+        resp = client.post(
+            "/api/orchestration/set-active-agent",
+            json={"agent_id": None},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["active_agent_id"] is None
+
+    def test_set_active_agent_no_spec(self, client: TestClient):
+        resp = client.post(
+            "/api/orchestration/set-active-agent",
+            json={"agent_id": "some-agent"},
+        )
+        assert resp.status_code == 409
+
+    def test_set_active_agent_reflected_in_state(self, client: TestClient):
+        _start_and_approve(client)
+        client.post(
+            "/api/orchestration/set-active-agent",
+            json={"agent_id": "backend-dev"},
+        )
+        resp = client.get("/api/orchestration/state")
+        assert resp.status_code == 200
+        assert resp.json()["active_agent_id"] == "backend-dev"
+
+
 class TestStartVerify:
     def test_start_verify(self, client: TestClient):
         _start_and_approve(client)

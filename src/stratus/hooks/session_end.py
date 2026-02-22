@@ -1,4 +1,4 @@
-"""SessionEnd hook: cleanup and save session summary."""
+"""SessionEnd hook: cleanup and persist session state."""
 
 from __future__ import annotations
 
@@ -9,35 +9,6 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-
-try:
-    import httpx
-except ImportError:
-    httpx = None  # type: ignore[assignment]
-
-
-def save_session_summary(session_dir: Path, session_id: str) -> None:
-    """POST session summary to memory API. Best-effort, 2s timeout."""
-    if httpx is None:
-        return
-    try:
-        from stratus.hooks._common import get_api_url
-
-        api_url = get_api_url()
-        httpx.post(
-            f"{api_url}/api/memory/save",
-            json={
-                "text": f"Session {session_id} ended",
-                "title": "Session end",
-                "type": "decision",
-                "actor": "hook",
-                "tags": ["session-end"],
-                "session_id": session_id,
-            },
-            timeout=2.0,
-        )
-    except Exception:
-        pass  # Best-effort
 
 
 def cleanup_worktree_stashes(git_root: Path | None) -> None:
@@ -65,7 +36,7 @@ def cleanup_worktree_stashes(git_root: Path | None) -> None:
                 cwd=git_root,
             )
     except Exception:
-        pass  # Best-effort
+        pass
 
 
 def write_exit_log(session_dir: Path, session_id: str) -> None:
@@ -88,7 +59,7 @@ def write_exit_log(session_dir: Path, session_id: str) -> None:
             os.unlink(tmp)
             raise
     except OSError:
-        pass  # Best-effort
+        pass
 
 
 def get_git_root() -> Path | None:
@@ -106,7 +77,6 @@ def main() -> None:
     session_id = resolve_session_id()
     session_dir = get_session_dir(session_id)
 
-    save_session_summary(session_dir, session_id)
     cleanup_worktree_stashes(get_git_root())
     write_exit_log(session_dir, session_id)
     sys.exit(0)

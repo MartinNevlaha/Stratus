@@ -112,40 +112,36 @@ def _build_orchestration(request: Request) -> dict:
     return result
 
 
-def _get_agents(orchestration: dict) -> list[dict]:
+def _get_agents(orchestration: dict, project_root: Path | None = None) -> list[dict]:
     """Derive active agent list from orchestration state."""
     if orchestration["mode"] == "spec" and orchestration["spec"]:
         phase = orchestration["spec"]["phase"]
         active_agent_id = orchestration["spec"].get("active_agent_id")
 
-        if active_agent_id:
-            from stratus.hooks._common import get_project_root
+        if active_agent_id and project_root:
+            try:
+                from stratus.registry.loader import AgentRegistry
 
-            root = get_project_root()
-            if root:
-                try:
-                    from stratus.registry.loader import AgentRegistry
-
-                    registry = AgentRegistry.load_merged(root)
-                    agent = registry.get(active_agent_id)
-                    if agent:
-                        category = "implementation"
-                        if phase == "plan":
-                            category = "planning"
-                        elif phase == "verify":
-                            category = "review"
-                        return [
-                            {
-                                "id": agent.name,
-                                "label": agent.name,
-                                "category": category,
-                                "model": agent.model,
-                                "active": True,
-                                "role": "worker",
-                            }
-                        ]
-                except Exception:
-                    pass
+                registry = AgentRegistry.load_merged(project_root)
+                agent = registry.get(active_agent_id)
+                if agent:
+                    category = "implementation"
+                    if phase == "plan":
+                        category = "planning"
+                    elif phase == "verify":
+                        category = "review"
+                    return [
+                        {
+                            "id": agent.name,
+                            "label": agent.name,
+                            "category": category,
+                            "model": agent.model,
+                            "active": True,
+                            "role": "worker",
+                        }
+                    ]
+            except Exception:
+                pass
 
         agents = SPEC_PHASE_AGENTS.get(phase, [])
         return [{**a, "active": True, "role": "worker"} for a in agents]
@@ -297,12 +293,19 @@ async def dashboard_registry(request: Request) -> JSONResponse:
 async def dashboard_state(request: Request) -> JSONResponse:
     """GET /api/dashboard/state — aggregated dashboard data."""
     orchestration = _build_orchestration(request)
+    project_root: Path | None = None
+    try:
+        coordinator = request.app.state.coordinator
+        if coordinator is not None:
+            project_root = coordinator._project_root
+    except Exception:
+        pass
     return JSONResponse(
         {
             "timestamp": datetime.now(UTC).isoformat(),
             "version": VERSION,
             "orchestration": orchestration,
-            "agents": _get_agents(orchestration),
+            "agents": _get_agents(orchestration, project_root),
             "learning": _build_learning(request),
             "memory": _build_memory(request),
         }

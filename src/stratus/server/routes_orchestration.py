@@ -296,6 +296,24 @@ async def complete_task(request: Request) -> JSONResponse:
     )
 
 
+async def set_active_agent(request: Request) -> JSONResponse:
+    """POST /api/orchestration/set-active-agent — update active agent without changing task."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=422)
+
+    agent_id = body.get("agent_id")
+
+    coordinator = request.app.state.coordinator
+    try:
+        state = coordinator.set_active_agent(agent_id)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+    return JSONResponse({"active_agent_id": state.active_agent_id})
+
+
 async def start_verify(request: Request) -> JSONResponse:
     """POST /api/orchestration/start-verify — transition to verify phase."""
     coordinator = request.app.state.coordinator
@@ -432,6 +450,7 @@ routes = [
     Route("/api/orchestration/approve-plan", approve_plan, methods=["POST"]),
     Route("/api/orchestration/start-task", start_task, methods=["POST"]),
     Route("/api/orchestration/complete-task", complete_task, methods=["POST"]),
+    Route("/api/orchestration/set-active-agent", set_active_agent, methods=["POST"]),
     Route("/api/orchestration/start-verify", start_verify, methods=["POST"]),
     Route("/api/orchestration/record-verdicts", record_verdicts, methods=["POST"]),
     Route("/api/orchestration/start-fix-loop", start_fix_loop, methods=["POST"]),

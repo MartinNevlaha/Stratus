@@ -280,6 +280,12 @@ class SpecCoordinator:
         state = self._require_state()
         return state.completed_tasks >= state.total_tasks
 
+    def set_active_agent(self, agent_id: str | None) -> SpecState:
+        state = self._require_state()
+        state = state.model_copy(update={"active_agent_id": agent_id})
+        self._save(state)
+        return state
+
     # -- Verify phase -------------------------------------------------------
 
     def start_verify(self) -> SpecState:
@@ -389,16 +395,27 @@ class SpecCoordinator:
     # -- Memory events (best-effort) ----------------------------------------
 
     def _send_memory_event(self, event_type: str, data: dict) -> None:
+        text = self._format_event_text(event_type, data)
         try:
             with httpx.Client(timeout=5) as client:
                 client.post(
                     f"{self._api_url}/api/memory/save",
                     json={
                         "type": event_type,
-                        "text": str(data),
+                        "text": text,
                         "actor": "system",
                         "refs": data,
                     },
                 )
         except Exception:
             pass
+
+    def _format_event_text(self, event_type: str, data: dict) -> str:
+        slug = data.get("slug", "unknown")
+        if event_type == "spec_started":
+            return f"Spec '{slug}' started (complexity: {data.get('complexity', 'unknown')})"
+        elif event_type == "spec_completed":
+            return f"Spec '{slug}' completed"
+        elif event_type == "plan_rejected":
+            return f"Plan for '{slug}' rejected: {data.get('reason', 'no reason')}"
+        return f"{event_type}: {slug}"

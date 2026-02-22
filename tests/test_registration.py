@@ -61,12 +61,12 @@ class TestBuildHooksConfig:
         pre_tool_use = hooks["PreToolUse"]
         assert isinstance(pre_tool_use, list)
         group = pre_tool_use[0]
-        assert group["matcher"] == "WebSearch|WebFetch"
+        assert group["matcher"] == "Task"
         hook_entries = group["hooks"]
         assert isinstance(hook_entries, list)
         assert len(hook_entries) == 1
         cmd = hook_entries[0]["command"]
-        assert cmd == "stratus hook tool_redirect"
+        assert cmd == "stratus hook agent_tracker"
         assert hook_entries[0]["type"] == "command"
 
     def test_stop_hook_correct(self) -> None:
